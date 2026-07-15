@@ -126,6 +126,14 @@ class EditorShellTest(unittest.TestCase):
             with self.subTest(template=template_path.name):
                 self.assertEqual(duplicates, [])
 
+    def test_templates_do_not_expose_numeric_telegram_chat_ids(self) -> None:
+        for template_path in TEMPLATES:
+            html = template_path.read_text(encoding="utf-8")
+            with self.subTest(template=template_path.name):
+                self.assertIsNone(
+                    re.search(r'id="tg-chat" placeholder="\d{6,}"', html)
+                )
+
     def test_tweet_canvas_scales_with_the_mobile_shell(self) -> None:
         html = (PROJECT_ROOT / "templates" / "tweet_editor.html").read_text(
             encoding="utf-8"
