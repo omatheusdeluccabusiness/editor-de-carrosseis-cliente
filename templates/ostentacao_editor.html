@@ -1,0 +1,2609 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Editor Ostentação — {{TITLE}}</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: #000; color: #f5f2ea; min-height: 100vh; font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif; }
+  body { padding: 40px 24px 80px; }
+
+  .top { text-align: center; max-width: 920px; margin: 0 auto 48px; }
+  .top h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 10px; }
+  .top .sub { color: rgba(245, 242, 234, 0.55); font-size: 13px; line-height: 1.6; }
+
+  .grid {
+    display: flex; flex-direction: column; gap: 56px; align-items: center;
+    max-width: 720px; margin: 0 auto;
+  }
+  .slide-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .slide-label { font-size: 13px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(245,242,234,0.85); }
+  .slide-mood { font-size: 11px; color: rgba(245,242,234,0.45); text-align: center; }
+
+  .stage {
+    /* Responsivo: usa toda largura disponível até 540px (50% de 1080) */
+    width: min(540px, calc(100vw - 64px));
+    aspect-ratio: 1080 / 1350;
+    height: auto;
+    overflow: hidden; border-radius: 8px;
+    box-shadow: 0 14px 50px rgba(0, 0, 0, 0.6);
+    position: relative;
+    background: #000;
+  }
+  .stage > .slide {
+    /* Escala dinâmica: stageWidth / 1080. Aplicada via CSS calc usando --stage-w */
+    transform: scale(var(--slide-scale, 0.5));
+    transform-origin: top left;
+    width: 1080px; height: 1350px;
+  }
+
+  /* ================= BASE SLIDE (DIRECTION C) ================= */
+  .slide { position: relative; overflow: hidden; font-family: 'Helvetica Neue', Arial, sans-serif; color: #F5F2EA; }
+  .slide .photo { position: absolute; inset: 0; overflow: hidden; }
+  .slide .photo-img {
+    position: absolute; left: 0; top: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+    transform-origin: center center;
+    transform: translate(0px, 0px) scale(1);
+    user-select: none; -webkit-user-drag: none;
+    display: none;
+  }
+  .slide .photo-img.has-src { display: block; }
+  .slide.active .photo-img.has-src { cursor: grab; }
+  .slide.active .photo-img.has-src.dragging { cursor: grabbing; }
+  /* Legibility gradient (escuro forte top + bottom, médio no meio).
+     opacity controlada por --fade (default 1) — slider FADE per-slide na toolbar. */
+  .slide .photo::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 2;
+    background:
+      linear-gradient(0deg, rgba(0,0,0,0.96) 0%, rgba(0,0,0,0.78) 18%, rgba(0,0,0,0.5) 40%, rgba(0,0,0,0.5) 60%, rgba(0,0,0,0.78) 82%, rgba(0,0,0,0.92) 100%),
+      radial-gradient(ellipse at 30% 25%, rgba(255, 200, 90, 0.18) 0%, transparent 60%);
+    opacity: var(--fade, 1);
+  }
+  .slide .photo::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 3;
+    background:
+      repeating-linear-gradient(0deg, rgba(255, 240, 200, 0.025) 0px, rgba(255, 240, 200, 0.025) 1px, transparent 1px, transparent 3px),
+      rgba(0, 0, 0, var(--fade-boost, 0));
+  }
+
+  .slide .stamp {
+    position: absolute; top: 48px; right: 48px;
+    background: #0B0B0B; padding: 14px 22px;
+    display: flex; flex-direction: column; gap: 4px; z-index: 5;
+  }
+  .slide .stamp-name { font-weight: 900; font-stretch: condensed; font-size: 28px; letter-spacing: -0.01em; color: #F5F2EA; text-transform: uppercase; line-height: 26px; }
+  .slide .stamp-tag { font-weight: 500; font-size: 9px; letter-spacing: 0.32em; color: #F4C430; text-transform: uppercase; }
+
+  .slide .tag-strip {
+    position: absolute; top: 56px; left: 56px;
+    background: #F4C430; color: #0B0B0B;
+    padding: 8px 14px;
+    font-weight: 700; font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase;
+    z-index: 5;
+  }
+
+  .slide .body-zone {
+    position: absolute; top: 180px; bottom: 180px; left: 56px; right: 56px;
+    z-index: 4;
+    display: flex; flex-direction: column; gap: var(--block-gap, 24px);
+    justify-content: center;
+    transform-origin: center center;
+    transform: translate(0px, 0px) scale(1);
+    transition: outline 0.15s ease;
+  }
+  body.shift-held .stage.active .body-zone {
+    outline: 2px dashed rgba(244, 196, 48, 0.7);
+    outline-offset: 6px;
+    cursor: move;
+  }
+
+  .slide .h-display {
+    font-weight: 900; font-stretch: condensed;
+    font-size: 108px; line-height: 96px; letter-spacing: -0.030em;
+    text-transform: uppercase;
+    color: #F5F2EA;
+  }
+  .slide .h-display.smaller { font-size: 88px; line-height: 80px; }
+  .slide .h-display.tiny { font-size: 72px; line-height: 66px; }
+
+  .slide .body {
+    font-weight: 400; font-size: 26px; line-height: 36px; letter-spacing: -0.030em;
+    color: #F5F2EA; max-width: 920px;
+  }
+  .slide .body.italic { font-style: italic; color: rgba(245,242,234,0.78); font-size: 24px; }
+  .slide .body.big { font-size: 30px; line-height: 40px; font-weight: 500; }
+  .slide .body.lede { font-size: 46px; line-height: 58px; font-weight: 500; color: rgba(245,242,234,0.92); }
+  .slide .body strong { font-weight: 700; }
+
+  .hot {
+    background: #E1342B; color: #F5F2EA;
+    padding: 0 14px;
+    display: inline-block;
+    transform: rotate(-2deg);
+    box-shadow: 6px 6px 0 rgba(0,0,0,0.35);
+  }
+  .hot.yellow { background: #F4C430; color: #0B0B0B; }
+
+  .slide .footer-bar {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    background: #F4C430;
+    padding: 24px 56px;
+    display: flex; justify-content: space-between; align-items: center;
+    z-index: 5;
+  }
+  .slide .footer-bar.dark { background: #0B0B0B; color: #F4C430; }
+  .slide .footer-tag { font-weight: 900; font-stretch: condensed; font-size: 28px; letter-spacing: -0.01em; color: #0B0B0B; text-transform: uppercase; }
+  .slide .footer-bar.dark .footer-tag { color: #F4C430; }
+  .slide .footer-note { font-weight: 500; font-size: 11px; letter-spacing: 0.32em; color: #0B0B0B; text-transform: uppercase; }
+  .slide .footer-bar.dark .footer-note { color: #F4C430; }
+  .slide .footer-bar.centered { justify-content: center; }
+
+  /* Modificador da capa: texto centralizado, menor, mais embaixo */
+  .slide.capa .body-zone { top: 440px; }
+  .slide.capa .h-display { font-size: 88px; line-height: 80px; text-align: center; }
+
+  /* Estado ativo (slide selecionado pra paste) e flash */
+  .stage { cursor: pointer; transition: outline 0.15s ease; }
+  .stage.active { outline: 4px solid #F4C430; outline-offset: 6px; }
+  .stage.drag-over { outline: 4px dashed #1D9BF0; outline-offset: 6px; }
+  .slide.flash { animation: flashAnim 0.6s ease; }
+  @keyframes flashAnim {
+    0%, 100% { filter: none; }
+    35% { filter: brightness(1.35); }
+  }
+
+  /* Texto editável inline */
+  [contenteditable="true"] { outline: none; cursor: text; }
+  [contenteditable="true"]:focus {
+    background: rgba(244, 196, 48, 0.08);
+    box-shadow: 0 0 0 3px rgba(244, 196, 48, 0.45);
+    border-radius: 4px;
+  }
+
+  /* ============================================
+     EDITOR UI — Block toolbar (FIXA topo) + bubble menu
+     ============================================ */
+  body { padding-top: 80px; }
+
+  #block-toolbar {
+    position: fixed; z-index: 1000;
+    top: 14px; left: 50%; transform: translateX(-50%);
+    background: #1a1c1f;
+    border: 1px solid #383b40;
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    padding: 6px;
+    display: flex; gap: 2px; align-items: center;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    max-width: calc(100vw - 32px);
+  }
+  #block-toolbar .tb-empty-state {
+    color: rgba(245, 242, 234, 0.5);
+    font-size: 12px;
+    padding: 8px 14px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+  }
+  #block-toolbar.empty .tb-controls { display: none; }
+  #block-toolbar:not(.empty) .tb-empty-state { display: none; }
+  #block-toolbar .tb-controls {
+    display: flex; gap: 6px; align-items: center;
+    flex-wrap: wrap;
+    row-gap: 6px;
+    justify-content: center;
+  }
+  #block-toolbar .tb-section {
+    display: flex; align-items: center; gap: 1px;
+    flex-shrink: 0;
+  }
+  #block-toolbar .tb-slide-chip {
+    font-size: 10px; font-weight: 800;
+    color: #0B0B0B;
+    background: #F4C430;
+    letter-spacing: 0.14em;
+    padding: 6px 10px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    line-height: 1;
+  }
+  #block-toolbar .sub-sep {
+    width: 6px; height: 1px;
+  }
+
+  #bubble-menu {
+    position: fixed; z-index: 1100;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.12s ease;
+    background: #1a1c1f;
+    border: 1px solid #383b40;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+    padding: 4px;
+    display: flex; gap: 2px; align-items: center;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  #bubble-menu.show { opacity: 1; pointer-events: auto; }
+
+  #block-toolbar button, #bubble-menu button {
+    background: transparent; border: none;
+    color: #f5f2ea;
+    padding: 8px 10px;
+    font-size: 11px; font-weight: 700;
+    border-radius: 5px; cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    line-height: 1;
+    min-width: 30px;
+    transition: background 0.08s ease;
+  }
+  #block-toolbar button:hover, #bubble-menu button:hover {
+    background: #2a2d31;
+  }
+  #block-toolbar button.active {
+    background: #F4C430; color: #0B0B0B;
+  }
+  #block-toolbar button.danger { color: #ff6b6b; }
+  #block-toolbar button.danger:hover { background: rgba(255, 107, 107, 0.15); }
+  #block-toolbar .sep {
+    width: 1px; height: 22px; background: #383b40;
+    flex-shrink: 0;
+  }
+  /* Sliders compactos (LH, LS, FADE) */
+  #block-toolbar .tb-slider-group {
+    display: flex; align-items: center; gap: 5px;
+    padding: 0 3px;
+    flex-shrink: 0;
+  }
+  #block-toolbar .tb-slider-label {
+    font-size: 8px; font-weight: 800;
+    color: rgba(245, 242, 234, 0.5);
+    letter-spacing: 0.16em; text-transform: uppercase;
+    line-height: 1;
+  }
+  #block-toolbar input[type="range"] {
+    -webkit-appearance: none; appearance: none;
+    width: 72px; height: 3px;
+    background: rgba(245, 242, 234, 0.18);
+    border-radius: 2px;
+    cursor: pointer; outline: none;
+    margin: 0;
+  }
+  #block-toolbar input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: #F4C430; cursor: grab; border: none;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  }
+  #block-toolbar input[type="range"]::-moz-range-thumb {
+    width: 12px; height: 12px; border-radius: 50%;
+    background: #F4C430; cursor: grab; border: none;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  }
+  #block-toolbar input[type="range"]:active::-webkit-slider-thumb { cursor: grabbing; }
+  #block-toolbar input[type="range"]:active::-moz-range-thumb { cursor: grabbing; }
+  #block-toolbar .tb-slider-val {
+    font-size: 9px; font-weight: 700;
+    color: rgba(245, 242, 234, 0.7);
+    min-width: 36px; text-align: left;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  #block-toolbar .tb-slider-val.is-override {
+    color: #F4C430;
+  }
+  #bubble-menu .hot-btn {
+    background: #E1342B; color: #fff;
+  }
+  #bubble-menu .hot-btn:hover { background: #c42e26; }
+  #bubble-menu .hot-yellow-btn {
+    background: #F4C430; color: #0B0B0B;
+  }
+  #bubble-menu .hot-yellow-btn:hover { background: #d8ad28; }
+
+  /* Block selecionado (persistente até clicar fora) */
+  .body-zone [data-block-id] {
+    border-radius: 4px;
+    transition: outline 0.1s ease;
+  }
+  .body-zone [data-block-id]:hover:not(.selected):not(:focus) {
+    outline: 2px solid rgba(244, 196, 48, 0.3);
+    outline-offset: 4px;
+  }
+  .body-zone [data-block-id].selected {
+    outline: 3px solid #F4C430;
+    outline-offset: 6px;
+  }
+
+  /* Alinhamento de texto */
+  [data-block-id].align-left { text-align: left; }
+  [data-block-id].align-center { text-align: center; }
+  [data-block-id].align-right { text-align: right; }
+
+  /* Snap guides (linha amarela quando bloco snaps no centro) */
+  .slide::before, .slide::after {
+    content: ''; position: absolute;
+    background: #F4C430;
+    pointer-events: none;
+    z-index: 50;
+    opacity: 0;
+    transition: opacity 0.08s ease;
+  }
+  .slide::before {
+    top: 0; bottom: 0; left: 50%;
+    width: 4px; margin-left: -2px;
+    box-shadow: 0 0 24px rgba(244, 196, 48, 0.7);
+  }
+  .slide::after {
+    left: 0; right: 0; top: 50%;
+    height: 4px; margin-top: -2px;
+    box-shadow: 0 0 24px rgba(244, 196, 48, 0.7);
+  }
+  .slide.snap-x::before { opacity: 0.85; }
+  .slide.snap-y::after { opacity: 0.85; }
+
+  /* Toolbar topo */
+  .toolbar {
+    display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+  .toolbar button.primary { background: #0F1419; color: #fff; border-color: #0F1419; }
+  .toolbar button.primary:hover { background: #2A2D2F; }
+  .toolbar button.tg { background: #229ED9; color: #fff; border-color: #229ED9; }
+  .toolbar button.tg:hover { background: #1B86B5; }
+  .toolbar button.tg-config { background: transparent; color: #229ED9; border-color: #229ED9; }
+  .toolbar button.tg-config:hover { background: rgba(34, 158, 217, 0.1); }
+  .send-status {
+    text-align: center; margin: 14px auto; max-width: 720px;
+    color: rgba(245, 242, 234, 0.7); font-size: 12px;
+    padding: 8px 14px; border-radius: 6px;
+    transition: background 0.2s ease;
+  }
+  .send-status.success { background: rgba(74, 162, 87, 0.18); color: #6fbf7e; }
+  .send-status.error { background: rgba(255, 107, 107, 0.18); color: #ff6b6b; }
+
+  /* Modal Telegram */
+  .modal {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.65); z-index: 2000;
+    justify-content: center; align-items: center;
+  }
+  .modal.visible { display: flex; }
+  .modal-card {
+    background: #1f2124; color: #f5f2ea;
+    border: 1px solid #383b40;
+    border-radius: 10px;
+    padding: 28px;
+    width: 460px; max-width: calc(100vw - 32px);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  .modal-card h2 { font-size: 18px; margin-bottom: 16px; font-weight: 700; }
+  .modal-card label {
+    display: block; font-size: 11px;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    color: rgba(245, 242, 234, 0.6);
+    margin-top: 14px; margin-bottom: 6px;
+  }
+  .modal-card input {
+    width: 100%;
+    background: #16181b; border: 1px solid #383b40;
+    color: #f5f2ea;
+    padding: 10px 14px; border-radius: 6px;
+    font-family: -apple-system, monospace; font-size: 13px;
+  }
+  .modal-card input:focus { outline: none; border-color: #229ED9; }
+  .modal-card .help {
+    margin-top: 16px; padding: 12px;
+    background: #16181b; border-radius: 6px;
+    font-size: 11px; color: rgba(245, 242, 234, 0.6); line-height: 1.6;
+  }
+  .modal-card .help b { color: #f5f2ea; }
+  .modal-card .help code {
+    background: #2a2d31; color: #f5f2ea;
+    padding: 1px 6px; border-radius: 3px;
+    font-family: monospace;
+  }
+  .modal-card .actions {
+    display: flex; gap: 8px; justify-content: flex-end;
+    margin-top: 20px;
+  }
+  .modal-card .actions button {
+    background: #2a2d31; color: #f5f2ea;
+    border: 1px solid #383b40;
+    padding: 8px 16px; border-radius: 6px;
+    font-family: inherit; font-size: 12px; cursor: pointer;
+  }
+  .modal-card .actions button:hover { background: #383b40; }
+  .modal-card .actions button.primary {
+    background: #229ED9; color: #fff; border-color: #229ED9;
+  }
+  .modal-card .actions button.primary:hover { background: #1B86B5; }
+  .toolbar button {
+    background: #1f2124; color: #f5f2ea;
+    border: 1px solid #383b40;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-family: inherit; font-size: 12px; cursor: pointer;
+  }
+  .toolbar button:hover { background: #2a2d31; }
+  .toolbar button.danger { color: #ff6b6b; border-color: #5a3030; }
+  .toolbar .hint {
+    color: rgba(245, 242, 234, 0.55);
+    font-size: 12px;
+    align-self: center;
+    margin-left: 12px;
+  }
+
+  /* ================= TEMA OSTENTAÇÃO (preto + dourado minimalista) ================= */
+  /* Background único — sobrescreve qualquer .bg-XX */
+  .slide[class*="bg-"] { background: #000000; }
+
+  /* Marca decorativa: removida permanentemente do tema Ostentação (Matheus 2026-05-06) */
+  .slide .brand-mark { display: none; }
+
+  /* Reduz fortemente o gradient de legibilidade (não tem foto em cima) */
+  .slide .photo::before { display: none; }
+  .slide .photo::after { display: none; }
+
+  /* Footer minimal: fundo escuro, texto cinza claro */
+  .slide .footer-bar {
+    background: transparent;
+    padding: 30px 90px 50px 90px;
+    color: rgba(245, 240, 232, 0.4);
+  }
+  .slide .footer-bar.dark {
+    background: transparent;
+    color: rgba(245, 240, 232, 0.4);
+  }
+  .slide .footer-tag {
+    color: rgba(245, 240, 232, 0.4);
+    font-weight: 500;
+    font-size: 22px;
+    font-stretch: normal;
+    letter-spacing: 0.04em;
+    text-transform: none;
+  }
+  .slide .footer-bar.dark .footer-tag { color: rgba(245, 240, 232, 0.4); }
+
+  /* H-display: branco creme. Quando classe .accent (header dos slides intermediários), dourado. */
+  .slide .h-display { color: #F5F0E8; }
+  .slide .h-display.accent { color: #F0C638; }
+
+  /* Capa: ajusta margens e estilo do subtítulo (body lede italic dourado) */
+  .slide.capa .body-zone { top: 380px; bottom: 280px; }
+  .slide.capa .body.lede {
+    font-family: "New York", "Times New Roman", Georgia, serif;
+    font-style: italic;
+    color: #F0C638;
+    font-size: 38px;
+    line-height: 1.3;
+    text-align: center;
+    font-weight: 400;
+  }
+  .slide.capa .h-display {
+    text-align: center;
+    color: #F5F0E8;
+  }
+
+  /* Hot pills: estilo minimal (sublinhado dourado em vez de pill rotacionado) */
+  .slide .hot, .slide .hot.yellow {
+    background: transparent;
+    color: #F0C638;
+    padding: 0;
+    transform: none;
+    box-shadow: none;
+    text-decoration: none;
+    border-bottom: 4px solid #F0C638;
+  }
+
+  /* Stamp e tag-strip: escondidos no tema Ostentação (não usamos) */
+  .slide .stamp, .slide .tag-strip { display: none; }
+
+  /* Headers de slides intermediários (h-display tiny) em dourado */
+  .slide .h-display.tiny { color: #F0C638; text-transform: none; }
+
+  /* CTA highlight: slide com classe .cta-final tem h-display.smaller dourado */
+  .slide.cta-final .h-display.smaller { color: #F0C638; }
+
+  /* Inline photo 16:9 — opcional, vai como primeiro filho do body-zone */
+  .slide .inline-photo {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #0B0B0B;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .slide .inline-photo img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+    user-select: none; -webkit-user-drag: none;
+  }
+
+
+
+</style>
+</head>
+<body>
+
+<div class="top">
+  <h1>{{TITLE}}</h1>
+  <div class="sub">Trilha Ostentação · {{N_SLIDES}} slides · 1080×1350px · arquitetura Direção C</div>
+</div>
+
+<div class="toolbar">
+  <button id="btn-publish-ig" class="primary" style="background:#F4C430;color:#0B0B0B;border-color:#F4C430;font-weight:700;">📸 Publicar @omatheusdelucca</button>
+  <button id="btn-download-all" class="primary">Baixar {{N_SLIDES}} PNGs</button>
+  <button id="btn-send-tg" class="tg">Enviar pro Telegram</button>
+  <button id="btn-config-tg" class="tg-config">Configurar Telegram</button>
+  <label id="btn-add-inline" style="cursor:pointer;background:#1f2124;color:#f5f2ea;border:1px solid #383b40;padding:8px 14px;border-radius:6px;font-size:12px;">+ Imagem 16:9 (slide ativo)
+    <input type="file" id="inline-upload" accept="image/*" style="display:none;">
+  </label>
+  <button id="btn-remove-inline">Remover imagem 16:9</button>
+  <button id="btn-reset" class="danger">Limpar imagens</button>
+  <button id="btn-reset-text" class="danger">Restaurar texto original</button>
+</div>
+
+<div class="caption-area" style="max-width:720px;margin:0 auto 32px;background:#1f2124;border:1px solid #383b40;border-radius:8px;padding:16px;">
+  <label style="display:block;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:rgba(245,242,234,0.6);margin-bottom:8px;">Caption Instagram</label>
+  <textarea id="ig-caption" rows="6" style="width:100%;background:#0f0f0f;color:#f5f2ea;border:1px solid #383b40;border-radius:6px;padding:12px;font-family:inherit;font-size:13px;line-height:1.6;resize:vertical;outline:none;">{{CAPTION}}</textarea>
+</div>
+
+<div id="send-status" class="send-status" style="display:none;"></div>
+
+<!-- Modal Telegram -->
+<div id="tg-modal" class="modal">
+  <div class="modal-card">
+    <h2>Configurar Telegram</h2>
+    <label for="tg-token">Bot Token</label>
+    <input type="password" id="tg-token" placeholder="123456789:ABC-..." autocomplete="off">
+    <label for="tg-chat">Chat ID</label>
+    <input type="text" id="tg-chat" placeholder="664443615">
+    <div class="help">
+      Use a config global em <code>~/.matheusao-telegram.json</code> ou cole aqui pra essa sessão.
+      Pra obter: cria bot com <b>@BotFather</b>, manda mensagem pro bot, pega chat ID em <code>https://api.telegram.org/bot&lt;TOKEN&gt;/getUpdates</code>.
+    </div>
+    <div class="actions">
+      <button class="btn" id="tg-test">Testar conexão</button>
+      <button class="btn" id="tg-cancel">Cancelar</button>
+      <button class="btn primary" id="tg-save">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="grid">
+
+{{SLIDES_HTML}}
+
+</div>
+
+<!-- Block toolbar — fixa no topo, controla o bloco selecionado -->
+<div id="block-toolbar" class="empty">
+  <span class="tb-empty-state">Clique num bloco de texto pra editar</span>
+  <div class="tb-controls">
+    <span class="tb-slide-chip" id="tb-slide-tag">slide ?</span>
+
+    <span class="sep"></span>
+
+    <div class="tb-section" title="Tamanho do texto">
+      <button data-variant-key="h-display:default" title="Display Grande (Cmd+1)">H</button>
+      <button data-variant-key="h-display:smaller" title="Display Médio (Cmd+2)">M</button>
+      <button data-variant-key="h-display:tiny"    title="Display Pequeno (Cmd+3)">P</button>
+      <span class="sub-sep"></span>
+      <button data-variant-key="body:default" title="Body (Cmd+4)">B</button>
+      <button data-variant-key="body:big"     title="Body Grande (Cmd+5)">B+</button>
+      <button data-variant-key="body:lede"    title="Lede (Cmd+6)">L</button>
+      <button data-variant-key="body:italic"  title="Itálico (Cmd+7)">I</button>
+    </div>
+
+    <span class="sep"></span>
+
+    <div class="tb-section" title="Alinhamento do bloco">
+      <button data-align="left"   title="Alinhar à esquerda">⬅</button>
+      <button data-align="center" title="Centralizar">●</button>
+      <button data-align="right"  title="Alinhar à direita">➡</button>
+    </div>
+
+    <span class="sep"></span>
+
+    <div class="tb-section">
+      <div class="tb-slider-group" title="Altura entre linhas do bloco (line-height)">
+        <span class="tb-slider-label">LH</span>
+        <input type="range" id="tb-line-height" min="30" max="200" step="1" />
+        <span class="tb-slider-val" id="tb-line-height-val">96px</span>
+      </div>
+      <div class="tb-slider-group" title="Distância entre caracteres do bloco (letter-spacing)">
+        <span class="tb-slider-label">LS</span>
+        <input type="range" id="tb-letter-spacing" min="-0.10" max="0.30" step="0.005" />
+        <span class="tb-slider-val" id="tb-letter-spacing-val">0.000em</span>
+      </div>
+      <button data-action="spacing-reset" title="Restaurar espaçamento do variant">↺</button>
+    </div>
+
+    <span class="sep"></span>
+
+    <div class="tb-section">
+      <div class="tb-slider-group" title="Intensidade do fade do slide (filtro escuro sobre a foto)">
+        <span class="tb-slider-label">FADE</span>
+        <input type="range" id="tb-fade" min="0" max="2" step="0.05" />
+        <span class="tb-slider-val" id="tb-fade-val">100%</span>
+      </div>
+      <button data-action="fade-reset" title="Restaurar fade 100%">↺</button>
+      <span class="sub-sep"></span>
+      <div class="tb-slider-group" title="Espaço vertical entre blocos do slide">
+        <span class="tb-slider-label">GAP</span>
+        <input type="range" id="tb-gap" min="0" max="80" step="1" />
+        <span class="tb-slider-val" id="tb-gap-val">24px</span>
+      </div>
+      <button data-action="gap-reset" title="Restaurar gap padrão (24px)">↺</button>
+    </div>
+
+    <span class="sep"></span>
+
+    <div class="tb-section" title="Ações no bloco">
+      <button data-action="up"     title="Mover pra cima (Cmd+Shift+↑)">↑</button>
+      <button data-action="down"   title="Mover pra baixo (Cmd+Shift+↓)">↓</button>
+      <span class="sub-sep"></span>
+      <button data-action="add"    title="Adicionar bloco abaixo">+</button>
+      <button data-action="delete" class="danger" title="Apagar bloco">✕</button>
+    </div>
+  </div>
+</div>
+
+<!-- Bubble menu (aparece ao selecionar texto pra marcar como hot) -->
+<div id="bubble-menu">
+  <button class="hot-btn" data-action="hot-red" title="Marcar como Hot vermelho (Cmd+H)">H</button>
+  <button class="hot-yellow-btn" data-action="hot-yellow" title="Marcar como Hot amarelo (Cmd+Shift+H)">Hy</button>
+  <button data-action="hot-clear" title="Limpar destaque">✕</button>
+</div>
+
+<script>
+  // ==== STORAGE KEYS ====
+  const DOC_KEY = '{{DOC_KEY}}';
+  const LEGACY_TEXT_KEY = '{{DOC_KEY}}-text-legacy';
+  const LEGACY_BZ_KEY = '{{DOC_KEY}}-bz-legacy';
+  const LEGACY_IMG_KEY = '{{DOC_KEY}}-img-legacy';
+  const LEGACY_INLINE_KEY = '{{DOC_KEY}}-inline-legacy';
+
+  // ==== STATE ====
+  let doc = null;
+  let activeStageIndex = null;
+  let selectedBlockId = null;
+  let selectedSlideIdx = null;
+
+  // ==== CONFIG ====
+  const VARIANT_LIST = [
+    { kind: 'h-display', variant: 'default' },
+    { kind: 'h-display', variant: 'smaller' },
+    { kind: 'h-display', variant: 'tiny' },
+    { kind: 'body',      variant: 'default' },
+    { kind: 'body',      variant: 'big' },
+    { kind: 'body',      variant: 'lede' },
+    { kind: 'body',      variant: 'italic' },
+  ];
+
+  // ==== HELPERS ====
+  function uid() { return 'b_' + Math.random().toString(36).slice(2, 8); }
+  function safeGet(key) { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { return null; } }
+  function safeSet(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} }
+  function saveDoc() { safeSet(DOC_KEY, doc); }
+
+  function blockToClassName(block) {
+    let cls = block.kind;
+    if (block.variant && block.variant !== 'default') cls += ' ' + block.variant;
+    if (block.align && block.align !== 'left') cls += ' align-' + block.align;
+    return cls;
+  }
+
+  function inferKindVariant(el) {
+    const classes = Array.from(el.classList);
+    let kind = classes.includes('h-display') ? 'h-display' : 'body';
+    let variant = 'default';
+    ['smaller', 'tiny', 'big', 'lede', 'italic'].forEach(v => {
+      if (classes.includes(v)) variant = v;
+    });
+    return { kind, variant };
+  }
+
+  function getStageIndex(el) {
+    const wrap = el.closest('.slide-wrap');
+    if (!wrap) return -1;
+    return Array.from(document.querySelectorAll('.slide-wrap')).indexOf(wrap);
+  }
+
+  function getBlockContext(blockEl) {
+    if (!blockEl) return null;
+    const sIdx = getStageIndex(blockEl);
+    if (sIdx < 0) return null;
+    const slideData = doc.slides[sIdx];
+    const blockIdx = slideData.blocks.findIndex(b => b.id === blockEl.dataset.blockId);
+    if (blockIdx < 0) return null;
+    return { sIdx, blockIdx, slideData, block: slideData.blocks[blockIdx] };
+  }
+
+  function getSelectedBlockEl() {
+    if (!selectedBlockId) return null;
+    return document.querySelector(`[data-block-id="${selectedBlockId}"]`);
+  }
+
+  // ==== SPACING HELPERS (line-height + letter-spacing por bloco) ====
+  function getVariantBaseSpacing(kind, variant) {
+    const key = kind + ':' + variant;
+    const base = (typeof VARIANT_STYLES !== 'undefined') ? VARIANT_STYLES[key] : null;
+    if (base) return { lineHeight: base.lineHeight, letterSpacing: base.letterSpacing || 0 };
+    return { lineHeight: 36, letterSpacing: 0 };
+  }
+  function getEffectiveSpacing(block) {
+    const base = getVariantBaseSpacing(block.kind, block.variant);
+    return {
+      lineHeight: (block.lineHeight != null) ? block.lineHeight : base.lineHeight,
+      letterSpacing: (block.letterSpacing != null) ? block.letterSpacing : base.letterSpacing,
+      lhOverride: block.lineHeight != null,
+      lsOverride: block.letterSpacing != null,
+    };
+  }
+  function applySpacingToNode(node, block) {
+    if (block.lineHeight != null) {
+      node.style.lineHeight = block.lineHeight + 'px';
+    } else {
+      node.style.lineHeight = '';
+    }
+    if (block.letterSpacing != null) {
+      node.style.letterSpacing = block.letterSpacing + 'em';
+    } else {
+      node.style.letterSpacing = '';
+    }
+  }
+
+  // ==== FADE PER-SLIDE (intensidade do filtro de legibilidade) ====
+  // slide.fade é multiplicador 0..2 (default 1). Afeta o `.slide .photo::before`
+  // via CSS var --fade. Canvas multiplica os alphas dos rgba no drawLegibilityFilter.
+  function getEffectiveFade(slide) {
+    return (slide && slide.fade != null) ? slide.fade : 1;
+  }
+  function applyFadeToSlide(slideEl, fade) {
+    if (fade == null || fade === 1) {
+      slideEl.style.removeProperty('--fade');
+      slideEl.style.removeProperty('--fade-boost');
+      return;
+    }
+    // Canal 1: opacity do ::before (gradient principal). CSS clampa em 1.0.
+    slideEl.style.setProperty('--fade', String(Math.min(1, fade)));
+    // Canal 2: camada preta extra no ::after, proporcional ao excesso acima de 1.0.
+    if (fade > 1) {
+      const boost = Math.min(1, fade - 1);
+      slideEl.style.setProperty('--fade-boost', String(boost));
+    } else {
+      slideEl.style.removeProperty('--fade-boost');
+    }
+  }
+
+  // ==== GAP PER-SLIDE (espaço vertical entre blocos do body-zone) ====
+  function getEffectiveGap(slide) {
+    return (slide && slide.gap != null) ? slide.gap : 24;
+  }
+  function applyGapToSlide(slideEl, gap) {
+    const bz = slideEl.querySelector('.body-zone');
+    if (!bz) return;
+    if (gap == null || gap === 24) {
+      bz.style.removeProperty('--block-gap');
+    } else {
+      bz.style.setProperty('--block-gap', gap + 'px');
+    }
+  }
+
+  // ==== DOC: BUILD/LOAD/SAVE ====
+  function buildDocFromDOM() {
+    const legacyText = safeGet(LEGACY_TEXT_KEY) || {};
+    const legacyBz = safeGet(LEGACY_BZ_KEY) || {};
+    const legacyImg = safeGet(LEGACY_IMG_KEY) || {};
+    const legacyInline = safeGet(LEGACY_INLINE_KEY) || {};
+
+    const slides = [];
+    document.querySelectorAll('.slide-wrap').forEach((wrap, sIdx) => {
+      const slideEl = wrap.querySelector('.slide');
+      const bgClass = Array.from(slideEl.classList).find(c => c.startsWith('bg-')) || 'bg-01';
+      const isCapa = slideEl.classList.contains('capa');
+      const footerEl = slideEl.querySelector('.footer-bar');
+      const footerVariant = (footerEl && footerEl.classList.contains('dark')) ? 'dark' : 'default';
+
+      const blocks = [];
+      slideEl.querySelectorAll('.body-zone .h-display, .body-zone .body').forEach((el, eIdx) => {
+        const html = (legacyText[sIdx] && legacyText[sIdx][eIdx] !== undefined)
+          ? legacyText[sIdx][eIdx]
+          : el.innerHTML.trim();
+        const { kind, variant } = inferKindVariant(el);
+        // Engine: textos de corpo (body) sempre centralizados.
+        // h-display: center na capa, left no resto.
+        let align = (kind === 'body') ? 'center' : (isCapa ? 'center' : 'left');
+        const cls = Array.from(el.classList);
+        if (cls.includes('align-center')) align = 'center';
+        else if (cls.includes('align-right')) align = 'right';
+        else if (cls.includes('align-left')) align = 'left';
+        const block = { id: uid(), kind, variant, html, align };
+        // Defaults de diagramação declarados no HTML (override do variant)
+        const lhAttr = el.getAttribute('data-line-height');
+        const lsAttr = el.getAttribute('data-letter-spacing');
+        if (lhAttr) block.lineHeight = parseFloat(lhAttr);
+        if (lsAttr) block.letterSpacing = parseFloat(lsAttr);
+        blocks.push(block);
+      });
+
+      const slideData = {
+        id: 's' + (sIdx + 1),
+        bgClass,
+        isCapa,
+        footerVariant,
+        blocks,
+        bzTransform: legacyBz[sIdx] || { tx: 0, ty: 0, scale: 1 },
+        image: legacyImg[sIdx] || null,
+        inlineImage: legacyInline[sIdx] || null,
+      };
+      const fadeAttr = slideEl.getAttribute('data-fade');
+      if (fadeAttr) slideData.fade = parseFloat(fadeAttr);
+      const gapAttr = slideEl.getAttribute('data-gap');
+      if (gapAttr) slideData.gap = parseFloat(gapAttr);
+      slides.push(slideData);
+    });
+
+    return { version: 3, slides };
+  }
+
+  function migrateDoc(d) {
+    if (!d.version || d.version < 4) {
+      // v4: hot apenas na capa (slide 1). Slides 2-8 limpos.
+      d.slides.forEach((slide, i) => {
+        if (i === 0) return;
+        slide.blocks.forEach(b => {
+          b.html = b.html.replace(/<span class="hot(?: yellow)?">([\s\S]*?)<\/span>/g, '$1');
+        });
+      });
+      d.version = 4;
+    }
+    if (d.version < 5) {
+      // v5: inlineImage opcional por slide (16:9 inline no body-zone).
+      d.slides.forEach(s => { if (s.inlineImage === undefined) s.inlineImage = null; });
+      d.version = 5;
+    }
+    if (d.version < 6) {
+      // v6: blocks body sempre alinhamento central (regra de engine).
+      d.slides.forEach(s => {
+        s.blocks.forEach(b => { if (b.kind === 'body') b.align = 'center'; });
+      });
+      d.version = 6;
+    }
+    return d;
+  }
+
+  function loadOrInitDoc() {
+    const saved = safeGet(DOC_KEY);
+    const N_SLIDES = document.querySelectorAll('.slide-wrap').length;
+    if (saved && saved.slides && saved.slides.length === N_SLIDES) {
+      // Garante campo align em blocos antigos
+      saved.slides.forEach(s => {
+        s.blocks.forEach(b => { if (!b.align) b.align = s.isCapa ? 'center' : 'left'; });
+      });
+      doc = migrateDoc(saved);
+      saveDoc();
+      return;
+    }
+    doc = buildDocFromDOM();
+    doc.version = 6;
+    saveDoc();
+  }
+
+  // ==== TRANSFORM HELPERS ====
+  function applyTransformToImg(img, tx, ty, scale) {
+    img.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+    img.dataset.tx = tx; img.dataset.ty = ty; img.dataset.scale = scale;
+  }
+  function applyTransformToBz(bz, tx, ty, scale) {
+    bz.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+    bz.dataset.tx = tx; bz.dataset.ty = ty; bz.dataset.scale = scale;
+  }
+  function getImgState(img) {
+    return {
+      tx: parseFloat(img.dataset.tx || 0),
+      ty: parseFloat(img.dataset.ty || 0),
+      scale: parseFloat(img.dataset.scale || 1)
+    };
+  }
+  function getBzState(bz) {
+    return {
+      tx: parseFloat(bz.dataset.tx || 0),
+      ty: parseFloat(bz.dataset.ty || 0),
+      scale: parseFloat(bz.dataset.scale || 1)
+    };
+  }
+
+  // ==== IMAGE HELPERS ====
+  function getPhotoImg(slideEl) {
+    const photo = slideEl.querySelector('.photo');
+    if (!photo) return null;
+    let img = photo.querySelector('.photo-img');
+    if (!img) {
+      img = document.createElement('img');
+      img.className = 'photo-img';
+      photo.insertBefore(img, photo.firstChild);
+    }
+    return img;
+  }
+  function applyImageToSlide(slideEl, payload) {
+    const img = getPhotoImg(slideEl);
+    if (!img) return;
+    if (!payload || !payload.dataURL) return;
+    img.src = payload.dataURL;
+    img.classList.add('has-src');
+    applyTransformToImg(img, payload.tx || 0, payload.ty || 0, payload.scale || 1);
+  }
+  function clearImageFromSlide(slideEl) {
+    const img = slideEl.querySelector('.photo-img');
+    if (img) {
+      img.classList.remove('has-src');
+      img.removeAttribute('src');
+      applyTransformToImg(img, 0, 0, 1);
+    }
+  }
+  function flash(slide) {
+    slide.classList.add('flash');
+    setTimeout(() => slide.classList.remove('flash'), 600);
+  }
+
+  // ==== INLINE PHOTO (16:9 dentro do body-zone) ====
+  function applyInlinePhotoToSlide(slideEl, inlineImage) {
+    const bz = slideEl.querySelector('.body-zone');
+    if (!bz) return;
+    let node = bz.querySelector('.inline-photo');
+    if (!inlineImage || !inlineImage.dataURL) {
+      if (node) node.remove();
+      return;
+    }
+    if (!node) {
+      node = document.createElement('div');
+      node.className = 'inline-photo';
+      node.contentEditable = 'false';
+      const im = document.createElement('img');
+      node.appendChild(im);
+    }
+    const im = node.querySelector('img');
+    if (im.src !== inlineImage.dataURL) im.src = inlineImage.dataURL;
+    if (bz.firstChild !== node) bz.insertBefore(node, bz.firstChild);
+  }
+
+  // ==== RENDER ====
+  function buildBlockNode(block) {
+    const node = document.createElement('div');
+    node.dataset.blockId = block.id;
+    node.className = blockToClassName(block);
+    node.contentEditable = 'true';
+    node.spellcheck = false;
+    node.innerHTML = block.html;
+    applySpacingToNode(node, block);
+    attachBlockHandlers(node);
+    return node;
+  }
+
+  function attachBlockHandlers(node) {
+    node.addEventListener('input', onBlockInput);
+    node.addEventListener('mousedown', onBlockMousedown);
+    node.addEventListener('focus', onBlockFocus);
+  }
+
+  function onBlockMousedown(e) {
+    // Click em bloco seleciona ele (mas não impede edit nativo do contenteditable)
+    e.stopPropagation();
+    const node = e.currentTarget;
+    selectBlock(node);
+  }
+
+  function onBlockFocus(e) {
+    // Foco também seleciona
+    selectBlock(e.currentTarget);
+  }
+
+  function renderSlide(sIdx, opts = {}) {
+    const slideData = doc.slides[sIdx];
+    const stage = document.querySelectorAll('.stage')[sIdx];
+    const slideEl = stage.querySelector('.slide');
+    const bodyZone = slideEl.querySelector('.body-zone');
+
+    // Save focus
+    const activeId = (document.activeElement && document.activeElement.dataset)
+      ? document.activeElement.dataset.blockId : null;
+    let savedRange = null;
+    if (activeId) {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        try { savedRange = sel.getRangeAt(0).cloneRange(); } catch (e) {}
+      }
+    }
+
+    // Existing nodes by id
+    const existingNodes = new Map();
+    bodyZone.querySelectorAll('[data-block-id]').forEach(n => {
+      existingNodes.set(n.dataset.blockId, n);
+    });
+
+    // Render in order
+    const newOrder = [];
+    slideData.blocks.forEach(block => {
+      let node = existingNodes.get(block.id);
+      if (!node) {
+        node = buildBlockNode(block);
+      } else {
+        existingNodes.delete(block.id);
+        const newClass = blockToClassName(block);
+        if (node.className.replace(/\s+selected\b/g, '').trim() !== newClass.trim()) {
+          const wasSelected = node.classList.contains('selected');
+          node.className = newClass;
+          if (wasSelected) node.classList.add('selected');
+        }
+        if (node.innerHTML !== block.html && document.activeElement !== node) {
+          node.innerHTML = block.html;
+        }
+        applySpacingToNode(node, block);
+      }
+      newOrder.push(node);
+    });
+
+    existingNodes.forEach(n => n.remove());
+    newOrder.forEach(n => bodyZone.appendChild(n));
+
+    // Re-aplica selected (caso tenha sido perdido na re-render)
+    if (selectedBlockId) {
+      const sel = bodyZone.querySelector(`[data-block-id="${selectedBlockId}"]`);
+      if (sel) sel.classList.add('selected');
+    }
+
+    // Restore focus
+    if (activeId && !opts.skipFocusRestore) {
+      const restored = bodyZone.querySelector(`[data-block-id="${activeId}"]`);
+      if (restored) {
+        restored.focus();
+        if (savedRange) {
+          try {
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(savedRange);
+          } catch (e) {}
+        }
+      }
+    }
+
+    applyTransformToBz(bodyZone, slideData.bzTransform.tx || 0, slideData.bzTransform.ty || 0, slideData.bzTransform.scale || 1);
+
+    if (slideData.image && slideData.image.dataURL) {
+      applyImageToSlide(slideEl, slideData.image);
+    } else {
+      clearImageFromSlide(slideEl);
+    }
+
+    applyInlinePhotoToSlide(slideEl, slideData.inlineImage);
+
+    const footerEl = slideEl.querySelector('.footer-bar');
+    if (footerEl) {
+      footerEl.classList.toggle('dark', slideData.footerVariant === 'dark');
+    }
+    applyFadeToSlide(slideEl, getEffectiveFade(slideData));
+    applyGapToSlide(slideEl, getEffectiveGap(slideData));
+  }
+
+  function renderAll() {
+    doc.slides.forEach((_, i) => renderSlide(i));
+  }
+
+  // ==== BLOCK INPUT (text edit) ====
+  function onBlockInput(e) {
+    const blockEl = e.currentTarget;
+    const ctx = getBlockContext(blockEl);
+    if (!ctx) return;
+    ctx.block.html = blockEl.innerHTML;
+    saveDoc();
+  }
+
+  // ==== SELECTION MODEL ====
+  const blockToolbar = document.getElementById('block-toolbar');
+
+  function selectBlock(blockEl) {
+    // Limpa seleção anterior
+    document.querySelectorAll('[data-block-id].selected').forEach(b => b.classList.remove('selected'));
+    if (!blockEl) {
+      selectedBlockId = null;
+      selectedSlideIdx = null;
+      blockToolbar.classList.add('empty');
+      return;
+    }
+    blockEl.classList.add('selected');
+    selectedBlockId = blockEl.dataset.blockId;
+    selectedSlideIdx = getStageIndex(blockEl);
+    blockToolbar.classList.remove('empty');
+    updateToolbarState();
+  }
+
+  function deselectBlock() { selectBlock(null); }
+
+  function updateToolbarState() {
+    const blockEl = getSelectedBlockEl();
+    if (!blockEl) {
+      blockToolbar.classList.add('empty');
+      return;
+    }
+    const ctx = getBlockContext(blockEl);
+    if (!ctx) return;
+    // Slide tag
+    document.getElementById('tb-slide-tag').textContent = 'slide ' + String(ctx.sIdx + 1).padStart(2, '0');
+    // Variant active
+    const activeKey = ctx.block.kind + ':' + ctx.block.variant;
+    blockToolbar.querySelectorAll('[data-variant-key]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.variantKey === activeKey);
+    });
+    // Align active
+    const align = ctx.block.align || 'left';
+    blockToolbar.querySelectorAll('[data-align]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.align === align);
+    });
+    // Spacing sliders (line-height + letter-spacing)
+    const eff = getEffectiveSpacing(ctx.block);
+    const lhInput = document.getElementById('tb-line-height');
+    const lsInput = document.getElementById('tb-letter-spacing');
+    const lhVal   = document.getElementById('tb-line-height-val');
+    const lsVal   = document.getElementById('tb-letter-spacing-val');
+    if (lhInput) {
+      lhInput.value = eff.lineHeight;
+      lhVal.textContent = Math.round(eff.lineHeight) + 'px';
+      lhVal.classList.toggle('is-override', eff.lhOverride);
+    }
+    if (lsInput) {
+      lsInput.value = eff.letterSpacing;
+      const sign = eff.letterSpacing >= 0 ? '+' : '';
+      lsVal.textContent = sign + Number(eff.letterSpacing).toFixed(3) + 'em';
+      lsVal.classList.toggle('is-override', eff.lsOverride);
+    }
+    // Fade slider (per-slide)
+    const fadeInput = document.getElementById('tb-fade');
+    const fadeVal   = document.getElementById('tb-fade-val');
+    if (fadeInput) {
+      const fade = getEffectiveFade(ctx.slideData);
+      fadeInput.value = fade;
+      fadeVal.textContent = Math.round(fade * 100) + '%';
+      fadeVal.classList.toggle('is-override', fade !== 1);
+    }
+    // Gap slider (per-slide)
+    const gapInput = document.getElementById('tb-gap');
+    const gapVal   = document.getElementById('tb-gap-val');
+    if (gapInput) {
+      const gap = getEffectiveGap(ctx.slideData);
+      gapInput.value = gap;
+      gapVal.textContent = Math.round(gap) + 'px';
+      gapVal.classList.toggle('is-override', gap !== 24);
+    }
+  }
+
+  // ==== TOOLBAR BUTTON HANDLERS ====
+  blockToolbar.querySelectorAll('[data-variant-key]').forEach(btn => {
+    btn.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      const blockEl = getSelectedBlockEl();
+      if (!blockEl) return;
+      const [kind, variant] = btn.dataset.variantKey.split(':');
+      setBlockVariant(blockEl, kind, variant);
+    });
+  });
+
+  blockToolbar.querySelectorAll('[data-align]').forEach(btn => {
+    btn.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      const blockEl = getSelectedBlockEl();
+      if (!blockEl) return;
+      setBlockAlign(blockEl, btn.dataset.align);
+    });
+  });
+
+  // ==== SPACING SLIDERS ====
+  (function wireSpacingSliders() {
+    const lhInput = document.getElementById('tb-line-height');
+    const lsInput = document.getElementById('tb-letter-spacing');
+    const lhVal   = document.getElementById('tb-line-height-val');
+    const lsVal   = document.getElementById('tb-letter-spacing-val');
+    if (!lhInput || !lsInput) return;
+
+    function stopPropEvts(el) {
+      ['mousedown','click','keydown'].forEach(ev => el.addEventListener(ev, e => e.stopPropagation()));
+    }
+    stopPropEvts(lhInput);
+    stopPropEvts(lsInput);
+
+    lhInput.addEventListener('input', (e) => {
+      const blockEl = getSelectedBlockEl();
+      if (!blockEl) return;
+      const ctx = getBlockContext(blockEl);
+      if (!ctx) return;
+      const v = parseFloat(e.target.value);
+      ctx.block.lineHeight = v;
+      lhVal.textContent = Math.round(v) + 'px';
+      lhVal.classList.add('is-override');
+      applySpacingToNode(blockEl, ctx.block);
+      saveDoc();
+    });
+
+    lsInput.addEventListener('input', (e) => {
+      const blockEl = getSelectedBlockEl();
+      if (!blockEl) return;
+      const ctx = getBlockContext(blockEl);
+      if (!ctx) return;
+      const v = parseFloat(e.target.value);
+      ctx.block.letterSpacing = v;
+      const sign = v >= 0 ? '+' : '';
+      lsVal.textContent = sign + v.toFixed(3) + 'em';
+      lsVal.classList.add('is-override');
+      applySpacingToNode(blockEl, ctx.block);
+      saveDoc();
+    });
+
+    const resetBtn = blockToolbar.querySelector('[data-action="spacing-reset"]');
+    if (resetBtn) {
+      resetBtn.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        const blockEl = getSelectedBlockEl();
+        if (!blockEl) return;
+        const ctx = getBlockContext(blockEl);
+        if (!ctx) return;
+        delete ctx.block.lineHeight;
+        delete ctx.block.letterSpacing;
+        applySpacingToNode(blockEl, ctx.block);
+        saveDoc();
+        updateToolbarState();
+      });
+    }
+
+    // Fade slider (per-slide)
+    const fadeInput = document.getElementById('tb-fade');
+    const fadeVal   = document.getElementById('tb-fade-val');
+    if (fadeInput) {
+      stopPropEvts(fadeInput);
+      fadeInput.addEventListener('input', (e) => {
+        const blockEl = getSelectedBlockEl();
+        if (!blockEl) return;
+        const ctx = getBlockContext(blockEl);
+        if (!ctx) return;
+        const v = parseFloat(e.target.value);
+        ctx.slideData.fade = v;
+        fadeVal.textContent = Math.round(v * 100) + '%';
+        fadeVal.classList.toggle('is-override', v !== 1);
+        const slideEl = document.querySelectorAll('.stage')[ctx.sIdx].querySelector('.slide');
+        applyFadeToSlide(slideEl, v);
+        saveDoc();
+      });
+      const fadeReset = blockToolbar.querySelector('[data-action="fade-reset"]');
+      if (fadeReset) {
+        fadeReset.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          const blockEl = getSelectedBlockEl();
+          if (!blockEl) return;
+          const ctx = getBlockContext(blockEl);
+          if (!ctx) return;
+          delete ctx.slideData.fade;
+          const slideEl = document.querySelectorAll('.stage')[ctx.sIdx].querySelector('.slide');
+          applyFadeToSlide(slideEl, 1);
+          saveDoc();
+          updateToolbarState();
+        });
+      }
+    }
+
+    // Gap slider (per-slide)
+    const gapInput = document.getElementById('tb-gap');
+    const gapVal   = document.getElementById('tb-gap-val');
+    if (gapInput) {
+      stopPropEvts(gapInput);
+      gapInput.addEventListener('input', (e) => {
+        const blockEl = getSelectedBlockEl();
+        if (!blockEl) return;
+        const ctx = getBlockContext(blockEl);
+        if (!ctx) return;
+        const v = parseInt(e.target.value, 10);
+        ctx.slideData.gap = v;
+        gapVal.textContent = v + 'px';
+        gapVal.classList.toggle('is-override', v !== 24);
+        const slideEl = document.querySelectorAll('.stage')[ctx.sIdx].querySelector('.slide');
+        applyGapToSlide(slideEl, v);
+        saveDoc();
+      });
+      const gapReset = blockToolbar.querySelector('[data-action="gap-reset"]');
+      if (gapReset) {
+        gapReset.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          const blockEl = getSelectedBlockEl();
+          if (!blockEl) return;
+          const ctx = getBlockContext(blockEl);
+          if (!ctx) return;
+          delete ctx.slideData.gap;
+          const slideEl = document.querySelectorAll('.stage')[ctx.sIdx].querySelector('.slide');
+          applyGapToSlide(slideEl, 24);
+          saveDoc();
+          updateToolbarState();
+        });
+      }
+    }
+  })();
+
+  blockToolbar.querySelector('[data-action="up"]').addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    const b = getSelectedBlockEl(); if (b) moveBlock(b, -1);
+  });
+  blockToolbar.querySelector('[data-action="down"]').addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    const b = getSelectedBlockEl(); if (b) moveBlock(b, +1);
+  });
+  blockToolbar.querySelector('[data-action="add"]').addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    const b = getSelectedBlockEl(); if (b) insertBlockAfter(b);
+  });
+  blockToolbar.querySelector('[data-action="delete"]').addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    const b = getSelectedBlockEl(); if (b) deleteBlock(b);
+  });
+
+  // ==== MUTATORS ====
+  function setBlockVariant(blockEl, kind, variant) {
+    const ctx = getBlockContext(blockEl);
+    if (!ctx) return;
+    ctx.block.kind = kind;
+    ctx.block.variant = variant;
+    saveDoc();
+    renderSlide(ctx.sIdx);
+    // Re-seleciona o mesmo bloco (re-render pode ter recriado o elemento)
+    const newEl = document.querySelector(`[data-block-id="${ctx.block.id}"]`);
+    if (newEl) selectBlock(newEl);
+  }
+
+  function setBlockAlign(blockEl, align) {
+    const ctx = getBlockContext(blockEl);
+    if (!ctx) return;
+    ctx.block.align = align;
+    saveDoc();
+    renderSlide(ctx.sIdx);
+    const newEl = document.querySelector(`[data-block-id="${ctx.block.id}"]`);
+    if (newEl) selectBlock(newEl);
+  }
+
+  function moveBlock(blockEl, direction) {
+    const ctx = getBlockContext(blockEl);
+    if (!ctx) return;
+    const newIdx = ctx.blockIdx + direction;
+    if (newIdx < 0 || newIdx >= ctx.slideData.blocks.length) return;
+    const [block] = ctx.slideData.blocks.splice(ctx.blockIdx, 1);
+    ctx.slideData.blocks.splice(newIdx, 0, block);
+    saveDoc();
+    renderSlide(ctx.sIdx);
+    const newEl = document.querySelector(`[data-block-id="${block.id}"]`);
+    if (newEl) selectBlock(newEl);
+  }
+
+  function insertBlockAfter(blockEl) {
+    const ctx = getBlockContext(blockEl);
+    if (!ctx) return;
+    const newBlock = {
+      id: uid(),
+      kind: ctx.block.kind,
+      variant: ctx.block.variant,
+      align: ctx.block.align || 'left',
+      html: 'Novo bloco',
+    };
+    ctx.slideData.blocks.splice(ctx.blockIdx + 1, 0, newBlock);
+    saveDoc();
+    renderSlide(ctx.sIdx);
+    // Auto-seleciona o novo bloco e foca pra editar
+    const newEl = document.querySelector(`[data-block-id="${newBlock.id}"]`);
+    if (newEl) {
+      selectBlock(newEl);
+      setTimeout(() => {
+        newEl.focus();
+        const range = document.createRange();
+        range.selectNodeContents(newEl);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }, 30);
+    }
+  }
+
+  function deleteBlock(blockEl) {
+    const ctx = getBlockContext(blockEl);
+    if (!ctx) return;
+    if (ctx.slideData.blocks.length <= 1) {
+      alert('Mantém pelo menos 1 bloco no slide.');
+      return;
+    }
+    const plain = ctx.block.html.replace(/<[^>]*>/g, '').trim();
+    if (plain.length > 30 && !confirm('Apagar este bloco?\n\n"' + plain.slice(0, 100) + (plain.length > 100 ? '…' : '') + '"')) return;
+    const removedIdx = ctx.blockIdx;
+    ctx.slideData.blocks.splice(removedIdx, 1);
+    saveDoc();
+    renderSlide(ctx.sIdx);
+    // Seleciona o bloco vizinho (acima de preferência)
+    const remaining = ctx.slideData.blocks;
+    const targetIdx = Math.max(0, Math.min(removedIdx, remaining.length - 1));
+    const targetBlock = remaining[targetIdx];
+    if (targetBlock) {
+      const newEl = document.querySelector(`[data-block-id="${targetBlock.id}"]`);
+      if (newEl) selectBlock(newEl);
+    } else {
+      deselectBlock();
+    }
+  }
+
+  // ==== BUBBLE MENU (text selection → mark hot) ====
+  const bubbleMenu = document.getElementById('bubble-menu');
+  let lastSelection = null;
+  let bubbleHideTimeout = null;
+
+  function updateBubbleMenu() {
+    if (bubbleHideTimeout) clearTimeout(bubbleHideTimeout);
+    bubbleHideTimeout = setTimeout(() => {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+        bubbleMenu.classList.remove('show');
+        lastSelection = null;
+        return;
+      }
+      const range = sel.getRangeAt(0);
+      let ancestor = range.commonAncestorContainer;
+      if (ancestor.nodeType !== 1) ancestor = ancestor.parentNode;
+      const blockEl = ancestor.closest && ancestor.closest('[data-block-id]');
+      if (!blockEl) {
+        bubbleMenu.classList.remove('show');
+        lastSelection = null;
+        return;
+      }
+      lastSelection = range.cloneRange();
+      bubbleMenu.classList.add('show');
+      const bmRect = bubbleMenu.getBoundingClientRect();
+      const selRect = range.getBoundingClientRect();
+      // position: fixed → coords são VIEWPORT-relative, não somar scrollY
+      let top = selRect.top - bmRect.height - 10;
+      let left = selRect.left + (selRect.width - bmRect.width) / 2;
+      // Se ficar atrás da toolbar fixa do topo (~70px), joga abaixo da seleção
+      if (top < 76) top = selRect.bottom + 10;
+      if (left < 8) left = 8;
+      if (left + bmRect.width > window.innerWidth - 8) left = window.innerWidth - bmRect.width - 8;
+      bubbleMenu.style.top = top + 'px';
+      bubbleMenu.style.left = left + 'px';
+    }, 30);
+  }
+
+  document.addEventListener('selectionchange', updateBubbleMenu);
+
+  function wrapSelectionInHot(yellow) {
+    if (!lastSelection) {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+      lastSelection = sel.getRangeAt(0).cloneRange();
+    }
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(lastSelection);
+    const text = lastSelection.toString();
+    if (!text) return;
+    const cls = yellow ? 'hot yellow' : 'hot';
+    const safeText = text.replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+    document.execCommand('insertHTML', false, `<span class="${cls}">${safeText}</span>`);
+    const blockEl = document.activeElement;
+    if (blockEl && blockEl.dataset && blockEl.dataset.blockId) {
+      onBlockInput({ currentTarget: blockEl });
+    }
+    bubbleMenu.classList.remove('show');
+    lastSelection = null;
+  }
+
+  function unwrapHot() {
+    if (!lastSelection) return;
+    let node = lastSelection.commonAncestorContainer;
+    if (node.nodeType !== 1) node = node.parentNode;
+    const hot = node.closest && node.closest('.hot');
+    if (!hot) return;
+    const blockEl = hot.closest('[data-block-id]');
+    hot.outerHTML = hot.textContent;
+    if (blockEl) onBlockInput({ currentTarget: blockEl });
+    bubbleMenu.classList.remove('show');
+    lastSelection = null;
+  }
+
+  bubbleMenu.querySelector('[data-action="hot-red"]').addEventListener('mousedown', (e) => {
+    e.preventDefault(); wrapSelectionInHot(false);
+  });
+  bubbleMenu.querySelector('[data-action="hot-yellow"]').addEventListener('mousedown', (e) => {
+    e.preventDefault(); wrapSelectionInHot(true);
+  });
+  bubbleMenu.querySelector('[data-action="hot-clear"]').addEventListener('mousedown', (e) => {
+    e.preventDefault(); unwrapHot();
+  });
+
+  // ==== KEYBOARD SHORTCUTS ====
+  document.addEventListener('keydown', (e) => {
+    // Esc deseleciona
+    if (e.key === 'Escape') {
+      if (selectedBlockId) {
+        e.preventDefault();
+        deselectBlock();
+        return;
+      }
+    }
+    if (!(e.metaKey || e.ctrlKey)) return;
+    const blockEl = getSelectedBlockEl();
+    if (blockEl && /^[1-7]$/.test(e.key)) {
+      e.preventDefault();
+      const idx = parseInt(e.key) - 1;
+      const v = VARIANT_LIST[idx];
+      if (v) setBlockVariant(blockEl, v.kind, v.variant);
+      return;
+    }
+    if (e.key === 'h' || e.key === 'H') {
+      e.preventDefault();
+      wrapSelectionInHot(e.shiftKey);
+      return;
+    }
+    if (blockEl && e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      e.preventDefault();
+      moveBlock(blockEl, e.key === 'ArrowUp' ? -1 : +1);
+      return;
+    }
+  });
+
+  // ==== IMAGE / BODY-ZONE ====
+  function commitImage(stageIndex, dataURL) {
+    const slideData = doc.slides[stageIndex];
+    slideData.image = { dataURL, tx: 0, ty: 0, scale: 1 };
+    saveDoc();
+    const stage = document.querySelectorAll('.stage')[stageIndex];
+    const slideEl = stage.querySelector('.slide');
+    applyImageToSlide(slideEl, slideData.image);
+    flash(slideEl);
+  }
+  function commitInlineImage(stageIndex, dataURL) {
+    const slideData = doc.slides[stageIndex];
+    slideData.inlineImage = { dataURL };
+    saveDoc();
+    const stage = document.querySelectorAll('.stage')[stageIndex];
+    const slideEl = stage.querySelector('.slide');
+    applyInlinePhotoToSlide(slideEl, slideData.inlineImage);
+    flash(slideEl);
+  }
+  function clearInlineImage(stageIndex) {
+    const slideData = doc.slides[stageIndex];
+    slideData.inlineImage = null;
+    saveDoc();
+    const stage = document.querySelectorAll('.stage')[stageIndex];
+    const slideEl = stage.querySelector('.slide');
+    applyInlinePhotoToSlide(slideEl, null);
+  }
+  // Drag/drop/paste roteia pra inline (não-capa) ou fullbleed (capa).
+  function commitImageRouted(stageIndex, dataURL) {
+    const slideData = doc.slides[stageIndex];
+    if (slideData.isCapa) commitImage(stageIndex, dataURL);
+    else commitInlineImage(stageIndex, dataURL);
+  }
+  function persistImageTransform(stageIndex, img) {
+    const state = getImgState(img);
+    if (!doc.slides[stageIndex].image) return;
+    doc.slides[stageIndex].image.tx = state.tx;
+    doc.slides[stageIndex].image.ty = state.ty;
+    doc.slides[stageIndex].image.scale = state.scale;
+    saveDoc();
+  }
+  function persistBzTransform(stageIndex, bz) {
+    const state = getBzState(bz);
+    doc.slides[stageIndex].bzTransform = state;
+    saveDoc();
+  }
+
+  // ==== BOOT ====
+  // Escala dinâmica do slide pra caber em viewports estreitas (preview lateral, mobile)
+  function updateSlideScale() {
+    document.querySelectorAll('.stage').forEach(stage => {
+      const w = stage.clientWidth;
+      const scale = w / 1080;
+      stage.style.setProperty('--slide-scale', String(scale));
+    });
+  }
+  if (typeof window !== 'undefined') {
+    window.addEventListener('resize', updateSlideScale);
+    if (document.readyState === 'complete') updateSlideScale();
+    else window.addEventListener('load', updateSlideScale);
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const STAGE_SCALE = 0.5;
+    const SCALE_INV = 1 / STAGE_SCALE;
+
+    loadOrInitDoc();
+    updateSlideScale();
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Shift') document.body.classList.add('shift-held');
+    });
+    window.addEventListener('keyup', (e) => {
+      if (e.key === 'Shift') document.body.classList.remove('shift-held');
+    });
+
+    const stages = document.querySelectorAll('.stage');
+
+    // Render inicial: limpa DOM dos blocos e reconstrói do doc
+    stages.forEach((stage, i) => {
+      const slideEl = stage.querySelector('.slide');
+      const bodyZone = slideEl.querySelector('.body-zone');
+      while (bodyZone.firstChild) bodyZone.removeChild(bodyZone.firstChild);
+      renderSlide(i);
+    });
+
+    // Wire-up de cada stage
+    stages.forEach((stage, i) => {
+      const slideEl = stage.querySelector('.slide');
+      const bodyZone = slideEl.querySelector('.body-zone');
+      const photoImg = getPhotoImg(slideEl);
+
+      stage.addEventListener('click', (e) => {
+        // Não deseleciona se o click foi num bloco (handled separately)
+        if (e.target.closest && e.target.closest('[data-block-id]')) return;
+        // Click no slide (mas fora do bloco) ativa pra paste-image
+        stages.forEach(s => {
+          s.classList.remove('active');
+          s.querySelector('.slide').classList.remove('active');
+        });
+        stage.classList.add('active');
+        slideEl.classList.add('active');
+        activeStageIndex = i;
+      });
+
+      stage.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        stage.classList.add('drag-over');
+      });
+      stage.addEventListener('dragleave', () => stage.classList.remove('drag-over'));
+      stage.addEventListener('drop', (e) => {
+        e.preventDefault();
+        stage.classList.remove('drag-over');
+        const file = e.dataTransfer.files[0];
+        if (file && file.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onload = () => commitImageRouted(i, reader.result);
+          reader.readAsDataURL(file);
+        }
+      });
+
+      let imgDragging = false, imgDragStart = null;
+      let bzDragging = false, bzDragStart = null;
+
+      photoImg.addEventListener('mousedown', (e) => {
+        if (e.shiftKey) return;
+        if (!photoImg.classList.contains('has-src')) return;
+        if (!slideEl.classList.contains('active')) return;
+        e.preventDefault();
+        imgDragging = true;
+        photoImg.classList.add('dragging');
+        const state = getImgState(photoImg);
+        imgDragStart = { x: e.clientX, y: e.clientY, tx: state.tx, ty: state.ty, scale: state.scale };
+      });
+
+      slideEl.addEventListener('mousedown', (e) => {
+        if (!e.shiftKey) return;
+        if (!slideEl.classList.contains('active')) return;
+        if (e.target.isContentEditable) return;
+        e.preventDefault();
+        e.stopPropagation();
+        bzDragging = true;
+        const state = getBzState(bodyZone);
+        bzDragStart = { x: e.clientX, y: e.clientY, tx: state.tx, ty: state.ty, scale: state.scale };
+      }, true);
+
+      window.addEventListener('mousemove', (e) => {
+        if (imgDragging && imgDragStart) {
+          const dx = (e.clientX - imgDragStart.x) * SCALE_INV;
+          const dy = (e.clientY - imgDragStart.y) * SCALE_INV;
+          applyTransformToImg(photoImg, imgDragStart.tx + dx, imgDragStart.ty + dy, imgDragStart.scale);
+        }
+        if (bzDragging && bzDragStart) {
+          const dx = (e.clientX - bzDragStart.x) * SCALE_INV;
+          const dy = (e.clientY - bzDragStart.y) * SCALE_INV;
+          // Snap-to-center: puxa quando bloco de texto chega perto da linha central
+          // (eixo natural tx=0 ou ty=0, que é a posição "padrão" do body-zone)
+          const SNAP_THRESHOLD = 36; // em coords do slide (1080x1440); ~18px no viewport scaled
+          let newTx = bzDragStart.tx + dx;
+          let newTy = bzDragStart.ty + dy;
+          let snapX = false, snapY = false;
+          if (Math.abs(newTx) < SNAP_THRESHOLD) { newTx = 0; snapX = true; }
+          if (Math.abs(newTy) < SNAP_THRESHOLD) { newTy = 0; snapY = true; }
+          applyTransformToBz(bodyZone, newTx, newTy, bzDragStart.scale);
+          slideEl.classList.toggle('snap-x', snapX);
+          slideEl.classList.toggle('snap-y', snapY);
+        }
+      });
+      window.addEventListener('mouseup', () => {
+        if (imgDragging) {
+          imgDragging = false;
+          photoImg.classList.remove('dragging');
+          persistImageTransform(i, photoImg);
+        }
+        if (bzDragging) {
+          bzDragging = false;
+          slideEl.classList.remove('snap-x');
+          slideEl.classList.remove('snap-y');
+          persistBzTransform(i, bodyZone);
+        }
+      });
+
+      slideEl.addEventListener('wheel', (e) => {
+        if (!slideEl.classList.contains('active')) return;
+        if (e.shiftKey) {
+          e.preventDefault();
+          const state = getBzState(bodyZone);
+          const delta = -e.deltaY * 0.0015;
+          const newScale = Math.max(0.4, Math.min(2.5, state.scale + delta));
+          applyTransformToBz(bodyZone, state.tx, state.ty, newScale);
+          persistBzTransform(i, bodyZone);
+        } else if (photoImg.classList.contains('has-src')) {
+          e.preventDefault();
+          const state = getImgState(photoImg);
+          const delta = -e.deltaY * 0.0015;
+          const newScale = Math.max(1.0, Math.min(5.0, state.scale + delta));
+          applyTransformToImg(photoImg, state.tx, state.ty, newScale);
+          persistImageTransform(i, photoImg);
+        }
+      }, { passive: false });
+    });
+
+    // Click fora de qualquer bloco/toolbar/bubble deseleciona
+    document.body.addEventListener('mousedown', (e) => {
+      if (e.target.closest('[data-block-id]')) return;
+      if (e.target.closest('#block-toolbar')) return;
+      if (e.target.closest('#bubble-menu')) return;
+      // Click em outras áreas (toolbar superior, body, etc.) deseleciona
+      deselectBlock();
+    });
+
+    // Botões da toolbar superior
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      if (!confirm('Apagar todas as imagens coladas (fullbleed e 16:9)?')) return;
+      doc.slides.forEach(s => { s.image = null; s.inlineImage = null; });
+      saveDoc();
+      renderAll();
+    });
+
+    const inlineUpload = document.getElementById('inline-upload');
+    if (inlineUpload) {
+      inlineUpload.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        e.target.value = '';
+        if (!file) return;
+        if (activeStageIndex === null) {
+          alert('Clica primeiro no slide onde a imagem deve entrar.');
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => commitInlineImage(activeStageIndex, reader.result);
+        reader.readAsDataURL(file);
+      });
+    }
+    const btnRemoveInline = document.getElementById('btn-remove-inline');
+    if (btnRemoveInline) {
+      btnRemoveInline.addEventListener('click', () => {
+        if (activeStageIndex === null) {
+          alert('Clica primeiro no slide cuja imagem deve ser removida.');
+          return;
+        }
+        clearInlineImage(activeStageIndex);
+      });
+    }
+    document.getElementById('btn-reset-text').addEventListener('click', () => {
+      if (!confirm('Restaurar texto original do roteiro + posições/escalas? (apaga edições e reordens)')) return;
+      localStorage.removeItem(DOC_KEY);
+      localStorage.removeItem(LEGACY_TEXT_KEY);
+      localStorage.removeItem(LEGACY_BZ_KEY);
+      window.location.reload();
+    });
+  });
+
+  document.addEventListener('paste', (e) => {
+    if (activeStageIndex === null) return;
+    const items = (e.clipboardData || window.clipboardData).items;
+    for (const item of items) {
+      if (item.type && item.type.startsWith('image/')) {
+        e.preventDefault();
+        const blob = item.getAsFile();
+        const reader = new FileReader();
+        reader.onload = () => commitImageRouted(activeStageIndex, reader.result);
+        reader.readAsDataURL(blob);
+        break;
+      }
+    }
+  });
+
+  // ==== TELEGRAM CONFIG (compartilhado com modelo tweet) ====
+  const TG_CONFIG_KEY = 'matheusao-telegram-config';
+  let tgBootstrapPromise = null;
+
+  function getTgConfig() {
+    try { return JSON.parse(localStorage.getItem(TG_CONFIG_KEY) || '{}'); }
+    catch (e) { return {}; }
+  }
+  function saveTgConfig(cfg) {
+    try { localStorage.setItem(TG_CONFIG_KEY, JSON.stringify(cfg)); } catch (e) {}
+  }
+  function bootstrapTgConfig() {
+    if (tgBootstrapPromise) return tgBootstrapPromise;
+    tgBootstrapPromise = (async () => {
+      const existing = getTgConfig();
+      if (existing.botToken && existing.chatId) return;
+      try {
+        const r = await fetch('telegram-config.json', { cache: 'no-store' });
+        if (!r.ok) return;
+        const cfg = await r.json();
+        if (cfg.botToken && cfg.chatId) {
+          saveTgConfig({ botToken: cfg.botToken, chatId: cfg.chatId });
+        }
+      } catch (e) { /* arquivo ausente — ignora silenciosamente */ }
+    })();
+    return tgBootstrapPromise;
+  }
+
+  function setSendStatus(msg, kind) {
+    const el = document.getElementById('send-status');
+    if (!el) return;
+    el.textContent = msg;
+    el.className = 'send-status' + (kind ? ' ' + kind : '');
+    el.style.display = msg ? 'block' : 'none';
+    if (kind === 'success') {
+      setTimeout(() => { if (el.textContent === msg) el.style.display = 'none'; }, 4000);
+    }
+  }
+
+  // ==== CANVAS RENDERER (1080×1350, igual em qualidade ao modelo tweet) ====
+  const SLIDE_W = 1080;
+  const SLIDE_H = 1350;
+  const FOOTER_H = 84;
+
+  // Match com CSS: usa o face exato "Helvetica Neue Condensed Black" pra h-display
+  const HCN = '"Helvetica Neue Condensed Black", "HelveticaNeue-CondensedBlack", "Helvetica Neue", Helvetica, Arial, sans-serif';
+  const HN  = '"Helvetica Neue", Helvetica, Arial, sans-serif';
+  const VARIANT_STYLES = {
+    'h-display:default':  { fontSpec: '900 108px ' + HCN, size: 108, lineHeight: 96, color: '#F5F0E8', uppercase: true, letterSpacing: -0.030 },
+    'h-display:smaller':  { fontSpec: '900 88px '  + HCN, size: 88,  lineHeight: 80, color: '#F5F0E8', uppercase: true, letterSpacing: -0.030 },
+    'h-display:tiny':     { fontSpec: '900 72px '  + HCN, size: 72,  lineHeight: 66, color: '#F0C638', uppercase: false, letterSpacing: -0.030 },
+    'body:default':       { fontSpec: '400 26px '  + HN,  size: 26,  lineHeight: 36, color: '#F5F0E8',                  letterSpacing: -0.030 },
+    'body:big':           { fontSpec: '500 30px '  + HN,  size: 30,  lineHeight: 40, color: '#F5F0E8',                  letterSpacing: -0.030 },
+    'body:lede':          { fontSpec: '500 46px '  + HN,  size: 46,  lineHeight: 58, color: 'rgba(245,242,234,0.92)',   letterSpacing: -0.030 },
+    'body:italic':        { fontSpec: 'italic 400 24px ' + HN, size: 24, lineHeight: 36, color: 'rgba(245,242,234,0.78)', letterSpacing: -0.030 },
+  };
+
+  function applyStyleToCtx(ctx, style) {
+    ctx.font = style.fontSpec;
+    try { ctx.letterSpacing = ((style.letterSpacing || 0) * style.size) + 'px'; } catch (e) {}
+  }
+
+  // ==== FONT PRELOAD (fix race condition Canvas measureText vs fillText) ====
+  // document.fonts.ready só espera loads em andamento. Se ctx.font='...' é a 1a vez
+  // que a face foi solicitada, measureText pode cair em fallback estreito enquanto
+  // fillText (depois) desenha com a face real (mais larga). Resultado: wrap acha que
+  // cabe mais texto do que cabe, e o PNG sai diferente do DOM. Solução: forçar load
+  // explícito de cada fontSpec via document.fonts.load antes de qualquer render Canvas.
+  const FONT_PRELOAD_SPECS = Object.values(VARIANT_STYLES).map(s => s.fontSpec).concat([
+    '900 28px ' + HCN, // footer-tag
+  ]);
+  let _fontsPreloaded = false;
+  async function preloadCanvasFonts() {
+    if (_fontsPreloaded) return;
+    if (!document.fonts || !document.fonts.load) { _fontsPreloaded = true; return; }
+    const probe = 'AaÁÇã0123 OSNL MATHEUSÃO SAUDADE';
+    try {
+      await Promise.all(FONT_PRELOAD_SPECS.map(spec =>
+        document.fonts.load(spec, probe).catch(() => null)
+      ));
+      await document.fonts.ready;
+    } catch (e) { /* ignora, segue sem preload */ }
+    _fontsPreloaded = true;
+  }
+  if (typeof window !== 'undefined') {
+    if (document.readyState === 'complete') preloadCanvasFonts();
+    else window.addEventListener('load', () => preloadCanvasFonts());
+  }
+
+  // Match com CSS .slide.capa .h-display { font-size: 88px; line-height: 80px; text-align: center; }
+  // Esse override do .capa tem mesma especificidade que .h-display.smaller/.tiny mas vem depois
+  // no stylesheet, então prevalece. O Canvas precisa replicar pra paridade com o DOM.
+  const CAPA_HDISPLAY_OVERRIDE = {
+    fontSpec: '900 88px ' + HCN, size: 88, lineHeight: 80,
+  };
+  // Match com CSS .slide.capa .body.lede { font: italic 400 38px "New York" serif; cor: dourado }
+  const CAPA_LEDE_OVERRIDE = {
+    fontSpec: 'italic 400 38px "New York", "Times New Roman", Georgia, serif',
+    size: 38, lineHeight: 50, color: '#F0C638', letterSpacing: 0,
+  };
+  function resolveBlockStyle(block, isCapa) {
+    const styleKey = block.kind + ':' + block.variant;
+    let baseStyle = VARIANT_STYLES[styleKey];
+    if (!baseStyle) return null;
+    if (isCapa && block.kind === 'h-display') {
+      baseStyle = Object.assign({}, baseStyle, CAPA_HDISPLAY_OVERRIDE);
+    }
+    if (isCapa && block.kind === 'body' && block.variant === 'lede') {
+      baseStyle = Object.assign({}, baseStyle, CAPA_LEDE_OVERRIDE);
+    }
+    return Object.assign({}, baseStyle, {
+      lineHeight:    (block.lineHeight    != null) ? block.lineHeight    : baseStyle.lineHeight,
+      letterSpacing: (block.letterSpacing != null) ? block.letterSpacing : baseStyle.letterSpacing,
+    });
+  }
+  function resolveBlockAlign(block, isCapa) {
+    if (block.align) return block.align;
+    if (block.kind === 'body') return 'center';
+    if (isCapa && block.kind === 'h-display') return 'center';
+    return 'left';
+  }
+
+    const BG_GRADIENTS = {
+    'bg-01': { angle: 165, stops: [['#000000', 0], ['#000000', 1.0]] },
+    'bg-02': { angle: 165, stops: [['#000000', 0], ['#000000', 1.0]] },
+    'bg-03': { angle: 165, stops: [['#000000', 0], ['#000000', 1.0]] },
+    'bg-04': { angle: 165, stops: [['#000000', 0], ['#000000', 1.0]] },
+    'bg-05': { angle: 165, stops: [['#000000', 0], ['#000000', 1.0]] },
+    'bg-06': { angle: 165, stops: [['#000000', 0], ['#000000', 1.0]] },
+    'bg-07': { angle: 165, stops: [['#000000', 0], ['#000000', 1.0]] },
+    'bg-08': { angle: 165, stops: [['#000000', 0], ['#000000', 1.0]] },
+    'bg-09': { angle: 165, stops: [['#000000', 0], ['#000000', 1.0]] },
+    'bg-10': { angle: 165, stops: [['#000000', 0], ['#000000', 1.0]] },
+  };
+
+  const _imgCache = new Map();
+  function loadImage(src) {
+    if (_imgCache.has(src)) return Promise.resolve(_imgCache.get(src));
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => { _imgCache.set(src, img); resolve(img); };
+      img.onerror = () => resolve(null);
+      img.src = src;
+    });
+  }
+
+  function decodeHTMLEntities(s) {
+    const t = document.createElement('textarea');
+    t.innerHTML = s;
+    return t.value;
+  }
+
+  function parseHtmlSegments(html) {
+    // Usa o próprio DOM do navegador pra parsear HTML rico do contenteditable.
+    // Resolve em segments com flags: { text, hot, hotYellow, italic, bold }.
+    // Quebras forçadas (<br>, <div>, <p>) viram '\n' dentro do text — o wrap honra.
+    // NBSP é preservado como char comum (não vira split point no wrap).
+    //
+    // Heurística de quebras (replica DOM):
+    //   <br>      emite SEMPRE 1 '\n' (cria linha vazia mesmo após outra quebra)
+    //   <div>/<p> abrir emite 1 '\n', MAS coalesce se já há '\n' anterior
+    //   início do texto: nunca emite '\n'
+    const sandbox = document.createElement('div');
+    sandbox.innerHTML = html;
+    const segments = [];
+
+    function pushBreak(type) {
+      if (segments.length === 0) return;
+      const last = segments[segments.length - 1];
+      if (type === 'block' && last && last.text === '\n') return;
+      segments.push({ text: '\n', hot: false, hotYellow: false, italic: false, bold: false });
+    }
+
+    function visit(node, ctx) {
+      if (node.nodeType === 3) {
+        const t = node.textContent;
+        if (t) segments.push({ text: t, hot: !!ctx.hot, hotYellow: !!ctx.hotYellow, italic: !!ctx.italic, bold: !!ctx.bold });
+        return;
+      }
+      if (node.nodeType !== 1) return;
+      const tag = node.tagName.toLowerCase();
+      if (tag === 'br') { pushBreak('br'); return; }
+      const isBlock = (tag === 'div' || tag === 'p');
+      if (isBlock) pushBreak('block');
+      let next = ctx;
+      if (tag === 'span' && node.classList.contains('hot')) {
+        next = Object.assign({}, ctx, { hot: true, hotYellow: ctx.hotYellow || node.classList.contains('yellow') });
+      } else if (tag === 'i' || tag === 'em') {
+        next = Object.assign({}, ctx, { italic: true });
+      } else if (tag === 'b' || tag === 'strong') {
+        next = Object.assign({}, ctx, { bold: true });
+      }
+      for (const child of Array.from(node.childNodes)) visit(child, next);
+    }
+
+    for (const child of Array.from(sandbox.childNodes)) visit(child, {});
+    while (segments.length && /^\n$/.test(segments[segments.length - 1].text)) segments.pop();
+    return segments;
+  }
+
+  function withSegmentStyle(baseStyle, seg) {
+    if (!seg.italic && !seg.bold) return baseStyle;
+    let fontSpec = baseStyle.fontSpec;
+    if (seg.italic && !/^\s*italic\b/i.test(fontSpec)) {
+      fontSpec = 'italic ' + fontSpec;
+    }
+    if (seg.bold) {
+      fontSpec = fontSpec.replace(/(^|\s)((?:italic\s+)?)(\d{3})(\s+\d+px\b)/, (_, p1, p2, w, p4) => {
+        const newW = Math.max(parseInt(w, 10), 700);
+        return p1 + p2 + newW + p4;
+      });
+    }
+    return Object.assign({}, baseStyle, { fontSpec });
+  }
+
+  function makeLinearGradient(ctx, def, w, h) {
+    const angleRad = (def.angle - 90) * Math.PI / 180;
+    const cx = w / 2, cy = h / 2;
+    const halfDiag = Math.sqrt(w*w + h*h) / 2;
+    const dx = Math.cos(angleRad) * halfDiag;
+    const dy = Math.sin(angleRad) * halfDiag;
+    const grad = ctx.createLinearGradient(cx - dx, cy - dy, cx + dx, cy + dy);
+    def.stops.forEach(([color, stop]) => grad.addColorStop(stop, color));
+    return grad;
+  }
+
+  function drawLegibilityFilter(ctx, w, h, fade) {
+    // Tema Ostentação: sem foto, sem fade gradient. Mantém função vazia pra compatibilidade.
+    return;
+  }
+
+  async function drawPhoto(ctx, imageData, w, h) {
+    if (!imageData || !imageData.dataURL) return;
+    const img = await loadImage(imageData.dataURL);
+    if (!img) return;
+    const tx = imageData.tx || 0;
+    const ty = imageData.ty || 0;
+    const scale = imageData.scale || 1;
+    // object-fit: cover base
+    const imgRatio = img.width / img.height;
+    const slideRatio = w / h;
+    let baseW, baseH;
+    if (imgRatio > slideRatio) {
+      baseH = h;
+      baseW = baseH * imgRatio;
+    } else {
+      baseW = w;
+      baseH = baseW / imgRatio;
+    }
+    // Apply scale (transform: scale)
+    const drawW = baseW * scale;
+    const drawH = baseH * scale;
+    // Center then translate
+    const drawX = (w - drawW) / 2 + tx;
+    const drawY = (h - drawH) / 2 + ty;
+    ctx.save();
+    // Clip to slide bounds
+    ctx.beginPath();
+    ctx.rect(0, 0, w, h);
+    ctx.clip();
+    ctx.drawImage(img, drawX, drawY, drawW, drawH);
+    ctx.restore();
+  }
+
+  function applyTextTransform(text, uppercase) {
+    return uppercase ? text.toLocaleUpperCase('pt-BR') : text;
+  }
+
+  function wrapSegmentsIntoLines(ctx, segments, maxW, style) {
+    // Tokenize honrando: \n forçado (forceBreak), NBSP preservado dentro da palavra,
+    // italic/bold por segment. Split usa só espaços comuns (' ', '\t') — NBSP fica colado.
+    const tokens = [];
+    for (const seg of segments) {
+      const rawText = applyTextTransform(seg.text || '', style.uppercase);
+      const lines = rawText.split('\n');
+      lines.forEach((line, lIdx) => {
+        const parts = line.split(/( +|\t+)/);
+        for (const part of parts) {
+          if (part) {
+            tokens.push({
+              text: part,
+              hot: !!seg.hot, hotYellow: !!seg.hotYellow,
+              italic: !!seg.italic, bold: !!seg.bold,
+              isWS: /^[ \t]+$/.test(part),
+            });
+          }
+        }
+        if (lIdx < lines.length - 1) tokens.push({ forceBreak: true });
+      });
+    }
+
+    const out = [];
+    let cur = [];
+    let curW = 0;
+    for (const tok of tokens) {
+      if (tok.forceBreak) {
+        while (cur.length && cur[cur.length - 1].isWS) cur.pop();
+        out.push(cur);
+        cur = [];
+        curW = 0;
+        continue;
+      }
+      applyStyleToCtx(ctx, withSegmentStyle(style, tok));
+      const tokW = ctx.measureText(tok.text).width;
+      if (tok.isWS) {
+        if (cur.length === 0) continue;
+        cur.push(tok);
+        curW += tokW;
+      } else {
+        if (curW + tokW > maxW && cur.length > 0) {
+          while (cur.length && cur[cur.length - 1].isWS) cur.pop();
+          out.push(cur);
+          cur = [tok];
+          curW = tokW;
+        } else {
+          cur.push(tok);
+          curW += tokW;
+        }
+      }
+    }
+    if (cur.length) {
+      while (cur.length && cur[cur.length - 1].isWS) cur.pop();
+      if (cur.length) out.push(cur);
+    }
+    return out;
+  }
+
+  function drawTextLine(ctx, words, x, baselineY, maxW, style, align) {
+    let lineW = 0;
+    for (const w of words) {
+      applyStyleToCtx(ctx, withSegmentStyle(style, w));
+      lineW += ctx.measureText(w.text).width;
+    }
+    let startX = x;
+    if (align === 'center') startX = x + (maxW - lineW) / 2;
+    else if (align === 'right') startX = x + maxW - lineW;
+
+    let cursorX = startX;
+    for (const word of words) {
+      applyStyleToCtx(ctx, withSegmentStyle(style, word));
+      const wW = ctx.measureText(word.text).width;
+      if (word.hot && word.text.trim()) {
+        drawHotWord(ctx, word, cursorX, baselineY, wW, style);
+      } else {
+        ctx.fillStyle = style.color;
+        ctx.fillText(word.text, cursorX, baselineY);
+      }
+      cursorX += wW;
+    }
+  }
+
+  function drawHotWord(ctx, word, x, baselineY, wW, style) {
+    const padding = 14;
+    const rectH = style.size + 6;
+    const rectW = wW + padding * 2;
+    const rectX = x - padding;
+    const rectY = baselineY - style.size + 4;
+    ctx.save();
+    const cx = rectX + rectW / 2;
+    const cy = rectY + rectH / 2;
+    ctx.translate(cx, cy);
+    ctx.rotate(-2 * Math.PI / 180);
+    ctx.translate(-cx, -cy);
+    // Sombra preta offset 6/6 sem blur
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(rectX + 6, rectY + 6, rectW, rectH);
+    // Bloco
+    ctx.fillStyle = word.hotYellow ? '#F4C430' : '#E1342B';
+    ctx.fillRect(rectX, rectY, rectW, rectH);
+    // Texto (cor invertida quando amarelo)
+    ctx.fillStyle = word.hotYellow ? '#0B0B0B' : '#F5F2EA';
+    ctx.fillText(word.text, x, baselineY);
+    ctx.restore();
+  }
+
+  // Altura da inline-photo (16:9, full-width do body-zone). 0 se sem imagem.
+  function getInlineImageHeight(zoneW, hasImage) {
+    return hasImage ? Math.round(zoneW * 9 / 16) : 0;
+  }
+
+  // Pré-mede o stack completo (inline-image + blocks com lines + gaps) pra centralização.
+  function measureStackHeight(ctx, blocks, zoneW, isCapa, gap, inlineImageH) {
+    let total = 0;
+    let visibleItems = 0;
+    if (inlineImageH > 0) { total += inlineImageH; visibleItems++; }
+    blocks.forEach(block => {
+      const style = resolveBlockStyle(block, isCapa);
+      if (!style) return;
+      const segments = parseHtmlSegments(block.html);
+      const lines = wrapSegmentsIntoLines(ctx, segments, zoneW, style);
+      total += lines.length * style.lineHeight;
+      visibleItems++;
+    });
+    if (visibleItems > 1) total += gap * (visibleItems - 1);
+    return total;
+  }
+
+  async function drawInlinePhoto(ctx, inlineImage, x, y, w, h) {
+    if (!inlineImage || !inlineImage.dataURL) return;
+    const img = await loadImage(inlineImage.dataURL);
+    if (!img) return;
+    const radius = 16;
+    ctx.save();
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, w, h, radius);
+    else {
+      ctx.moveTo(x + radius, y);
+      ctx.lineTo(x + w - radius, y); ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+      ctx.lineTo(x + w, y + h - radius); ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+      ctx.lineTo(x + radius, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+      ctx.lineTo(x, y + radius); ctx.quadraticCurveTo(x, y, x + radius, y);
+    }
+    ctx.clip();
+    // Cover crop (centralizado)
+    const srcR = img.width / img.height;
+    const dstR = w / h;
+    let sx = 0, sy = 0, sw = img.width, sh = img.height;
+    if (srcR > dstR) { sw = img.height * dstR; sx = (img.width - sw) / 2; }
+    else { sh = img.width / dstR; sy = (img.height - sh) / 2; }
+    ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+    ctx.restore();
+  }
+
+  async function drawBlocks(ctx, blocks, zoneX, zoneY, zoneW, zoneH, isCapa, gap, inlineImage) {
+    if (gap == null) gap = 24;
+    const inlineImageH = getInlineImageHeight(zoneW, !!(inlineImage && inlineImage.dataURL));
+    const stackH = measureStackHeight(ctx, blocks, zoneW, isCapa, gap, inlineImageH);
+    // Centraliza verticalmente. Se stack maior que zona, alinha topo (clamp).
+    let cursorY = zoneY + Math.max(0, (zoneH - stackH) / 2);
+
+    if (inlineImageH > 0) {
+      await drawInlinePhoto(ctx, inlineImage, zoneX, cursorY, zoneW, inlineImageH);
+      cursorY += inlineImageH;
+      if (blocks.length > 0) cursorY += gap;
+    }
+
+    blocks.forEach((block, bIdx) => {
+      const style = resolveBlockStyle(block, isCapa);
+      if (!style) return;
+      const segments = parseHtmlSegments(block.html);
+      const lines = wrapSegmentsIntoLines(ctx, segments, zoneW, style);
+      const align = resolveBlockAlign(block, isCapa);
+      for (const line of lines) {
+        const baselineY = cursorY + style.size * 0.85;
+        drawTextLine(ctx, line, zoneX, baselineY, zoneW, style, align);
+        cursorY += style.lineHeight;
+      }
+      if (bIdx < blocks.length - 1) cursorY += gap;
+    });
+  }
+
+    function drawFooter(ctx, w, h, footerVariant, slideNum, slideTotal) {
+    // Tema Ostentação: footer minimalista — handle à esq, slide N à dir, cinza claro
+    ctx.fillStyle = 'rgba(245, 240, 232, 0.4)';
+    ctx.font = '500 22px ' + HN;
+    try { ctx.letterSpacing = '0.88px'; } catch (e) {}
+    // handle à esq
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('@omatheusdelucca', 90, h - 80);
+    // slide N / total à dir
+    if (slideNum && slideTotal) {
+      ctx.textAlign = 'right';
+      const label = String(slideNum).padStart(2, '0') + ' / ' + String(slideTotal).padStart(2, '0');
+      ctx.fillText(label, w - 90, h - 80);
+    }
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  function drawBrandMark(ctx, w, h) {
+    // No-op: brand-mark removida permanentemente do tema Ostentação (2026-05-06).
+    // Mantém função vazia pra não quebrar referências; CSS .brand-mark também tem display:none.
+    return;
+  }
+
+  async function renderSlideToCanvas(canvas, slideData) {
+    const dpr = 2;
+    canvas.width = SLIDE_W * dpr;
+    canvas.height = SLIDE_H * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    // 1. Background gradient
+    const bgDef = BG_GRADIENTS[slideData.bgClass] || BG_GRADIENTS['bg-01'];
+    ctx.fillStyle = makeLinearGradient(ctx, bgDef, SLIDE_W, SLIDE_H);
+    ctx.fillRect(0, 0, SLIDE_W, SLIDE_H);
+
+    // 2. Photo
+    if (slideData.image && slideData.image.dataURL) {
+      await drawPhoto(ctx, slideData.image, SLIDE_W, SLIDE_H);
+    }
+
+    // 3. Legibility filter (per-slide fade)
+    drawLegibilityFilter(ctx, SLIDE_W, SLIDE_H, getEffectiveFade(slideData));
+
+    // 4. Body-zone com transform
+    const isCapa = slideData.isCapa;
+    const zoneX = 56;
+    const zoneTop = isCapa ? 380 : 180;
+    const zoneBottom = isCapa ? 280 : 180;
+    const zoneW = SLIDE_W - 56 * 2;
+    const zoneH = SLIDE_H - zoneTop - zoneBottom;
+    const bz = slideData.bzTransform || { tx: 0, ty: 0, scale: 1 };
+
+    ctx.save();
+    const cx = SLIDE_W / 2;
+    const cy = zoneTop + zoneH / 2;
+    ctx.translate(cx + bz.tx, cy + bz.ty);
+    ctx.scale(bz.scale, bz.scale);
+    ctx.translate(-cx, -cy);
+    await drawBlocks(ctx, slideData.blocks, zoneX, zoneTop, zoneW, zoneH, !!isCapa, getEffectiveGap(slideData), slideData.inlineImage);
+    ctx.restore();
+
+    // 5. Brand mark (linha dourada top-left)
+    drawBrandMark(ctx, SLIDE_W, SLIDE_H);
+
+    // 6. Footer (minimal: handle + slide num/total)
+    const _slideTotal = doc.slides.length;
+    const _slideNum = doc.slides.indexOf(slideData) + 1;
+    drawFooter(ctx, SLIDE_W, SLIDE_H, slideData.footerVariant, _slideNum, _slideTotal);
+
+    return canvas;
+  }
+
+  async function captureSlideAsBlob(stageIndex) {
+    const slideData = doc.slides[stageIndex];
+    if (!slideData) throw new Error('slide ' + (stageIndex + 1) + ' não existe');
+    // Pré-carrega TODAS as fontSpecs antes de qualquer measureText/fillText.
+    // Sem isso, a 1ª captura mede com face de fallback (estreita) e desenha com face real (larga).
+    await preloadCanvasFonts();
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    const canvas = document.createElement('canvas');
+    await renderSlideToCanvas(canvas, slideData);
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(b => b ? resolve(b) : reject(new Error('toBlob falhou')), 'image/png');
+    });
+  }
+
+  // ==== DOWNLOAD ALL PNGs ====
+  async function downloadAllPNGs() {
+    setSendStatus('Capturando ' + doc.slides.length + ' slides…');
+    // Limpa seleção visual
+    const wasSelected = getSelectedBlockEl();
+    deselectBlock();
+    try {
+      for (let i = 0; i < doc.slides.length; i++) {
+        setSendStatus(`Baixando slide ${i + 1}/8…`);
+        const blob = await captureSlideAsBlob(i);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'slide-' + String(i + 1).padStart(2, '0') + '.png';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        await new Promise(r => setTimeout(r, 250));
+      }
+      setSendStatus('✓ ' + doc.slides.length + ' PNGs baixados.', 'success');
+    } catch (e) {
+      setSendStatus('✗ Erro ao gerar PNGs: ' + e.message, 'error');
+    } finally {
+      if (wasSelected) selectBlock(wasSelected);
+    }
+  }
+
+  // ==== SEND TO TELEGRAM ====
+  async function sendToTelegram() {
+    await bootstrapTgConfig();
+    const cfg = getTgConfig();
+    if (!cfg.botToken || !cfg.chatId) {
+      setSendStatus('Configure o bot do Telegram primeiro.', 'error');
+      openTgModal();
+      return;
+    }
+
+    setSendStatus('Capturando ' + doc.slides.length + ' slides…');
+    const wasSelected = getSelectedBlockEl();
+    deselectBlock();
+
+    try {
+      const blobs = [];
+      for (let i = 0; i < doc.slides.length; i++) {
+        setSendStatus(`Capturando slide ${i + 1}/${doc.slides.length}…`);
+        try {
+          const b = await captureSlideAsBlob(i);
+          blobs.push(b);
+        } catch (capErr) {
+          console.error('[capture]', capErr);
+          throw new Error('Captura do slide ' + (i + 1) + ' falhou: ' + (capErr && capErr.message ? capErr.message : 'desconhecido'));
+        }
+      }
+
+      setSendStatus('Enviando ' + doc.slides.length + ' slides ao Telegram…');
+      // sendMediaGroup aceita até 10 fotos por chamada. Dividimos em 2 grupos de 4 pra evitar timeout.
+      const groups = [];
+      for (let g = 0; g < blobs.length; g += 4) groups.push(blobs.slice(g, g + 4));
+      let groupIndex = 0;
+      for (const group of groups) {
+        groupIndex++;
+        setSendStatus(`Enviando grupo ${groupIndex}/2 (${group.length} fotos)…`);
+        const formData = new FormData();
+        formData.append('chat_id', cfg.chatId);
+        const media = [];
+        group.forEach((blob, j) => {
+          const slideNum = (groupIndex - 1) * 4 + j + 1;
+          const filename = 'slide-' + String(slideNum).padStart(2, '0') + '.png';
+          const fieldName = 'photo' + j;
+          formData.append(fieldName, blob, filename);
+          media.push({ type: 'photo', media: 'attach://' + fieldName });
+        });
+        formData.append('media', JSON.stringify(media));
+
+        const url = 'https://api.telegram.org/bot' + cfg.botToken + '/sendMediaGroup';
+        let res, json;
+        try {
+          res = await fetch(url, { method: 'POST', body: formData });
+        } catch (netErr) {
+          throw new Error('Rede falhou: ' + (netErr && netErr.message ? netErr.message : 'desconhecido'));
+        }
+        try {
+          json = await res.json();
+        } catch (parseErr) {
+          throw new Error('Resposta inválida do Telegram (status ' + res.status + ')');
+        }
+        if (!json.ok) {
+          throw new Error('Telegram: ' + (json.description || 'erro_code=' + (json.error_code || '?')));
+        }
+        // Pausa breve entre grupos pra evitar rate limit
+        if (groupIndex < groups.length) await new Promise(r => setTimeout(r, 1000));
+      }
+      setSendStatus('✓ ' + doc.slides.length + ' slides enviados pro Telegram.', 'success');
+    } catch (e) {
+      console.error('[sendToTelegram]', e);
+      const msg = (e && e.message) ? e.message : (typeof e === 'string' ? e : 'erro desconhecido');
+      setSendStatus('✗ ' + msg, 'error');
+    } finally {
+      if (wasSelected) selectBlock(wasSelected);
+    }
+  }
+
+  // ==== TELEGRAM MODAL ====
+  async function openTgModal() {
+    await bootstrapTgConfig();
+    const cfg = getTgConfig();
+    document.getElementById('tg-token').value = cfg.botToken || '';
+    document.getElementById('tg-chat').value = cfg.chatId || '';
+    document.getElementById('tg-modal').classList.add('visible');
+  }
+  function closeTgModal() {
+    document.getElementById('tg-modal').classList.remove('visible');
+  }
+  function tgSave() {
+    const token = document.getElementById('tg-token').value.trim();
+    const chatId = document.getElementById('tg-chat').value.trim();
+    if (!token || !chatId) { alert('Preenche bot token + chat ID.'); return; }
+    saveTgConfig({ botToken: token, chatId });
+    closeTgModal();
+    setSendStatus('✓ Configuração do Telegram salva.', 'success');
+  }
+  async function tgTestConnection() {
+    const token = document.getElementById('tg-token').value.trim();
+    if (!token) { alert('Cole o bot token primeiro.'); return; }
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${token}/getMe`);
+      const json = await res.json();
+      if (json.ok) {
+        alert('✓ Conexão OK. Bot: @' + json.result.username + ' (' + json.result.first_name + ')');
+      } else {
+        alert('✗ Erro: ' + (json.description || 'token inválido'));
+      }
+    } catch (e) {
+      alert('✗ Erro de rede: ' + e.message);
+    }
+  }
+
+  // ==== INSTAGRAM PUBLISH ====
+  async function blobToB64NoPrefix(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  async function publishInstagram() {
+    const captionEl = document.getElementById('ig-caption');
+    const caption = captionEl ? captionEl.value.trim() : '';
+    if (!caption) {
+      setSendStatus('✗ Caption vazia. Preenche acima antes de publicar.', 'error');
+      return;
+    }
+    const total = doc.slides.length;
+    if (total < 2 || total > 10) {
+      setSendStatus('✗ Carrossel exige 2-10 slides. Atual: ' + total, 'error');
+      return;
+    }
+
+    const confirmMsg = `Publicar AGORA no @omatheusdelucca?\n\n${total} slides + caption (${caption.length} chars).\n\nIrreversível. Continuar?`;
+    if (!confirm(confirmMsg)) return;
+
+    setSendStatus(`Capturando ${total} slides…`);
+    const wasSelected = getSelectedBlockEl();
+    deselectBlock();
+
+    try {
+      const blobs = [];
+      for (let i = 0; i < total; i++) {
+        setSendStatus(`Capturando slide ${i + 1}/${total}…`);
+        const b = await captureSlideAsBlob(i);
+        blobs.push(b);
+      }
+      setSendStatus('Enviando pra Meta API… (pode levar 30-60s)');
+      const slides_b64 = await Promise.all(blobs.map(blobToB64NoPrefix));
+      const r = await fetch('/api/publicar-instagram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slides_b64,
+          caption,
+          title: '{{TITLE}}'.replace(/\\"/g, '"'),
+        }),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        setSendStatus(`✅ Publicado @omatheusdelucca! Post ID: ${data.post_id}`, 'success');
+        alert(`Publicado com sucesso!\n\nPost ID: ${data.post_id}`);
+      } else {
+        const errMsg = data.error || 'desconhecido';
+        const detail = data.stderr ? `\n\n${data.stderr.slice(-500)}` : '';
+        setSendStatus('✗ Erro: ' + errMsg, 'error');
+        alert('Erro ao publicar:\n\n' + errMsg + detail);
+      }
+    } catch (e) {
+      console.error('[publishInstagram]', e);
+      setSendStatus('✗ ' + (e.message || e), 'error');
+    } finally {
+      if (wasSelected) selectBlock(wasSelected);
+    }
+  }
+
+  // ==== CAPTION PERSISTÊNCIA ====
+  function loadCaptionFromStorage() {
+    const captionEl = document.getElementById('ig-caption');
+    if (!captionEl) return;
+    const saved = localStorage.getItem(DOC_KEY + '-caption');
+    if (saved !== null) captionEl.value = saved;
+    captionEl.addEventListener('input', () => {
+      localStorage.setItem(DOC_KEY + '-caption', captionEl.value);
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    bootstrapTgConfig();
+    loadCaptionFromStorage();
+    const btnPub = document.getElementById('btn-publish-ig');
+    if (btnPub) btnPub.addEventListener('click', publishInstagram);
+    document.getElementById('btn-download-all').addEventListener('click', downloadAllPNGs);
+    document.getElementById('btn-send-tg').addEventListener('click', sendToTelegram);
+    document.getElementById('btn-config-tg').addEventListener('click', openTgModal);
+    document.getElementById('tg-cancel').addEventListener('click', closeTgModal);
+    document.getElementById('tg-save').addEventListener('click', tgSave);
+    document.getElementById('tg-test').addEventListener('click', tgTestConnection);
+    document.getElementById('tg-modal').addEventListener('click', (e) => {
+      if (e.target.id === 'tg-modal') closeTgModal();
+    });
+  });
+
+</script>
+
+<!-- imggen: gerador de imagens contextuais via gpt-image-2 (proxy local) -->
+<script>
+  window.MATHEUSAO_PECA_PATH = "{{PECA_PATH}}";
+  window.MATHEUSAO_DOC_KEY   = "{{DOC_KEY}}";
+</script>
+<script src="image-gen-client.js" defer></script>
+
+</body>
+</html>

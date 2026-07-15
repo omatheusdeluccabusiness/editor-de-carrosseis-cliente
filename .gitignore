@@ -1,0 +1,25 @@
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Credenciais locais
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Estado temporario do editor
+*.log
+*.pid
+.tmp/
+tmp/
+
+# Editores
+.idea/
+.vscode/
+
