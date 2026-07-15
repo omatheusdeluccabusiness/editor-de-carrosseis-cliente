@@ -3,18 +3,40 @@
 
 from __future__ import annotations
 
+import argparse
 import base64
+import getpass
 import json
+import os
 import secrets
+import sys
+import tempfile
+from pathlib import Path
 from typing import Any
 
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
+from dotenv import dotenv_values
 
 
 VAULT_VERSION = 1
 ASSOCIATED_DATA = b"carrossel-editor-credentials-v1"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_VAULT_PATH = PROJECT_ROOT / "secrets" / "credentials.enc.json"
+DEFAULT_KEY_PATH = Path.home() / ".carrossel-editor-recovery-key"
+DEFAULT_PROJECT_ENV_PATH = PROJECT_ROOT / ".env"
+DEFAULT_TELEGRAM_PATH = Path.home() / ".matheusao-telegram.json"
+META_KEYS = (
+    "INSTAGRAM_BUSINESS_ID",
+    "INSTAGRAM_ACCESS_TOKEN",
+    "INSTAGRAM_TOKEN_EXPIRES_AT",
+    "INSTAGRAM_USERNAME",
+    "META_API_VERSION",
+    "META_APP_ID",
+    "META_APP_NAME",
+    "META_APP_SECRET",
+)
 
 
 class CredentialsError(RuntimeError):
@@ -86,3 +108,232 @@ def decrypt_payload(envelope: dict[str, Any], recovery_key: str) -> dict[str, An
         raise
     except (InvalidTag, KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
         raise CredentialsError("Cofre ou chave de recuperação inválidos.") from error
+
+
+def _atomic_write(path: Path, content: str, mode: int = 0o600) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            dir=path.parent,
+            delete=False,
+        ) as handle:
+            handle.write(content)
+            temp_path = Path(handle.name)
+        if os.name != "nt":
+            os.chmod(temp_path, mode)
+        temp_path.replace(path)
+    finally:
+        if temp_path and temp_path.exists():
+            temp_path.unlink()
+
+
+def _read_recovery_key(path: Path) -> str:
+    try:
+        recovery_key = path.read_text(encoding="utf-8").strip()
+    except OSError as error:
+        raise CredentialsError("A chave de recuperação local não foi encontrada.") from error
+    if not recovery_key:
+        raise CredentialsError("A chave de recuperação local está vazia.")
+    return recovery_key
+
+
+def _validate_payload(payload: dict[str, Any]) -> tuple[dict[str, str], dict[str, str]]:
+    telegram = payload.get("telegram")
+    meta = payload.get("meta")
+    if not isinstance(telegram, dict) or not isinstance(meta, dict):
+        raise CredentialsError("O cofre não contém as seções obrigatórias.")
+
+    telegram_clean = {
+        "botToken": str(telegram.get("botToken", "")).strip(),
+        "chatId": str(telegram.get("chatId", "")).strip(),
+    }
+    meta_clean = {
+        key: str(meta.get(key, "")).strip()
+        for key in META_KEYS
+        if str(meta.get(key, "")).strip()
+    }
+    if not telegram_clean["botToken"] or not telegram_clean["chatId"]:
+        raise CredentialsError("As credenciais do Telegram estão incompletas.")
+    if not meta_clean.get("INSTAGRAM_BUSINESS_ID") or not meta_clean.get(
+        "INSTAGRAM_ACCESS_TOKEN"
+    ):
+        raise CredentialsError("As credenciais do Instagram estão incompletas.")
+    return telegram_clean, meta_clean
+
+
+def seal_credentials(
+    telegram_path: Path,
+    meta_env_path: Path,
+    vault_path: Path,
+    key_path: Path,
+) -> None:
+    """Lê fontes locais e grava somente o envelope criptografado."""
+
+    try:
+        telegram = json.loads(telegram_path.read_text(encoding="utf-8"))
+        meta_values = dotenv_values(meta_env_path)
+    except (OSError, json.JSONDecodeError) as error:
+        raise CredentialsError("Não foi possível ler as fontes de credenciais.") from error
+
+    payload = {
+        "telegram": telegram,
+        "meta": {
+            key: str(meta_values.get(key, "")).strip()
+            for key in META_KEYS
+            if str(meta_values.get(key, "")).strip()
+        },
+    }
+    _validate_payload(payload)
+
+    if key_path.exists():
+        recovery_key = _read_recovery_key(key_path)
+    else:
+        recovery_key = generate_recovery_key()
+        _atomic_write(key_path, recovery_key + "\n", mode=0o600)
+
+    envelope = encrypt_payload(payload, recovery_key)
+    _atomic_write(
+        vault_path,
+        json.dumps(envelope, indent=2, sort_keys=True) + "\n",
+        mode=0o600,
+    )
+
+
+def restore_credentials(
+    vault_path: Path,
+    key_path: Path,
+    project_env_path: Path,
+    telegram_path: Path,
+) -> None:
+    """Restaura os formatos locais depois de validar todo o cofre."""
+
+    try:
+        envelope = json.loads(vault_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise CredentialsError("O cofre criptografado não pôde ser lido.") from error
+
+    recovery_key = _read_recovery_key(key_path)
+    payload = decrypt_payload(envelope, recovery_key)
+    telegram, meta = _validate_payload(payload)
+
+    env_content = "\n".join(
+        f"{key}={json.dumps(meta[key], ensure_ascii=False)}"
+        for key in META_KEYS
+        if key in meta
+    ) + "\n"
+    telegram_content = json.dumps(
+        telegram,
+        ensure_ascii=False,
+        indent=2,
+        sort_keys=True,
+    ) + "\n"
+
+    _atomic_write(project_env_path, env_content, mode=0o600)
+    _atomic_write(telegram_path, telegram_content, mode=0o600)
+
+
+def credentials_ready(project_env_path: Path, telegram_path: Path) -> bool:
+    try:
+        meta = dotenv_values(project_env_path)
+        telegram = json.loads(telegram_path.read_text(encoding="utf-8"))
+        return bool(
+            meta.get("INSTAGRAM_BUSINESS_ID")
+            and meta.get("INSTAGRAM_ACCESS_TOKEN")
+            and telegram.get("botToken")
+            and telegram.get("chatId")
+        )
+    except (OSError, json.JSONDecodeError):
+        return False
+
+
+def _path(value: str) -> Path:
+    return Path(value).expanduser().resolve()
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Configura o cofre criptografado do editor de carrosséis."
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    seal = subparsers.add_parser("seal", help="Cria ou atualiza o cofre.")
+    seal.add_argument("--telegram", required=True, type=_path)
+    seal.add_argument("--meta-env", required=True, type=_path)
+    seal.add_argument("--vault", type=_path, default=DEFAULT_VAULT_PATH)
+    seal.add_argument("--key-file", type=_path, default=DEFAULT_KEY_PATH)
+
+    restore = subparsers.add_parser("restore", help="Restaura credenciais locais.")
+    restore.add_argument("--vault", type=_path, default=DEFAULT_VAULT_PATH)
+    restore.add_argument("--key-file", type=_path, default=DEFAULT_KEY_PATH)
+    restore.add_argument("--project-env", type=_path, default=DEFAULT_PROJECT_ENV_PATH)
+    restore.add_argument("--telegram-dest", type=_path, default=DEFAULT_TELEGRAM_PATH)
+    restore.add_argument("--if-needed", action="store_true")
+    restore.add_argument("--non-interactive", action="store_true")
+
+    status = subparsers.add_parser("status", help="Mostra somente presença e caminhos.")
+    status.add_argument("--vault", type=_path, default=DEFAULT_VAULT_PATH)
+    status.add_argument("--key-file", type=_path, default=DEFAULT_KEY_PATH)
+    status.add_argument("--project-env", type=_path, default=DEFAULT_PROJECT_ENV_PATH)
+    status.add_argument("--telegram-dest", type=_path, default=DEFAULT_TELEGRAM_PATH)
+    return parser
+
+
+def _run_restore(args: argparse.Namespace) -> int:
+    if args.if_needed and credentials_ready(args.project_env, args.telegram_dest):
+        return 0
+
+    if not args.key_file.exists():
+        if args.non_interactive:
+            print(
+                "Cofre disponível. Rode ./configurar-credenciais.sh uma vez "
+                "para habilitar publicações neste computador."
+            )
+            return 0 if args.if_needed else 2
+        recovery_key = os.environ.get("CARROSSEL_RECOVERY_KEY", "").strip()
+        if not recovery_key:
+            recovery_key = getpass.getpass("Cole a chave de recuperação: ").strip()
+        if not recovery_key:
+            raise CredentialsError("A chave de recuperação está vazia.")
+        _atomic_write(args.key_file, recovery_key + "\n", mode=0o600)
+
+    restore_credentials(
+        args.vault,
+        args.key_file,
+        args.project_env,
+        args.telegram_dest,
+    )
+    print("Credenciais locais restauradas com segurança.")
+    print(f"Meta/Instagram: {args.project_env}")
+    print(f"Telegram: {args.telegram_dest}")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _build_parser().parse_args(argv)
+    try:
+        if args.command == "seal":
+            seal_credentials(args.telegram, args.meta_env, args.vault, args.key_file)
+            print(f"Cofre criptografado criado: {args.vault}")
+            print(f"Chave de recuperação local criada: {args.key_file}")
+            return 0
+        if args.command == "restore":
+            return _run_restore(args)
+        if args.command == "status":
+            print(f"cofre: {'ok' if args.vault.exists() else 'ausente'}")
+            print(f"chave local: {'ok' if args.key_file.exists() else 'ausente'}")
+            print(
+                "credenciais locais: "
+                f"{'ok' if credentials_ready(args.project_env, args.telegram_dest) else 'ausentes'}"
+            )
+            return 0
+    except CredentialsError as error:
+        print(f"Erro: {error}", file=sys.stderr)
+        return 1
+    return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

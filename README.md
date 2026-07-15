@@ -15,6 +15,18 @@ cd editor-de-carrosseis
 python3 -m venv .venv
 source .venv/bin/activate
 python3 -m pip install -r requirements.txt
+./configurar-credenciais.sh
+```
+
+Na primeira configuracao, cole a chave de recuperacao fornecida separadamente.
+Ela sera salva apenas nesse computador em
+`~/.carrossel-editor-recovery-key`. Depois disso, `./start.sh` restaura
+automaticamente as configuracoes locais caso elas estejam ausentes.
+
+No Windows, use o equivalente:
+
+```powershell
+py scripts/credenciais.py restore
 ```
 
 Para trabalhar pelo Codex, abra essa pasta como workspace. O arquivo
@@ -50,15 +62,18 @@ git commit -m "Descreva a alteracao"
 git push
 ```
 
-## Integracoes opcionais
+## Credenciais e publicacao
 
-O editor e a exportacao local funcionam sem credenciais. Para publicar no
-Instagram, copie `.env.example` para `.env` e preencha as variaveis da Meta.
-O arquivo `.env` e ignorado pelo Git e nunca deve ser enviado ao repositorio.
+O repositorio guarda somente um cofre criptografado. Telegram Bot Token, Chat
+ID, Meta App Secret e token do Instagram nunca aparecem em texto puro no Git.
+O comando de configuracao restaura `.env` no projeto e
+`~/.matheusao-telegram.json` no computador local, ambos ignorados pelo Git.
 
-Os recursos opcionais de Telegram e geracao de imagens continuam usando
-arquivos locais no diretorio pessoal do computador; essas credenciais tambem
-nao fazem parte do repositorio.
+Se precisar conferir a configuracao sem revelar valores:
+
+```bash
+python3 scripts/credenciais.py status
+```
 
 ## Estrutura
 

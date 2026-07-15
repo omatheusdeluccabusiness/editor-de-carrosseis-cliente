@@ -12,6 +12,9 @@ venv/
 !.env.example
 *.pem
 *.key
+secrets/*
+!secrets/credentials.enc.json
+!secrets/README.md
 
 # Estado temporario do editor
 *.log
