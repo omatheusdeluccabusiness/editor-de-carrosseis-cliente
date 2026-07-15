@@ -12,7 +12,7 @@ class PackagingTest(unittest.TestCase):
         requirements = (PROJECT_ROOT / "requirements.txt").read_text(
             encoding="utf-8"
         ).lower()
-        for dependency in ("pillow", "python-dotenv", "requests"):
+        for dependency in ("cryptography", "pillow", "python-dotenv", "requests"):
             with self.subTest(dependency=dependency):
                 self.assertIn(dependency, requirements)
 
