@@ -81,6 +81,28 @@ class TweetHighlightsTest(unittest.TestCase):
         for marker in required:
             self.assertIn(marker, self.html)
 
+    def test_dom_segments_carry_highlight_identity(self) -> None:
+        required = (
+            "{ text: ch, bold: isBold, highlight: highlightColor }",
+            "const newHighlight = tag === 'MARK'",
+            "walk(child, newBold, newHighlight)",
+        )
+        for marker in required:
+            self.assertIn(marker, self.html)
+
+    def test_canvas_draws_theme_marker_before_text(self) -> None:
+        required = (
+            "function drawMarkerStroke(ctx, x, y, width, fontSize, color)",
+            "HIGHLIGHT_THEME_COLORS[dark ? 'dark' : 'light']",
+            "drawMarkerStroke(ctx, x, y, segmentWidth, fontSize, markerColor)",
+        )
+        for marker in required:
+            self.assertIn(marker, self.html)
+        self.assertLess(
+            self.html.index("drawMarkerStroke(ctx, x, y, segmentWidth"),
+            self.html.index("ctx.fillText(seg.text, x, y)"),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

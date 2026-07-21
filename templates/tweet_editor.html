@@ -1251,7 +1251,7 @@
     }, true);
 
     // ─── getLineSegmentsFromDOM ─────────────────────────────
-    // Lê o .body contenteditable e retorna lines = [[{text, bold}, ...], ...]
+    // Lê o .body contenteditable e retorna lines = [[{text, bold, highlight}, ...], ...]
     // usando Range.getBoundingClientRect() pra detectar quebras reais que o browser fez.
     // Isso garante paridade pixel-perfect entre DOM (visual) e Canvas (export).
     function getLineSegmentsFromDOM(bodyEl) {
@@ -1262,11 +1262,11 @@
       const FLUSH = () => {
         if (currentSeg) { currentLine.push(currentSeg); currentSeg = null; }
         if (currentLine.length > 0) lines.push(currentLine);
-        else lines.push([{ text: '', bold: false }]);
+        else lines.push([{ text: '', bold: false, highlight: null }]);
         currentLine = [];
         currentTop = null;
       };
-      const PUSH_CHAR = (ch, isBold, top) => {
+      const PUSH_CHAR = (ch, isBold, highlightColor, top) => {
         // Detecta nova linha pela mudança de top do bounding rect.
         // Tolerância de 5px pra ignorar variações sub-pixel.
         if (currentTop === null) {
@@ -1278,14 +1278,18 @@
           currentSeg = null;
           currentTop = top;
         }
-        if (!currentSeg || currentSeg.bold !== isBold) {
+        if (
+          !currentSeg ||
+          currentSeg.bold !== isBold ||
+          currentSeg.highlight !== highlightColor
+        ) {
           if (currentSeg) currentLine.push(currentSeg);
-          currentSeg = { text: ch, bold: isBold };
+          currentSeg = { text: ch, bold: isBold, highlight: highlightColor };
         } else {
           currentSeg.text += ch;
         }
       };
-      function walk(node, isBold) {
+      function walk(node, isBold, highlightColor) {
         if (node.nodeType === Node.TEXT_NODE) {
           const text = node.textContent;
           for (let i = 0; i < text.length; i++) {
@@ -1295,7 +1299,7 @@
             const rect = range.getBoundingClientRect();
             // Ignora chars sem rect (raro, mas pode acontecer pra zero-width)
             if (rect.width === 0 && rect.height === 0) continue;
-            PUSH_CHAR(text[i], isBold, rect.top);
+            PUSH_CHAR(text[i], isBold, highlightColor, rect.top);
           }
           return;
         }
@@ -1306,13 +1310,16 @@
           return;
         }
         const newBold = isBold || tag === 'STRONG' || tag === 'B';
+        const newHighlight = tag === 'MARK'
+          ? normalizeHighlightColor(node.dataset.highlight)
+          : highlightColor;
         if (tag === 'DIV' || tag === 'P') {
           // Quebra de bloco explícita: força flush antes de processar
           if (currentLine.length > 0 || currentSeg) FLUSH();
         }
-        for (const child of node.childNodes) walk(child, newBold);
+        for (const child of node.childNodes) walk(child, newBold, newHighlight);
       }
-      walk(bodyEl, false);
+      walk(bodyEl, false, null);
       if (currentSeg) currentLine.push(currentSeg);
       if (currentLine.length > 0) lines.push(currentLine);
       return lines;
@@ -1327,6 +1334,23 @@
       ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y);
     }
 
+    function drawMarkerStroke(ctx, x, y, width, fontSize, color) {
+      if (!color || width <= 0) return;
+      const top = y + fontSize * 0.30;
+      const bottom = y + fontSize * 1.08;
+      const pad = Math.max(3, fontSize * 0.08);
+      ctx.save();
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(x - pad, top + 1);
+      ctx.lineTo(x + width + pad, top - 1);
+      ctx.lineTo(x + width + pad * 0.72, bottom + 1);
+      ctx.lineTo(x - pad * 0.82, bottom - 1);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
     // ─── drawTweet ─────────────────────────────────────────
     // Aceita `precomputedLines` opcional (lines = [[{text, bold}, ...], ...]).
     // Quando passada, pula o wrap interno e usa diretamente — garante paridade pixel-perfect
@@ -1339,6 +1363,7 @@
       if ('fontKerning' in ctx) ctx.fontKerning = 'none';
       const PAD_X = 90;
       const dark = theme === 'dark';
+      const markerPalette = HIGHLIGHT_THEME_COLORS[dark ? 'dark' : 'light'];
       const bg = dark ? '#000000' : '#FFFFFF';
       const fg = dark ? '#E7E9EA' : '#0F1419';
       const fgMuted = dark ? '#71767B' : '#536471';
@@ -1426,8 +1451,12 @@
         let x = PAD_X;
         for (const seg of lineSegments) {
           ctx.font = `${seg.bold ? '700 ' : '400 '}${fontSize}px ${fontFamily}`;
+          const segmentWidth = ctx.measureText(seg.text).width;
+          const markerColor = seg.highlight ? markerPalette[seg.highlight] : null;
+          drawMarkerStroke(ctx, x, y, segmentWidth, fontSize, markerColor);
+          ctx.fillStyle = fg;
           ctx.fillText(seg.text, x, y);
-          x += ctx.measureText(seg.text).width;
+          x += segmentWidth;
         }
         y += lineHeight;
       }
