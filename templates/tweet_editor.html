@@ -2262,16 +2262,6 @@
       }
     }
 
-    // ─── Undo / Redo legados removidos ──────────────────────
-    // Refactor 2026-05-27: o tweet agora usa .body contenteditable como visual primário.
-    // Undo/redo nativo do browser cobre edição de texto. Stubs mantidos pra evitar
-    // erros caso código órfão chame essas funções.
-    function snapshotTextarea() { return null; }
-    function pushUndo() {}
-    function performUndo() { document.execCommand('undo', false, null); return true; }
-    function performRedo() { document.execCommand('redo', false, null); return true; }
-    function applyBold() { document.execCommand('bold', false, null); }
-
     function downloadSlide(i) {
       // Re-renderiza canvas a partir do DOM atual (paridade garantida via Range API)
       const canvas = exportSlideToCanvas(i);
