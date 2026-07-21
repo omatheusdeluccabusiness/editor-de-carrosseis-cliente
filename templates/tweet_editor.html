@@ -105,8 +105,18 @@
     position: relative;
     padding: 0;
     box-sizing: border-box;
+    --marker-yellow: rgba(255, 228, 94, 0.82);
+    --marker-pink: rgba(255, 122, 200, 0.76);
+    --marker-green: rgba(128, 226, 126, 0.76);
+    --marker-blue: rgba(100, 216, 255, 0.76);
   }
-  body.theme-dark .tweet-render { background: #000000; color: #E7E9EA; }
+  body.theme-dark .tweet-render {
+    background: #000000; color: #E7E9EA;
+    --marker-yellow: rgba(172, 129, 0, 0.78);
+    --marker-pink: rgba(145, 35, 88, 0.76);
+    --marker-green: rgba(24, 108, 64, 0.78);
+    --marker-blue: rgba(16, 94, 132, 0.80);
+  }
   body.theme-dark .tweet-render-wrap { background: #000000; }
 
   /* Header: avatar + nome + selo + handle. Posicionado em PAD_X=90, startY dinâmico. */
@@ -161,6 +171,64 @@
     border-radius: 6px;
   }
   .tweet-render .body strong { font-weight: 700; }
+  .tweet-render mark[data-highlight] {
+    color: inherit;
+    background: none;
+    padding: 0.01em 0.08em 0.04em;
+    margin: 0 -0.02em;
+    border-radius: 0.08em 0.13em 0.09em 0.11em;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+  body.theme-dark .tweet-render mark[data-highlight] { color: inherit; }
+  .tweet-render mark[data-highlight="yellow"] { background-image: linear-gradient(to bottom, transparent 18%, var(--marker-yellow) 18%, var(--marker-yellow) 89%, transparent 89%); }
+  .tweet-render mark[data-highlight="pink"] { background-image: linear-gradient(to bottom, transparent 18%, var(--marker-pink) 18%, var(--marker-pink) 89%, transparent 89%); }
+  .tweet-render mark[data-highlight="green"] { background-image: linear-gradient(to bottom, transparent 18%, var(--marker-green) 18%, var(--marker-green) 89%, transparent 89%); }
+  .tweet-render mark[data-highlight="blue"] { background-image: linear-gradient(to bottom, transparent 18%, var(--marker-blue) 18%, var(--marker-blue) 89%, transparent 89%); }
+
+  .tweet-highlight-menu {
+    position: fixed;
+    z-index: 1500;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 42px;
+    padding: 6px;
+    border: 1px solid rgba(210, 210, 215, 0.92);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 10px 34px rgba(0, 0, 0, 0.18), 0 1px 3px rgba(0, 0, 0, 0.08);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(4px) scale(0.98);
+    transform-origin: 50% 100%;
+    transition: opacity 140ms ease, transform 140ms ease;
+  }
+  .tweet-highlight-menu.is-visible { opacity: 1; pointer-events: auto; transform: translateY(0) scale(1); }
+  .tweet-highlight-menu .marker-swatch {
+    width: 28px; height: 28px; padding: 0;
+    border: 1px solid rgba(29, 29, 31, 0.12);
+    border-radius: 8px 10px 7px 9px;
+    cursor: pointer;
+    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.48);
+  }
+  .tweet-highlight-menu .marker-swatch:hover { transform: translateY(-1px); }
+  .tweet-highlight-menu .marker-swatch[data-highlight-color="yellow"] { background: rgba(255, 228, 94, 0.92); }
+  .tweet-highlight-menu .marker-swatch[data-highlight-color="pink"] { background: rgba(255, 122, 200, 0.90); }
+  .tweet-highlight-menu .marker-swatch[data-highlight-color="green"] { background: rgba(128, 226, 126, 0.90); }
+  .tweet-highlight-menu .marker-swatch[data-highlight-color="blue"] { background: rgba(100, 216, 255, 0.90); }
+  body.theme-dark .tweet-highlight-menu .marker-swatch[data-highlight-color="yellow"] { background: rgba(172, 129, 0, 0.94); }
+  body.theme-dark .tweet-highlight-menu .marker-swatch[data-highlight-color="pink"] { background: rgba(145, 35, 88, 0.94); }
+  body.theme-dark .tweet-highlight-menu .marker-swatch[data-highlight-color="green"] { background: rgba(24, 108, 64, 0.94); }
+  body.theme-dark .tweet-highlight-menu .marker-swatch[data-highlight-color="blue"] { background: rgba(16, 94, 132, 0.96); }
+  .tweet-highlight-menu .marker-clear {
+    min-height: 28px; padding: 0 9px;
+    border: 0; border-left: 1px solid rgba(210, 210, 215, 0.9);
+    background: transparent; color: var(--ui-text-secondary);
+    font-family: var(--ui-font); font-size: 11px; font-weight: 500; cursor: pointer;
+  }
+  .tweet-highlight-menu button:focus-visible { outline: 3px solid rgba(0, 122, 255, 0.30); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { .tweet-highlight-menu { transition: none; } }
 
   /* Foto opcional 16:9 abaixo do texto */
   .tweet-render .photo {
@@ -502,6 +570,15 @@
 
   <div id="send-status" class="send-status"></div>
 
+  <div id="tweet-highlight-menu" class="tweet-highlight-menu" role="toolbar"
+       aria-label="Cores do marca-texto" aria-hidden="true">
+    <button type="button" class="marker-swatch" data-highlight-color="yellow" aria-label="Marca-texto amarelo"></button>
+    <button type="button" class="marker-swatch" data-highlight-color="pink" aria-label="Marca-texto rosa"></button>
+    <button type="button" class="marker-swatch" data-highlight-color="green" aria-label="Marca-texto verde"></button>
+    <button type="button" class="marker-swatch" data-highlight-color="blue" aria-label="Marca-texto azul"></button>
+    <button type="button" class="marker-clear" data-highlight-action="clear" aria-label="Remover realce">Remover</button>
+  </div>
+
   <!-- Modal Telegram Config -->
   <div class="modal-backdrop" id="tg-modal">
     <div class="modal">
@@ -814,7 +891,7 @@
     function escapeHtml(s) {
       return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
-    function markdownToHtml(text) {
+    function legacyMarkdownToHtml(text) {
       // **bold** → <strong>, \n → <br>. Escapa HTML primeiro pra evitar injection.
       let s = escapeHtml(text || '');
       // 0. Remove linhas que contêm apenas ** (órfãos de bold mal-formado de estados antigos)
@@ -829,7 +906,7 @@
       s = s.replace(/(<br>\s*){3,}/g, '<br><br>');
       return s;
     }
-    function htmlToMarkdown(html) {
+    function legacyHtmlToMarkdown(html) {
       // Converte de volta. Trata <br>, <div>, <p> (contenteditable às vezes insere), <strong>/<b>.
       let s = html || '';
       s = s.replace(/<div><br\s*\/?><\/div>/gi, '\n');
@@ -845,6 +922,67 @@
       s = s.replace(/\n{3,}/g, '\n\n');
       return s;
     }
+
+    const HIGHLIGHT_COLORS = ['yellow', 'pink', 'green', 'blue'];
+    const HIGHLIGHT_THEME_COLORS = {
+      light: {
+        yellow: 'rgba(255, 228, 94, 0.82)',
+        pink: 'rgba(255, 122, 200, 0.76)',
+        green: 'rgba(128, 226, 126, 0.76)',
+        blue: 'rgba(100, 216, 255, 0.76)'
+      },
+      dark: {
+        yellow: 'rgba(172, 129, 0, 0.78)',
+        pink: 'rgba(145, 35, 88, 0.76)',
+        green: 'rgba(24, 108, 64, 0.78)',
+        blue: 'rgba(16, 94, 132, 0.80)'
+      }
+    };
+
+    function normalizeHighlightColor(value) {
+      return HIGHLIGHT_COLORS.includes(value) ? value : null;
+    }
+
+    function parseRichTextMarkdown(text) {
+      let s = escapeHtml(text || '');
+      s = s.replace(/^[ \t]*\*\*[ \t]*$/gm, '');
+      s = s.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>');
+      s = s.replace(/\*\*/g, '');
+      s = s.replace(
+        /\[hl=(yellow|pink|green|blue)\]([\s\S]*?)\[\/hl\]/g,
+        '<mark data-highlight="$1">$2</mark>'
+      );
+      s = s.replace(/\n/g, '<br>');
+      return s.replace(/(<br>\s*){3,}/g, '<br><br>');
+    }
+
+    function serializeRichTextDOM(html) {
+      const root = document.createElement('div');
+      root.innerHTML = html || '';
+
+      function visit(node) {
+        if (node.nodeType === Node.TEXT_NODE) return node.textContent || '';
+        if (node.nodeType !== Node.ELEMENT_NODE) return '';
+        const tag = (node.tagName || '').toUpperCase();
+        if (tag === 'BR') return '\n';
+        let content = Array.from(node.childNodes).map(visit).join('');
+        if (tag === 'STRONG' || tag === 'B') content = '**' + content + '**';
+        if (tag === 'MARK') {
+          const color = normalizeHighlightColor(node.dataset.highlight);
+          if (color) content = '[hl=' + color + ']' + content + '[/hl]';
+        }
+        if (tag === 'DIV' || tag === 'P') content = '\n' + content;
+        return content;
+      }
+
+      return Array.from(root.childNodes).map(visit).join('')
+        .replace(/\u00a0/g, ' ')
+        .replace(/[ \t]+\n/g, '\n')
+        .replace(/\n{3,}/g, '\n\n');
+    }
+
+    function markdownToHtml(text) { return parseRichTextMarkdown(text); }
+    function htmlToMarkdown(html) { return serializeRichTextDOM(html); }
 
     // ─── getLineSegmentsFromDOM ─────────────────────────────
     // Lê o .body contenteditable e retorna lines = [[{text, bold}, ...], ...]
