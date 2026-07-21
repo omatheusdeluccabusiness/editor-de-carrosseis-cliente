@@ -1522,8 +1522,9 @@
 
     function drawMarkerStroke(ctx, x, y, width, fontSize, color) {
       if (!color || width <= 0) return;
-      const top = y + fontSize * 0.30;
-      const bottom = y + fontSize * 1.08;
+      // Mesma faixa vertical do preview CSS (18% → 89% da caixa tipográfica).
+      const top = y + fontSize * 0.18;
+      const bottom = y + fontSize * 0.89;
       const pad = Math.max(3, fontSize * 0.08);
       ctx.save();
       ctx.fillStyle = color;

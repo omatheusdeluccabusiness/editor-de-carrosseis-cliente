@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import unittest
 from pathlib import Path
 
@@ -102,6 +103,22 @@ class TweetHighlightsTest(unittest.TestCase):
             self.html.index("drawMarkerStroke(ctx, x, y, segmentWidth"),
             self.html.index("ctx.fillText(seg.text, x, y)"),
         )
+
+    def test_canvas_marker_uses_the_same_vertical_band_as_preview(self) -> None:
+        preview = re.search(
+            r'mark\[data-highlight="yellow"\].*?transparent\s+(\d+)%,\s*'
+            r'var\(--marker-yellow\)\s+\d+%,\s*'
+            r'var\(--marker-yellow\)\s+(\d+)%',
+            self.html,
+        )
+        canvas_top = re.search(r"const top = y \+ fontSize \* ([0-9.]+);", self.html)
+        canvas_bottom = re.search(r"const bottom = y \+ fontSize \* ([0-9.]+);", self.html)
+
+        self.assertIsNotNone(preview)
+        self.assertIsNotNone(canvas_top)
+        self.assertIsNotNone(canvas_bottom)
+        self.assertAlmostEqual(float(canvas_top.group(1)), int(preview.group(1)) / 100)
+        self.assertAlmostEqual(float(canvas_bottom.group(1)), int(preview.group(2)) / 100)
 
 
 if __name__ == "__main__":
