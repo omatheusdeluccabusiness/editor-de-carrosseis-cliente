@@ -675,6 +675,7 @@
 
     function saveProfileState() {
       safeStorageSet(PROFILE_STORAGE_KEY, JSON.stringify(profileState));
+      recordEditorMutation('profile');
     }
 
     function syncProfileDOM() {
@@ -788,6 +789,190 @@
     let currentTheme = safeStorageGet('matheusao-carrossel-theme') || 'light';
     const slideImageCache = new Map();
 
+    // ─── Undo global do documento ──────────────────────────
+    const UNDO_LIMIT = 50;
+    const UNDO_STORAGE_KEY = STORAGE_KEY + '-undo-v1';
+    let tweetUndoController = null;
+
+    function createUndoController(options) {
+      let undoStack = [];
+      let baseline = null;
+      let armed = false;
+      let restoring = false;
+
+      function serialize(snapshot) {
+        try { return JSON.stringify(snapshot); }
+        catch (e) { return ''; }
+      }
+
+      function loadStack() {
+        try {
+          const parsed = JSON.parse(sessionStorage.getItem(options.storageKey) || '[]');
+          return Array.isArray(parsed) ? parsed.slice(-UNDO_LIMIT) : [];
+        } catch (e) { return []; }
+      }
+
+      function persistStack() {
+        while (true) {
+          try {
+            sessionStorage.setItem(options.storageKey, JSON.stringify(undoStack));
+            return;
+          } catch (e) {
+            if (undoStack.length <= 1) return;
+            undoStack.shift();
+          }
+        }
+      }
+
+      function arm() {
+        undoStack = loadStack();
+        baseline = options.captureSnapshot();
+        armed = true;
+      }
+
+      function record() {
+        if (!armed || restoring) return;
+        const current = options.captureSnapshot();
+        if (serialize(current) === serialize(baseline)) return;
+        if (baseline !== null) undoStack.push(baseline);
+        if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+        baseline = current;
+        persistStack();
+      }
+
+      function checkpoint() {
+        if (!armed || restoring) return;
+        const current = options.captureSnapshot();
+        const last = undoStack.length ? undoStack[undoStack.length - 1] : null;
+        if (serialize(current) !== serialize(last)) undoStack.push(current);
+        if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+        baseline = current;
+        persistStack();
+      }
+
+      function undo() {
+        if (!armed || restoring || undoStack.length === 0) return false;
+        const snapshot = undoStack.pop();
+        persistStack();
+        restoring = true;
+        try {
+          options.restoreSnapshot(snapshot);
+          baseline = snapshot;
+        } finally {
+          restoring = false;
+        }
+        return true;
+      }
+
+      function resetBaseline() {
+        baseline = options.captureSnapshot();
+      }
+
+      return { arm, record, checkpoint, undo, resetBaseline };
+    }
+
+    function captureTweetSnapshot() {
+      const snapshotSlides = JSON.parse(JSON.stringify(slidesState || []));
+      document.querySelectorAll('.tweet-render .body').forEach((bodyEl) => {
+        const match = String(bodyEl.id || '').match(/^body-(\d+)$/);
+        const index = match ? Number(match[1]) : -1;
+        if (snapshotSlides[index]) snapshotSlides[index].text = htmlToMarkdown(bodyEl.innerHTML);
+      });
+      const nameInput = document.getElementById('profile-name');
+      const handleInput = document.getElementById('profile-handle');
+      const snapshotProfile = {
+        name: nameInput ? nameInput.value : profileState.name,
+        handle: handleInput ? normalizeHandle(handleInput.value) : profileState.handle,
+        avatar: profileState.avatar
+      };
+      const captionEl = document.getElementById('ig-caption');
+      return {
+        slides: snapshotSlides,
+        profile: snapshotProfile,
+        theme: currentTheme,
+        ratio: currentRatio,
+        caption: captionEl ? captionEl.value : ''
+      };
+    }
+
+    function restoreTweetSnapshot(snapshot) {
+      if (!snapshot || !Array.isArray(snapshot.slides) || !snapshot.profile) return;
+      const structureChanged = slidesState.length !== snapshot.slides.length;
+      slidesState = JSON.parse(JSON.stringify(snapshot.slides));
+      profileState = { ...snapshot.profile };
+      currentTheme = snapshot.theme === 'dark' ? 'dark' : 'light';
+      currentRatio = RATIO_HEIGHTS[snapshot.ratio] ? snapshot.ratio : '4:5';
+      H = RATIO_HEIGHTS[currentRatio];
+
+      safeStorageSet(STORAGE_KEY, JSON.stringify(slidesState));
+      safeStorageSet(PROFILE_STORAGE_KEY, JSON.stringify(profileState));
+      safeStorageSet('matheusao-carrossel-theme', currentTheme);
+      safeStorageSet('matheusao-tweet-ratio', currentRatio);
+      safeStorageSet(STORAGE_KEY + '-caption', snapshot.caption || '');
+
+      if (structureChanged) {
+        setUndoFeedback('Ação desfeita');
+        location.reload();
+        return;
+      }
+
+      if (document.activeElement && typeof document.activeElement.blur === 'function') {
+        document.activeElement.blur();
+      }
+      hideHighlightMenu();
+      slidesState.forEach((slide, index) => {
+        const bodyEl = document.getElementById('body-' + index);
+        if (bodyEl) bodyEl.innerHTML = markdownToHtml(slide.text || '');
+      });
+      const captionEl = document.getElementById('ig-caption');
+      if (captionEl) captionEl.value = snapshot.caption || '';
+      avatarImg = new Image();
+      avatarImg.onload = () => slidesState.forEach((_, index) => renderSlide(index));
+      avatarImg.src = profileState.avatar;
+      syncProfileDOM();
+      applyTheme();
+      applyRatio();
+      buildSlideRail();
+      slidesState.forEach((_, index) => loadSlideImage(index));
+    }
+
+    function recordEditorMutation(reason) {
+      if (tweetUndoController) tweetUndoController.record(reason);
+    }
+
+    function pushCurrentUndoSnapshot() {
+      if (tweetUndoController) tweetUndoController.checkpoint();
+    }
+
+    function undoEditorAction() {
+      if (!tweetUndoController || !tweetUndoController.undo()) return false;
+      setUndoFeedback('Ação desfeita');
+      return true;
+    }
+
+    function armEditorUndo() {
+      tweetUndoController = createUndoController({
+        storageKey: UNDO_STORAGE_KEY,
+        captureSnapshot: captureTweetSnapshot,
+        restoreSnapshot: restoreTweetSnapshot
+      });
+      tweetUndoController.arm();
+    }
+
+    function setUndoFeedback(message) {
+      const status = document.getElementById('save-status');
+      if (!status) return;
+      status.textContent = message;
+      status.classList.add('saved');
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'z') return;
+      if (!undoEditorAction()) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    }, true);
+
     function loadState() {
       try {
         const raw = safeStorageGet(STORAGE_KEY);
@@ -836,7 +1021,7 @@
         alert('Clica num slide primeiro pra ele ficar ativo, depois aperta × Slide.');
         return;
       }
-      if (!confirm('Apagar o slide ' + (idx + 1) + '? Sem desfazer.')) return;
+      if (!confirm('Apagar o slide ' + (idx + 1) + '?')) return;
       slidesState.splice(idx, 1);
       saveState();
       location.reload();
@@ -845,6 +1030,7 @@
     function saveState() {
       try {
         safeStorageSet(STORAGE_KEY, JSON.stringify(slidesState));
+        recordEditorMutation('slides');
         const status = document.getElementById('save-status');
         status.textContent = 'salvo no navegador às ' + new Date().toLocaleTimeString();
         status.classList.add('saved');
@@ -1557,6 +1743,7 @@
       currentTheme = currentTheme === 'light' ? 'dark' : 'light';
       safeStorageSet('matheusao-carrossel-theme', currentTheme);
       applyTheme();
+      recordEditorMutation('theme');
     }
 
     // ─── Ratio 4:5 / 3:4 ──────────────────────────────────
@@ -1601,6 +1788,7 @@
       currentRatio = ratio;
       try { localStorage.setItem('matheusao-tweet-ratio', ratio); } catch (e) {}
       applyRatio();
+      recordEditorMutation('ratio');
     }
     window.addEventListener('resize', updateTweetPreviewScale);
 
@@ -1762,6 +1950,7 @@
       if (saved !== null && saved !== undefined) captionEl.value = saved;
       captionEl.addEventListener('input', () => {
         safeStorageSet(STORAGE_KEY + '-caption', captionEl.value);
+        recordEditorMutation('caption');
       });
     }
 
@@ -2155,6 +2344,7 @@
       if (e.target.id === 'tg-modal') closeTgModal();
     });
     loadCaptionFromStorage();
+    armEditorUndo();
 
     avatarImg = new Image();
     avatarImg.onload = () => { buildUI(); applyTheme(); applyRatio(); slidesState.forEach((_, i) => loadSlideImage(i)); };
