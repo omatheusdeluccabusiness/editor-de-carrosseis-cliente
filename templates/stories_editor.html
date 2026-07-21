@@ -894,7 +894,174 @@
   function uid() { return 'b_' + Math.random().toString(36).slice(2, 8); }
   function safeGet(key) { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { return null; } }
   function safeSet(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} }
-  function saveDoc() { safeSet(DOC_KEY, doc); }
+  function saveDoc() {
+    safeSet(DOC_KEY, doc);
+    recordEditorMutation('document');
+  }
+
+  // ==== UNDO GLOBAL DO DOCUMENTO ====
+  const UNDO_LIMIT = 50;
+  const UNDO_STORAGE_KEY = DOC_KEY + '-undo-v1';
+  let storiesUndoController = null;
+
+  function createUndoController(options) {
+    let undoStack = [];
+    let baseline = null;
+    let armed = false;
+    let restoring = false;
+
+    function serialize(snapshot) {
+      try { return JSON.stringify(snapshot); }
+      catch (e) { return ''; }
+    }
+
+    function loadStack() {
+      try {
+        const parsed = JSON.parse(sessionStorage.getItem(options.storageKey) || '[]');
+        return Array.isArray(parsed) ? parsed.slice(-UNDO_LIMIT) : [];
+      } catch (e) { return []; }
+    }
+
+    function persistStack() {
+      while (true) {
+        try {
+          sessionStorage.setItem(options.storageKey, JSON.stringify(undoStack));
+          return;
+        } catch (e) {
+          if (undoStack.length <= 1) return;
+          undoStack.shift();
+        }
+      }
+    }
+
+    function arm() {
+      undoStack = loadStack();
+      baseline = options.captureSnapshot();
+      armed = true;
+    }
+
+    function record() {
+      if (!armed || restoring) return;
+      const current = options.captureSnapshot();
+      if (serialize(current) === serialize(baseline)) return;
+      if (baseline !== null) undoStack.push(baseline);
+      if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+      baseline = current;
+      persistStack();
+    }
+
+    function checkpoint() {
+      if (!armed || restoring) return;
+      const current = options.captureSnapshot();
+      const last = undoStack.length ? undoStack[undoStack.length - 1] : null;
+      if (serialize(current) !== serialize(last)) undoStack.push(current);
+      if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+      baseline = current;
+      persistStack();
+    }
+
+    function undo() {
+      if (!armed || restoring || undoStack.length === 0) return false;
+      const snapshot = undoStack.pop();
+      persistStack();
+      restoring = true;
+      try {
+        options.restoreSnapshot(snapshot);
+        baseline = snapshot;
+      } finally {
+        restoring = false;
+      }
+      return true;
+    }
+
+    function resetBaseline() {
+      baseline = options.captureSnapshot();
+    }
+
+    return { arm, record, checkpoint, undo, resetBaseline };
+  }
+
+  function captureStoriesSnapshot() {
+    const snapshotDoc = JSON.parse(JSON.stringify(doc || { version: 6, slides: [] }));
+    document.querySelectorAll('[data-block-id]').forEach((blockEl) => {
+      const slideIndex = getStageIndex(blockEl);
+      const slide = snapshotDoc.slides[slideIndex];
+      if (!slide) return;
+      const block = slide.blocks.find(item => item.id === blockEl.dataset.blockId);
+      if (block) block.html = blockEl.innerHTML;
+    });
+    const captionEl = document.getElementById('ig-caption');
+    return {
+      document: snapshotDoc,
+      theme: isLightTheme() ? 'light' : 'dark',
+      caption: captionEl ? captionEl.value : ''
+    };
+  }
+
+  function restoreStoriesSnapshot(snapshot) {
+    if (!snapshot || !snapshot.document || !Array.isArray(snapshot.document.slides)) return;
+    const structureChanged = doc.slides.length !== snapshot.document.slides.length;
+    doc = JSON.parse(JSON.stringify(snapshot.document));
+    safeSet(DOC_KEY, doc);
+    try {
+      localStorage.setItem(STORIES_THEME_KEY, snapshot.theme);
+      localStorage.setItem(DOC_KEY + '-caption', snapshot.caption || '');
+    } catch (e) {}
+
+    if (structureChanged) {
+      setUndoFeedback('Ação desfeita');
+      location.reload();
+      return;
+    }
+
+    if (document.activeElement && typeof document.activeElement.blur === 'function') {
+      document.activeElement.blur();
+    }
+    deselectBlock();
+    activeStageIndex = Math.min(
+      typeof activeStageIndex === 'number' ? activeStageIndex : 0,
+      Math.max(0, doc.slides.length - 1)
+    );
+    applyStoriesTheme(snapshot.theme);
+    const captionEl = document.getElementById('ig-caption');
+    if (captionEl) captionEl.value = snapshot.caption || '';
+    renderAll();
+    buildSlideRail();
+  }
+
+  function recordEditorMutation(reason) {
+    if (storiesUndoController) storiesUndoController.record(reason);
+  }
+
+  function pushCurrentUndoSnapshot() {
+    if (storiesUndoController) storiesUndoController.checkpoint();
+  }
+
+  function undoEditorAction() {
+    if (!storiesUndoController || !storiesUndoController.undo()) return false;
+    setUndoFeedback('Ação desfeita');
+    return true;
+  }
+
+  function armEditorUndo() {
+    storiesUndoController = createUndoController({
+      storageKey: UNDO_STORAGE_KEY,
+      captureSnapshot: captureStoriesSnapshot,
+      restoreSnapshot: restoreStoriesSnapshot
+    });
+    storiesUndoController.arm();
+  }
+
+  function setUndoFeedback(message) {
+    setSendStatus(message, 'success');
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'z') return;
+    if (!undoEditorAction()) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  }, true);
 
   function blockToClassName(block) {
     let cls = block.kind;
@@ -1189,7 +1356,7 @@
       alert('Clica num bloco do slide que você quer apagar primeiro (ou no slide pra ele ficar ativo).');
       return;
     }
-    if (!confirm('Apagar o slide ' + (sIdx + 1) + '? Sem desfazer.')) return;
+    if (!confirm('Apagar o slide ' + (sIdx + 1) + '?')) return;
     doc.slides.splice(sIdx, 1);
     saveDoc();
     location.reload();
@@ -1209,6 +1376,7 @@
     try { localStorage.setItem(STORIES_THEME_KEY, next); } catch (e) {}
     applyStoriesTheme(next);
     if (typeof renderAll === 'function') renderAll();
+    recordEditorMutation('theme');
   }
   (function bootStoriesTheme() {
     let saved = null;
@@ -2209,6 +2377,7 @@
     }
     document.getElementById('btn-reset-text').addEventListener('click', () => {
       if (!confirm('Restaurar texto original do roteiro + posições/escalas? (apaga edições e reordens)')) return;
+      pushCurrentUndoSnapshot();
       localStorage.removeItem(DOC_KEY);
       localStorage.removeItem(LEGACY_TEXT_KEY);
       localStorage.removeItem(LEGACY_BZ_KEY);
@@ -3041,12 +3210,14 @@
     if (saved !== null) captionEl.value = saved;
     captionEl.addEventListener('input', () => {
       localStorage.setItem(DOC_KEY + '-caption', captionEl.value);
+      recordEditorMutation('caption');
     });
   }
 
   document.addEventListener('DOMContentLoaded', () => {
     bootstrapTgConfig();
     loadCaptionFromStorage();
+    armEditorUndo();
     const btnPub = document.getElementById('btn-publish-ig');
     if (btnPub) btnPub.addEventListener('click', publishInstagram);
     document.getElementById('btn-download-all').addEventListener('click', downloadAllPNGs);
