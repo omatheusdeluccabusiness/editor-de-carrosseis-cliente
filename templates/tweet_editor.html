@@ -984,6 +984,272 @@
     function markdownToHtml(text) { return parseRichTextMarkdown(text); }
     function htmlToMarkdown(html) { return serializeRichTextDOM(html); }
 
+    const highlightMenu = document.getElementById('tweet-highlight-menu');
+    let savedHighlightRange = null;
+    let savedHighlightBody = null;
+    let highlightSelectionFrame = 0;
+
+    function richTextNodeLength(node) {
+      if (node.nodeType === Node.TEXT_NODE) return (node.textContent || '').length;
+      if (node.nodeType !== Node.ELEMENT_NODE) return 0;
+      if ((node.tagName || '').toUpperCase() === 'BR') return 1;
+      return Array.from(node.childNodes).reduce((total, child) => total + richTextNodeLength(child), 0);
+    }
+
+    function getBoundaryOffset(bodyEl, container, offset) {
+      if (!bodyEl || !container || (container !== bodyEl && !bodyEl.contains(container))) return null;
+      let total = 0;
+      if (container.nodeType === Node.TEXT_NODE) {
+        total = Math.min(offset, (container.textContent || '').length);
+      } else {
+        const children = Array.from(container.childNodes || []);
+        total = children.slice(0, Math.min(offset, children.length))
+          .reduce((sum, child) => sum + richTextNodeLength(child), 0);
+      }
+      let current = container;
+      while (current && current !== bodyEl) {
+        let sibling = current.previousSibling;
+        while (sibling) {
+          total += richTextNodeLength(sibling);
+          sibling = sibling.previousSibling;
+        }
+        current = current.parentNode;
+      }
+      return current === bodyEl ? total : null;
+    }
+
+    function extractRichTextUnits(bodyEl) {
+      const units = [];
+      function visit(node, context) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          for (const char of node.textContent || '') {
+            units.push({ char, bold: context.bold, highlight: context.highlight });
+          }
+          return;
+        }
+        if (node.nodeType !== Node.ELEMENT_NODE) return;
+        const tag = (node.tagName || '').toUpperCase();
+        if (tag === 'BR') {
+          units.push({ char: '\n', bold: false, highlight: null });
+          return;
+        }
+        if ((tag === 'DIV' || tag === 'P') && units.length && units[units.length - 1].char !== '\n') {
+          units.push({ char: '\n', bold: false, highlight: null });
+        }
+        const next = {
+          bold: context.bold || tag === 'STRONG' || tag === 'B',
+          highlight: tag === 'MARK'
+            ? normalizeHighlightColor(node.dataset.highlight)
+            : context.highlight
+        };
+        Array.from(node.childNodes).forEach(child => visit(child, next));
+      }
+      Array.from(bodyEl.childNodes).forEach(child => visit(child, { bold: false, highlight: null }));
+      return units;
+    }
+
+    function renderRichTextUnits(units) {
+      const root = document.createElement('div');
+      let index = 0;
+      while (index < units.length) {
+        const unit = units[index];
+        if (unit.char === '\n') {
+          root.appendChild(document.createElement('br'));
+          index += 1;
+          continue;
+        }
+        let end = index + 1;
+        while (
+          end < units.length &&
+          units[end].char !== '\n' &&
+          units[end].bold === unit.bold &&
+          units[end].highlight === unit.highlight
+        ) end += 1;
+        let node = document.createTextNode(units.slice(index, end).map(item => item.char).join(''));
+        if (unit.bold) {
+          const strong = document.createElement('strong');
+          strong.appendChild(node);
+          node = strong;
+        }
+        if (unit.highlight) {
+          const mark = document.createElement('mark');
+          mark.dataset.highlight = unit.highlight;
+          mark.appendChild(node);
+          node = mark;
+        }
+        root.appendChild(node);
+        index = end;
+      }
+      return root.innerHTML;
+    }
+
+    function getTweetBodyForRange(range) {
+      if (!range || range.collapsed) return null;
+      const startElement = range.startContainer.nodeType === Node.ELEMENT_NODE
+        ? range.startContainer
+        : range.startContainer.parentElement;
+      const endElement = range.endContainer.nodeType === Node.ELEMENT_NODE
+        ? range.endContainer
+        : range.endContainer.parentElement;
+      const startBody = startElement && startElement.closest('.tweet-render .body');
+      const endBody = endElement && endElement.closest('.tweet-render .body');
+      return startBody && startBody === endBody ? startBody : null;
+    }
+
+    function locateRichTextOffset(bodyEl, targetOffset) {
+      let remaining = Math.max(0, targetOffset);
+      let found = null;
+      function visit(node) {
+        if (found) return;
+        if (node.nodeType === Node.TEXT_NODE) {
+          const length = (node.textContent || '').length;
+          if (remaining <= length) found = { container: node, offset: remaining };
+          else remaining -= length;
+          return;
+        }
+        if (node.nodeType !== Node.ELEMENT_NODE) return;
+        if ((node.tagName || '').toUpperCase() === 'BR') {
+          const parent = node.parentNode;
+          const index = Array.prototype.indexOf.call(parent.childNodes, node);
+          if (remaining === 0) found = { container: parent, offset: index };
+          else {
+            remaining -= 1;
+            if (remaining === 0) found = { container: parent, offset: index + 1 };
+          }
+          return;
+        }
+        Array.from(node.childNodes).forEach(visit);
+      }
+      Array.from(bodyEl.childNodes).forEach(visit);
+      return found || { container: bodyEl, offset: bodyEl.childNodes.length };
+    }
+
+    function restoreRichTextSelection(bodyEl, startOffset, endOffset) {
+      const start = locateRichTextOffset(bodyEl, startOffset);
+      const end = locateRichTextOffset(bodyEl, endOffset);
+      const range = document.createRange();
+      range.setStart(start.container, start.offset);
+      range.setEnd(end.container, end.offset);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      savedHighlightRange = range.cloneRange();
+      savedHighlightBody = bodyEl;
+      return range;
+    }
+
+    function syncHighlightedBody(bodyEl) {
+      const index = Number(String(bodyEl.id || '').replace('body-', ''));
+      if (!Number.isInteger(index) || !slidesState[index]) return;
+      slidesState[index].text = htmlToMarkdown(bodyEl.innerHTML);
+      saveState();
+      applyLayout(index);
+    }
+
+    function positionHighlightMenu(range) {
+      if (!highlightMenu || !range) return;
+      const rect = range.getBoundingClientRect();
+      if (!rect.width && !rect.height) return;
+      const gap = 9;
+      const menuWidth = highlightMenu.offsetWidth || 218;
+      const menuHeight = highlightMenu.offsetHeight || 42;
+      let left = rect.left + rect.width / 2 - menuWidth / 2;
+      left = Math.max(8, Math.min(left, window.innerWidth - menuWidth - 8));
+      let top = rect.top - menuHeight - gap;
+      if (top < 8) top = rect.bottom + gap;
+      highlightMenu.style.left = Math.round(left) + 'px';
+      highlightMenu.style.top = Math.round(top) + 'px';
+    }
+
+    function showHighlightMenu(range) {
+      const bodyEl = getTweetBodyForRange(range);
+      if (!highlightMenu || !bodyEl) return hideHighlightMenu();
+      savedHighlightRange = range.cloneRange();
+      savedHighlightBody = bodyEl;
+      highlightMenu.classList.add('is-visible');
+      highlightMenu.setAttribute('aria-hidden', 'false');
+      positionHighlightMenu(range);
+    }
+
+    function hideHighlightMenu() {
+      if (!highlightMenu) return;
+      highlightMenu.classList.remove('is-visible');
+      highlightMenu.setAttribute('aria-hidden', 'true');
+      savedHighlightRange = null;
+      savedHighlightBody = null;
+    }
+
+    function updateHighlightSelection(color) {
+      if (!savedHighlightRange || !savedHighlightBody) return;
+      const bodyEl = savedHighlightBody;
+      const start = getBoundaryOffset(
+        bodyEl,
+        savedHighlightRange.startContainer,
+        savedHighlightRange.startOffset
+      );
+      const end = getBoundaryOffset(
+        bodyEl,
+        savedHighlightRange.endContainer,
+        savedHighlightRange.endOffset
+      );
+      if (start === null || end === null || end <= start) return;
+      const units = extractRichTextUnits(bodyEl);
+      const safeColor = normalizeHighlightColor(color);
+      for (let index = start; index < Math.min(end, units.length); index += 1) {
+        if (units[index].char !== '\n') units[index].highlight = safeColor;
+      }
+      bodyEl.innerHTML = renderRichTextUnits(units);
+      const range = restoreRichTextSelection(bodyEl, start, end);
+      syncHighlightedBody(bodyEl);
+      showHighlightMenu(range);
+    }
+
+    function applyHighlightToSavedRange(color) {
+      updateHighlightSelection(color);
+    }
+
+    function clearHighlightFromSavedRange() {
+      updateHighlightSelection(null);
+    }
+
+    document.addEventListener('selectionchange', () => {
+      if (highlightSelectionFrame) cancelAnimationFrame(highlightSelectionFrame);
+      highlightSelectionFrame = requestAnimationFrame(() => {
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+          if (!highlightMenu || !highlightMenu.contains(document.activeElement)) hideHighlightMenu();
+          return;
+        }
+        const range = selection.getRangeAt(0);
+        if (getTweetBodyForRange(range)) showHighlightMenu(range);
+        else hideHighlightMenu();
+      });
+    });
+
+    if (highlightMenu) {
+      highlightMenu.querySelectorAll('[data-highlight-color]').forEach(button => {
+        button.addEventListener('mousedown', e => e.preventDefault());
+        button.addEventListener('click', () => applyHighlightToSavedRange(button.dataset.highlightColor));
+      });
+      const clearButton = highlightMenu.querySelector('[data-highlight-action="clear"]');
+      clearButton.addEventListener('mousedown', e => e.preventDefault());
+      clearButton.addEventListener('click', clearHighlightFromSavedRange);
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && savedHighlightBody) {
+        const bodyEl = savedHighlightBody;
+        hideHighlightMenu();
+        bodyEl.focus({ preventScroll: true });
+      }
+    });
+    window.addEventListener('resize', () => {
+      if (savedHighlightRange) positionHighlightMenu(savedHighlightRange);
+    });
+    document.addEventListener('scroll', () => {
+      if (savedHighlightRange) positionHighlightMenu(savedHighlightRange);
+    }, true);
+
     // ─── getLineSegmentsFromDOM ─────────────────────────────
     // Lê o .body contenteditable e retorna lines = [[{text, bold}, ...], ...]
     // usando Range.getBoundingClientRect() pra detectar quebras reais que o browser fez.

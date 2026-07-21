@@ -54,6 +54,33 @@ class TweetHighlightsTest(unittest.TestCase):
         for marker in required:
             self.assertIn(marker, self.html)
 
+    def test_selection_controller_has_bounded_range_and_commands(self) -> None:
+        required = (
+            "function getTweetBodyForRange(range)",
+            "function showHighlightMenu(range)",
+            "function hideHighlightMenu()",
+            "function applyHighlightToSavedRange(color)",
+            "function clearHighlightFromSavedRange()",
+            "document.addEventListener('selectionchange'",
+            "e.key === 'Escape'",
+            "range.cloneRange()",
+            "function extractRichTextUnits(bodyEl)",
+            "function getBoundaryOffset(bodyEl, container, offset)",
+            "function renderRichTextUnits(units)",
+        )
+        for marker in required:
+            self.assertIn(marker, self.html)
+
+    def test_commands_resync_slide_state(self) -> None:
+        required = (
+            "function syncHighlightedBody(bodyEl)",
+            "slidesState[index].text = htmlToMarkdown(bodyEl.innerHTML)",
+            "saveState()",
+            "applyLayout(index)",
+        )
+        for marker in required:
+            self.assertIn(marker, self.html)
+
 
 if __name__ == "__main__":
     unittest.main()
