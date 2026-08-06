@@ -643,13 +643,12 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 EDITOR_PORT = int(os.environ.get("CARROSSEL_EDITOR_PORT", "8777"))
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
 EDITOR_TEMPLATES = {
-    "ostentacao": TEMPLATE_DIR / "ostentacao_editor.html",
-    "stories":    TEMPLATE_DIR / "stories_editor.html",
-    "tweet":      TEMPLATE_DIR / "tweet_editor.html",
+    "stories": TEMPLATE_DIR / "stories_editor.html",
+    "tweet": TEMPLATE_DIR / "tweet_editor.html",
 }
-EDITOR_TEMPLATE = EDITOR_TEMPLATES["ostentacao"]  # default; sobrescrito por --template
+EDITOR_TEMPLATE = EDITOR_TEMPLATES["tweet"]  # default; sobrescrito por --template
 TEMPLATE_TOTAL_SLIDES = 10  # default para todos os templates
-TEMPLATE_SLIDES_BY_NAME = {"ostentacao": 10, "stories": 10, "tweet": 10}
+TEMPLATE_SLIDES_BY_NAME = {"stories": 10, "tweet": 10}
 EDITOR_DIR = Path(os.environ.get("CARROSSEL_EDITOR_DIR", "/tmp/carrossel-editor"))
 SERVE_SCRIPT = Path(__file__).with_name("serve_carrossel.py")  # canônico unificado
 SERVICE_SCRIPT = Path(__file__).with_name("carrossel_service.py")
@@ -784,7 +783,7 @@ def _generate_slides_html(parsed: dict) -> str:
     return "\n\n".join(_build_slide_html(s, total) for s in parsed["slides"])
 
 
-SCHEMA_VERSION = "v5"  # v4: novo template stories (PT Serif, fontSize por bloco, .hot = só cor de texto sem pill nem underline)
+SCHEMA_VERSION = "v6"
 
 
 def _make_doc_key(roteiro_md: Path, content_hash: str = "") -> str:
@@ -801,7 +800,7 @@ def _make_doc_key(roteiro_md: Path, content_hash: str = "") -> str:
     """
     base = slugify(roteiro_md.stem)
     h = content_hash[:10] if content_hash else "v1"
-    return f"matheusao-ostentacao-{base}-{SCHEMA_VERSION}-{h}"
+    return f"carrossel-editor-{base}-{SCHEMA_VERSION}-{h}"
 
 
 def _hash_roteiro(roteiro_text: str) -> str:
@@ -911,7 +910,7 @@ def launch_editor(parsed: dict, roteiro_md: Path, no_launch: bool = False) -> st
     template_html = EDITOR_TEMPLATE.read_text(encoding="utf-8")
 
     # Geração dos slides — formato depende do template ativo.
-    # Stories e ostentacao usam HTML estruturado ({{SLIDES_HTML}}).
+    # Stories usa HTML estruturado ({{SLIDES_HTML}}).
     # Tweet usa array JS ({{SLIDES_JSON}}).
     slides_html = _generate_slides_html(parsed)
     slides_json = _generate_slides_json(parsed)
@@ -985,8 +984,8 @@ def main():
     parser.add_argument("--output-dir", help="Pasta customizada pros PNGs")
     parser.add_argument("--no-publish", action="store_true",
                         help="Só gera PNGs, sem chamar publisher")
-    parser.add_argument("--template", choices=list(EDITOR_TEMPLATES.keys()), default="ostentacao",
-                        help="Template visual a usar (ostentacao=Direção C atual, stories=PT Serif sobre preto, clone do Bundas)")
+    parser.add_argument("--template", choices=list(EDITOR_TEMPLATES.keys()), default="tweet",
+                        help="Template visual a usar (tweet ou stories)")
     args = parser.parse_args()
 
     # Sobrescreve EDITOR_TEMPLATE e TEMPLATE_TOTAL_SLIDES com base no flag

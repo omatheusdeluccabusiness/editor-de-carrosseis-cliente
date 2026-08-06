@@ -94,10 +94,5 @@ class EditorUndoContractTest(unittest.TestCase):
             self.assertIn(marker, html)
         self.assertNotIn("? Sem desfazer.", html)
 
-    def test_legacy_editor_stays_out_of_scope(self) -> None:
-        legacy = (ROOT / "templates" / "ostentacao_editor.html").read_text(encoding="utf-8")
-        self.assertNotIn("function createUndoController(options)", legacy)
-
-
 if __name__ == "__main__":
     unittest.main()
