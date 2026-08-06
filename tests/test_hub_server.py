@@ -36,6 +36,17 @@ def running_test_server():
 
 
 class HubServerTest(unittest.TestCase):
+    def test_root_http_returns_hub_without_redirect(self) -> None:
+        with running_test_server() as base_url:
+            with urllib.request.urlopen(base_url + "/") as response:
+                html = response.read().decode("utf-8")
+
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.geturl(), base_url + "/")
+            self.assertEqual(response.headers.get_content_type(), "text/html")
+            self.assertIn('"id": "tweet"', html)
+            self.assertIn('"id": "stories"', html)
+
     def test_root_renders_only_official_templates(self) -> None:
         renderer = getattr(serve_carrossel, "_render_hub", None)
         self.assertIsNotNone(renderer, "o servidor ainda não renderiza o HUB")
