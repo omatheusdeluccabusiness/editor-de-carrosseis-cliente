@@ -30,11 +30,19 @@ import html
 import urllib.parse
 from pathlib import Path
 
+try:
+    from scripts.hub_sessions import cleanup_hub_sessions, create_hub_session
+    from scripts.template_catalog import public_template_catalog
+except ImportError:
+    from hub_sessions import cleanup_hub_sessions, create_hub_session
+    from template_catalog import public_template_catalog
+
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
 
 PROJECT_ROOT     = Path(__file__).resolve().parent.parent
+HUB_TEMPLATE     = PROJECT_ROOT / 'templates' / 'hub.html'
 DIR              = os.environ.get('CARROSSEL_EDITOR_DIR', '/tmp/carrossel-editor')
 PORT             = int(os.environ.get('CARROSSEL_EDITOR_PORT', '8777'))
 HOME_TG          = os.path.expanduser('~/.matheusao-telegram.json')
@@ -95,6 +103,11 @@ def _latest_editor_html() -> Path | None:
     if not html_files:
         return None
     return max(html_files, key=lambda p: p.stat().st_mtime)
+
+
+def _render_hub() -> str:
+    catalog_json = json.dumps(public_template_catalog(), ensure_ascii=False).replace("</", "<\\/")
+    return HUB_TEMPLATE.read_text(encoding='utf-8').replace("{{TEMPLATES_JSON}}", catalog_json)
 
 # ---------------------------------------------------------------------------
 # OpenAI call
@@ -177,40 +190,7 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
         self.wfile.write(payload)
 
     def _send_root(self):
-        latest = _latest_editor_html()
-        if latest:
-            target = "/" + urllib.parse.quote(latest.name)
-            self.send_response(302)
-            self.send_header("Location", target)
-            self.end_headers()
-            return
-
-        self._send_html(200, """<!doctype html>
-<html lang="pt-BR">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Editor de Carrosseis</title>
-  <style>
-    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#111;color:#f7f7f2;display:grid;min-height:100vh;place-items:center}
-    main{width:min(680px,calc(100vw - 40px));line-height:1.5}
-    h1{font-size:34px;margin:0 0 12px}
-    p{color:#c9c9c2;margin:0 0 18px}
-    code{background:#222;padding:3px 6px;border-radius:6px;color:#fff}
-    .box{border:1px solid #333;border-radius:10px;padding:20px;background:#171717}
-  </style>
-</head>
-<body>
-  <main>
-    <h1>Editor de Carrosseis</h1>
-    <div class="box">
-      <p>Nenhum editor HTML foi gerado ainda.</p>
-      <p>Crie um novo carrossel pela pasta do projeto:</p>
-      <p><code>./novo.sh tweet</code> ou <code>./novo.sh stories</code></p>
-    </div>
-  </main>
-</body>
-</html>""")
+        self._send_html(200, _render_hub())
 
     def do_GET(self):
         path = urllib.parse.urlparse(self.path).path
@@ -243,6 +223,8 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_POST(self):
         try:
+            if self.path == '/api/sessoes':
+                return self._handle_create_session()
             if self.path == '/api/gerar-imagem':
                 return self._handle_gerar()
             if self.path == '/api/salvar-imagem':
@@ -263,6 +245,15 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
             })
         except Exception as e:
             self._send_json(500, {'error': type(e).__name__, 'detail': str(e)})
+
+    def _handle_create_session(self):
+        template_id = str(self._read_json_body().get('template', '')).strip()
+        try:
+            session = create_hub_session(template_id, Path(DIR))
+        except KeyError as exc:
+            self._send_json(400, {'error': 'template_invalido', 'detail': str(exc)})
+            return
+        self._send_json(201, {'ok': True, 'session_id': session.id, 'url': session.url})
 
     def _handle_gerar(self):
         body = self._read_json_body()
@@ -372,9 +363,11 @@ class ReusableThreadingTCPServer(socketserver.ThreadingTCPServer):
 
 if __name__ == '__main__':
     os.chdir(DIR)
+    cleanup_hub_sessions(Path(DIR))
     with ReusableThreadingTCPServer(("", PORT), CarrosselHandler) as httpd:
         print(f"servindo {DIR} em http://localhost:{PORT}")
         print(f"endpoints API:")
+        print(f"  POST http://localhost:{PORT}/api/sessoes")
         print(f"  POST http://localhost:{PORT}/api/gerar-imagem")
         print(f"  POST http://localhost:{PORT}/api/salvar-imagem")
         print(f"  POST http://localhost:{PORT}/api/publicar-instagram")

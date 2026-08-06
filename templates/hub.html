@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Editor de Carrosséis</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --mesa: #f2f2f4;
+      --papel: #ffffff;
+      --papel-secundario: #f7f7f8;
+      --tinta: #1d1d1f;
+      --texto-secundario: #6e6e73;
+      --acao: #007aff;
+      --borda: #d8d8dc;
+      --display: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --text: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      min-width: 320px;
+      background: var(--mesa);
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--tinta);
+      background: var(--mesa);
+      font-family: var(--text);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    .hub-shell {
+      width: min(980px, calc(100% - 48px));
+      margin: 0 auto;
+      padding: 48px 0 40px;
+    }
+
+    .hub-header {
+      max-width: 620px;
+      margin-bottom: 28px;
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--texto-secundario);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+    }
+
+    h1 {
+      margin: 0;
+      font-family: var(--display);
+      font-size: clamp(30px, 4vw, 42px);
+      font-weight: 650;
+      letter-spacing: -0.035em;
+      line-height: 1.08;
+    }
+
+    .hub-header > p:last-child {
+      margin: 10px 0 0;
+      color: var(--texto-secundario);
+      font-size: 16px;
+      line-height: 1.45;
+    }
+
+    .template-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .template-card {
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+      overflow: hidden;
+      border: 1px solid var(--borda);
+      border-radius: 18px;
+      background: var(--papel);
+    }
+
+    .preview-stage {
+      display: grid;
+      min-height: 286px;
+      place-items: center;
+      border-bottom: 1px solid #e7e7ea;
+      background: var(--papel-secundario);
+      padding: 22px;
+    }
+
+    .preview-sheet {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgba(29, 29, 31, 0.12);
+      background: var(--papel);
+      box-shadow: 0 12px 28px rgba(29, 29, 31, 0.10), 0 2px 5px rgba(29, 29, 31, 0.08);
+    }
+
+    .preview-sheet--tweet {
+      width: 176px;
+      aspect-ratio: 4 / 5;
+      padding: 18px;
+    }
+
+    .tweet-heading {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin-bottom: 17px;
+    }
+
+    .tweet-avatar {
+      width: 24px;
+      height: 24px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: var(--tinta);
+    }
+
+    .tweet-identity {
+      display: grid;
+      flex: 1;
+      gap: 5px;
+    }
+
+    .preview-line {
+      display: block;
+      height: 5px;
+      border-radius: 99px;
+      background: #232326;
+    }
+
+    .preview-line--muted {
+      width: 54%;
+      height: 4px;
+      background: #a0a0a5;
+    }
+
+    .tweet-copy {
+      display: grid;
+      gap: 7px;
+    }
+
+    .tweet-copy .preview-line:nth-child(2) {
+      width: 91%;
+    }
+
+    .tweet-copy .preview-line:nth-child(3) {
+      width: 68%;
+    }
+
+    .tweet-rule {
+      position: absolute;
+      right: 18px;
+      bottom: 20px;
+      left: 18px;
+      height: 1px;
+      background: #dedee2;
+    }
+
+    .preview-sheet--stories {
+      display: flex;
+      width: 142px;
+      aspect-ratio: 9 / 16;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 18px 15px 16px;
+      color: var(--papel);
+      background: #1d1d1f;
+    }
+
+    .story-kicker {
+      width: 34px;
+      height: 3px;
+      background: var(--papel);
+    }
+
+    .story-copy {
+      display: grid;
+      gap: 7px;
+      margin: auto 0;
+    }
+
+    .story-copy span {
+      display: block;
+      height: 11px;
+      background: var(--papel);
+    }
+
+    .story-copy span:nth-child(2) {
+      width: 83%;
+    }
+
+    .story-copy span:nth-child(3) {
+      width: 58%;
+    }
+
+    .story-footer {
+      width: 52%;
+      height: 3px;
+      background: #8e8e93;
+    }
+
+    .card-body {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 22px;
+      align-items: end;
+      padding: 20px;
+    }
+
+    .template-name {
+      margin: 0;
+      font-family: var(--display);
+      font-size: 20px;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+    }
+
+    .template-description {
+      margin: 5px 0 0;
+      color: var(--texto-secundario);
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    .template-meta {
+      margin: 10px 0 0;
+      color: var(--texto-secundario);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.01em;
+    }
+
+    .create-button {
+      min-height: 40px;
+      border: 0;
+      border-radius: 10px;
+      padding: 0 17px;
+      color: var(--papel);
+      background: var(--acao);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 140ms ease, opacity 140ms ease;
+    }
+
+    .create-button:hover {
+      background: #006ee6;
+    }
+
+    .create-button:focus-visible {
+      outline: 3px solid rgba(0, 122, 255, 0.34);
+      outline-offset: 3px;
+    }
+
+    .create-button:disabled {
+      cursor: wait;
+      opacity: 0.58;
+    }
+
+    .hub-status {
+      min-height: 20px;
+      margin: 16px 2px 0;
+      color: var(--texto-secundario);
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    .hub-status.is-error {
+      color: #b42318;
+    }
+
+    @media (max-width: 720px) {
+      .hub-shell {
+        width: min(100% - 28px, 520px);
+        padding-top: 28px;
+      }
+
+      .hub-header {
+        margin-bottom: 22px;
+      }
+
+      .template-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .preview-stage {
+        min-height: 242px;
+      }
+
+      .preview-sheet--tweet {
+        width: 154px;
+      }
+
+      .preview-sheet--stories {
+        width: 122px;
+      }
+    }
+
+    @media (max-width: 420px) {
+      .card-body {
+        grid-template-columns: 1fr;
+        gap: 16px;
+      }
+
+      .create-button {
+        width: 100%;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .create-button {
+        transition: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="hub-shell">
+    <header class="hub-header">
+      <p class="eyebrow">Editor de Carrosséis</p>
+      <h1>O que vamos criar?</h1>
+      <p>Escolha um modelo para começar uma criação nova.</p>
+    </header>
+
+    <section id="template-grid" class="template-grid" aria-label="Templates disponíveis"></section>
+    <p id="hub-status" class="hub-status" role="status" aria-live="polite"></p>
+  </main>
+
+  <script>
+    const TEMPLATES = {{TEMPLATES_JSON}};
+
+    const grid = document.getElementById('template-grid');
+    const status = document.getElementById('hub-status');
+
+    function buildPreview(kind) {
+      const stage = document.createElement('div');
+      stage.className = 'preview-stage';
+      stage.setAttribute('aria-hidden', 'true');
+
+      const sheet = document.createElement('div');
+      sheet.className = `preview-sheet preview-sheet--${kind}`;
+
+      if (kind === 'tweet') {
+        sheet.innerHTML = `
+          <div class="tweet-heading">
+            <span class="tweet-avatar"></span>
+            <span class="tweet-identity">
+              <span class="preview-line"></span>
+              <span class="preview-line preview-line--muted"></span>
+            </span>
+          </div>
+          <span class="tweet-copy">
+            <span class="preview-line"></span>
+            <span class="preview-line"></span>
+            <span class="preview-line"></span>
+          </span>
+          <span class="tweet-rule"></span>`;
+      } else {
+        sheet.innerHTML = `
+          <span class="story-kicker"></span>
+          <span class="story-copy"><span></span><span></span><span></span></span>
+          <span class="story-footer"></span>`;
+      }
+
+      stage.appendChild(sheet);
+      return stage;
+    }
+
+    function renderTemplates() {
+      TEMPLATES.forEach((template) => {
+        const card = document.createElement('article');
+        card.className = 'template-card';
+        card.appendChild(buildPreview(template.preview_kind));
+
+        const body = document.createElement('div');
+        body.className = 'card-body';
+
+        const copy = document.createElement('div');
+        const title = document.createElement('h2');
+        title.className = 'template-name';
+        title.textContent = template.name;
+
+        const description = document.createElement('p');
+        description.className = 'template-description';
+        description.textContent = template.description;
+
+        const meta = document.createElement('p');
+        meta.className = 'template-meta';
+        meta.textContent = `${template.aspect_ratio} · ${template.initial_slides} slides`;
+
+        const button = document.createElement('button');
+        button.className = 'create-button';
+        button.type = 'button';
+        button.textContent = 'Começar';
+        button.setAttribute('aria-label', `Começar com ${template.name}`);
+        button.addEventListener('click', () => createCarousel(template.id, button));
+
+        copy.append(title, description, meta);
+        body.append(copy, button);
+        card.appendChild(body);
+        grid.appendChild(card);
+      });
+    }
+
+    function setStatus(message, isError = false) {
+      status.textContent = message;
+      status.classList.toggle('is-error', isError);
+    }
+
+    async function createCarousel(templateId, button) {
+      button.disabled = true;
+      setStatus('Preparando seu editor…');
+      try {
+        const response = await fetch('/api/sessoes', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({template: templateId})
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.detail || 'Não foi possível criar o carrossel.');
+        window.location.assign(payload.url);
+      } catch (error) {
+        button.disabled = false;
+        setStatus(error.message, true);
+      }
+    }
+
+    renderTemplates();
+  </script>
+</body>
+</html>
