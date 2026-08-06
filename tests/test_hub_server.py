@@ -182,7 +182,7 @@ class HubServerTest(unittest.TestCase):
             self.assertNotIn("secret-chat", body)
 
     def test_telegram_status_is_redacted_and_send_is_server_side(self) -> None:
-        png = base64.b64encode(b"png-test-bytes").decode("ascii")
+        png = base64.b64encode(b"png-0").decode("ascii")
         with running_test_server() as base_url, patch.object(
             serve_carrossel, "_read_telegram_config", return_value=("server-token", "server-chat")
         ), patch.object(
@@ -204,9 +204,55 @@ class HubServerTest(unittest.TestCase):
                 result = json.loads(response.read())
             self.assertEqual(result, {"ok": True, "sent": 1})
             method, fields, images = telegram_request.call_args.args
-            self.assertEqual(method, "sendMediaGroup")
-            self.assertEqual(fields["chat_id"], "server-chat")
-            self.assertEqual(images, [b"png-test-bytes"])
+            self.assertEqual(method, "sendPhoto")
+            self.assertEqual(
+                fields,
+                {"chat_id": "server-chat", "photo": "attach://file0", "caption": "teste"},
+            )
+            self.assertEqual(images, [b"png-0"])
+
+    def test_telegram_batches_variable_slide_counts_in_order(self) -> None:
+        for count, expected_methods, expected_sizes in (
+            (10, ["sendMediaGroup"], [10]),
+            (11, ["sendMediaGroup", "sendPhoto"], [10, 1]),
+            (22, ["sendMediaGroup", "sendMediaGroup", "sendMediaGroup"], [10, 10, 2]),
+        ):
+            with self.subTest(count=count), running_test_server() as base_url, patch.object(
+                serve_carrossel,
+                "_read_telegram_config",
+                return_value=("server-token", "server-chat"),
+            ), patch.object(
+                serve_carrossel,
+                "_telegram_api_request",
+                return_value={"ok": True},
+            ) as telegram_request:
+                encoded = [base64.b64encode(f"png-{index}".encode()).decode() for index in range(count)]
+                request = urllib.request.Request(
+                    base_url + "/api/telegram/send",
+                    data=json.dumps({"images_b64": encoded, "caption": "legenda"}).encode(),
+                    headers=mutation_headers(base_url),
+                    method="POST",
+                )
+                with urllib.request.urlopen(request) as response:
+                    result = json.loads(response.read())
+
+                self.assertEqual(result, {"ok": True, "sent": count})
+                calls = telegram_request.call_args_list
+                self.assertEqual([call.args[0] for call in calls], expected_methods)
+                self.assertEqual([len(call.args[2]) for call in calls], expected_sizes)
+                sent = [image for call in calls for image in call.args[2]]
+                self.assertEqual(sent, [f"png-{index}".encode() for index in range(count)])
+                self.assertEqual(calls[0].args[1]["chat_id"], "server-chat")
+                first_fields = calls[0].args[1]
+                first_media = json.loads(first_fields["media"])
+                self.assertEqual(first_media[0]["caption"], "legenda")
+                for call in calls[1:]:
+                    fields = call.args[1]
+                    self.assertNotIn("caption", fields)
+                    if "media" in fields:
+                        self.assertTrue(all("caption" not in item for item in json.loads(fields["media"])))
+                self.assertNotIn("server-token", json.dumps(result))
+                self.assertNotIn("server-chat", json.dumps(result))
 
     def test_delete_removes_only_valid_hub_session(self) -> None:
         session_id = "hub-tweet-0123456789ab"

@@ -375,23 +375,37 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
         body = self._read_json_body()
         images_b64 = body.get('images_b64') or []
         caption = str(body.get('caption') or '')
-        if not isinstance(images_b64, list) or not 1 <= len(images_b64) <= 10:
-            self._send_json(400, {'error': 'images_b64 deve conter de 1 a 10 PNGs'})
+        if not isinstance(images_b64, list) or not images_b64:
+            self._send_json(400, {'error': 'images_b64 deve conter ao menos um PNG'})
             return
         _, chat_id = _read_telegram_config()
         images = [base64.b64decode(str(item).split(',')[-1], validate=True) for item in images_b64]
-        media = []
-        for index in range(len(images)):
-            item = {'type': 'photo', 'media': f'attach://file{index}'}
-            if index == 0 and caption:
-                item['caption'] = caption[:1024]
-            media.append(item)
-        result = _telegram_api_request(
-            'sendMediaGroup',
-            {'chat_id': chat_id, 'media': json.dumps(media, ensure_ascii=False)},
-            images,
-        )
-        self._send_json(200, {'ok': bool(result.get('ok')), 'sent': len(images)})
+        results = []
+        for offset in range(0, len(images), 10):
+            chunk = images[offset:offset + 10]
+            chunk_caption = caption[:1024] if offset == 0 and caption else ''
+            if len(chunk) == 1:
+                fields = {'chat_id': chat_id, 'photo': 'attach://file0'}
+                if chunk_caption:
+                    fields['caption'] = chunk_caption
+                results.append(_telegram_api_request('sendPhoto', fields, chunk))
+                continue
+
+            media = []
+            for index in range(len(chunk)):
+                item = {'type': 'photo', 'media': f'attach://file{index}'}
+                if index == 0 and chunk_caption:
+                    item['caption'] = chunk_caption
+                media.append(item)
+            results.append(_telegram_api_request(
+                'sendMediaGroup',
+                {'chat_id': chat_id, 'media': json.dumps(media, ensure_ascii=False)},
+                chunk,
+            ))
+        self._send_json(200, {
+            'ok': all(bool(result.get('ok')) for result in results),
+            'sent': len(images),
+        })
 
     def _handle_gerar(self):
         body = self._read_json_body()
