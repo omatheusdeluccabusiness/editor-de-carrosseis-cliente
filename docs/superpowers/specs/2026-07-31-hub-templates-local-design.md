@@ -100,7 +100,7 @@ Tweet e Stories mantêm seus fluxos atuais de edição, undo, perfil, imagens, e
 
 ### 5. Serviços compartilhados
 
-Exportação PNG e envio ao Telegram continuam funcionando como hoje. A centralização futura desses serviços é permitida apenas depois que o HUB estiver validado e deve acontecer em mudanças independentes.
+Exportação PNG e envio ao Telegram continuam disponíveis. As credenciais do Telegram ficam exclusivamente no servidor local; o navegador envia os PNGs a endpoints locais protegidos e recebe apenas o estado configurado/não configurado. Essa centralização preserva o comportamento já validado sem expor Bot Token ou Chat ID ao HTML.
 
 ## Fluxo de dados
 
@@ -125,6 +125,9 @@ Nenhum conteúdo da criação é enviado ao GitHub. O GitHub distribui somente c
 - O cliente pode exportar PNGs localmente.
 - O cliente pode enviar o carrossel ao bot do Telegram usando a configuração local existente.
 - Tokens, Chat ID e outras credenciais não entram no repositório em texto puro.
+- Bot Token e Chat ID não são servidos ao navegador nem gravados no armazenamento web.
+- O servidor escuta somente em `127.0.0.1`; mutações exigem origem local válida e token efêmero de sessão.
+- Descartar pelo HUB remove somente o HTML e o armazenamento da sessão atual. O fluxo técnico direto permanece intacto.
 - Ausência ou erro de configuração deve mostrar orientação clara sem impedir exportação em PNG.
 - O HUB não exibe nem manipula segredos.
 

@@ -57,11 +57,20 @@ class HubEditorModeTest(unittest.TestCase):
                 html = session.path.read_text(encoding="utf-8")
 
                 self.assertIn("const HUB_SESSION = true;", html)
+                self.assertIn(f"const HUB_SESSION_ID = '{session.id}';", html)
                 self.assertIn('id="btn-back-hub"', html)
                 self.assertIn("publishButton.hidden = true", html)
                 self.assertIn("Descartar esta criação e voltar aos modelos?", html)
                 self.assertIn('id="btn-download-all"', html)
                 self.assertIn('id="btn-send-tg"', html)
+                self.assertIn("/api/telegram/send", html)
+                self.assertIn("X-Carrossel-CSRF", html)
+                self.assertIn("method: 'DELETE'", html)
+                self.assertIn("clearHubSessionStorage", html)
+                self.assertNotIn("telegram-config.json", html)
+                self.assertNotIn("api.telegram.org/bot", html)
+                self.assertNotIn('id="tg-token"', html)
+                self.assertNotIn('id="tg-chat"', html)
 
     def test_direct_generation_keeps_existing_publish_flow(self) -> None:
         for template_id in PLACEHOLDERS:
@@ -69,6 +78,7 @@ class HubEditorModeTest(unittest.TestCase):
                 html = generate_direct_editor(template_id)
 
                 self.assertIn("const HUB_SESSION = false;", html)
+                self.assertIn("const HUB_SESSION_ID = '';", html)
                 self.assertIn('id="btn-publish-ig"', html)
                 self.assertIn('id="btn-download-all"', html)
                 self.assertIn('id="btn-send-tg"', html)

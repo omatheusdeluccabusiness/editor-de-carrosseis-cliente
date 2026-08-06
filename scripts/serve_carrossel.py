@@ -2,11 +2,8 @@
 """
 Servidor local do editor de carrosséis.
 
-Funções:
-1. Serve estáticos do diretório temporário do editor (HTMLs, fonts, telegram-config).
-2. Copia ~/.matheusao-telegram.json -> telegram-config.json no boot.
-3. POST /api/gerar-imagem  -> chama OpenAI Images API server-side, key isolada.
-4. POST /api/salvar-imagem -> grava PNG dentro da pasta da peça no vault.
+O processo aceita somente conexões loopback. Credenciais permanecem no servidor;
+o browser recebe apenas estado redigido e usa endpoints locais protegidos.
 
 A key da OpenAI fica em ~/.matheusao-openai.json (perm 600), nunca no browser.
 """
@@ -25,7 +22,9 @@ import urllib.error
 import http.server
 import socketserver
 import functools
+import ipaddress
 import re
+import secrets
 import html
 import urllib.parse
 from pathlib import Path
@@ -46,7 +45,6 @@ HUB_TEMPLATE     = PROJECT_ROOT / 'templates' / 'hub.html'
 DIR              = os.environ.get('CARROSSEL_EDITOR_DIR', '/tmp/carrossel-editor')
 PORT             = int(os.environ.get('CARROSSEL_EDITOR_PORT', '8777'))
 HOME_TG          = os.path.expanduser('~/.matheusao-telegram.json')
-DEST_TG          = os.path.join(DIR, 'telegram-config.json')
 HOME_OPENAI      = os.path.expanduser('~/.matheusao-openai.json')
 VAULT_ROOT       = os.environ.get('CARROSSEL_CONTENT_ROOT', str(PROJECT_ROOT / 'content'))
 DEFAULT_MODEL    = 'gpt-image-2'
@@ -55,16 +53,15 @@ DEFAULT_SIZE     = '1024x1536'  # portrait 2:3, frontend faz crop pra 1080x1350
 
 # Caminho do publisher Instagram (script que chama a Meta API)
 INSTAGRAM_PUBLISHER = os.environ.get('CARROSSEL_INSTAGRAM_PUBLISHER', str(Path(__file__).with_name('publish_instagram.py')))
+CSRF_TOKEN = secrets.token_urlsafe(32)
+LOOPBACK_NAMES = {'localhost', '127.0.0.1'}
 
 os.makedirs(DIR, exist_ok=True)
 
-# Bootstrap Telegram config
-if os.path.exists(HOME_TG):
-    shutil.copyfile(HOME_TG, DEST_TG)
-    os.chmod(DEST_TG, 0o600)
-    print(f"[telegram] config copiada {HOME_TG} -> {DEST_TG}")
-else:
-    print(f"[telegram] {HOME_TG} não encontrado, config não pré-populada.")
+# Remove bootstrap legado que poderia expor credenciais como arquivo estático.
+legacy_telegram_config = Path(DIR) / 'telegram-config.json'
+legacy_telegram_config.unlink(missing_ok=True)
+print(f"[telegram] configuração server-side: {'disponível' if os.path.exists(HOME_TG) else 'ausente'}")
 
 # Verifica OpenAI config
 if os.path.exists(HOME_OPENAI):
@@ -105,9 +102,55 @@ def _latest_editor_html() -> Path | None:
     return max(html_files, key=lambda p: p.stat().st_mtime)
 
 
+def _inject_local_runtime(html_text: str) -> str:
+    runtime = (
+        '<script>window.CARROSSEL_CSRF='
+        + json.dumps(CSRF_TOKEN)
+        + ';</script>'
+    )
+    marker = '</head>' if '</head>' in html_text else '</body>'
+    return html_text.replace(marker, runtime + marker, 1)
+
+
 def _render_hub() -> str:
     catalog_json = json.dumps(public_template_catalog(), ensure_ascii=False).replace("</", "<\\/")
-    return HUB_TEMPLATE.read_text(encoding='utf-8').replace("{{TEMPLATES_JSON}}", catalog_json)
+    rendered = HUB_TEMPLATE.read_text(encoding='utf-8').replace("{{TEMPLATES_JSON}}", catalog_json)
+    return _inject_local_runtime(rendered)
+
+
+def _read_telegram_config() -> tuple[str, str]:
+    with open(HOME_TG, encoding='utf-8') as config_file:
+        config = json.load(config_file)
+    token = str(config.get('botToken') or config.get('bot_token') or '').strip()
+    chat_id = str(config.get('chatId') or config.get('chat_id') or '').strip()
+    if not token or not chat_id:
+        raise RuntimeError('Configuração do Telegram incompleta.')
+    return token, chat_id
+
+
+def _telegram_api_request(method: str, fields: dict[str, str], images: list[bytes] | None = None) -> dict:
+    token, _ = _read_telegram_config()
+    boundary = '----carrossel-' + secrets.token_hex(12)
+    chunks: list[bytes] = []
+    for name, value in fields.items():
+        chunks.extend([
+            f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n'.encode(),
+            str(value).encode('utf-8'), b'\r\n',
+        ])
+    for index, image_bytes in enumerate(images or []):
+        chunks.extend([
+            f'--{boundary}\r\nContent-Disposition: form-data; name="file{index}"; filename="slide-{index + 1:02d}.png"\r\nContent-Type: image/png\r\n\r\n'.encode(),
+            image_bytes, b'\r\n',
+        ])
+    chunks.append(f'--{boundary}--\r\n'.encode())
+    request = urllib.request.Request(
+        f'https://api.telegram.org/bot{token}/{method}',
+        data=b''.join(chunks),
+        headers={'Content-Type': f'multipart/form-data; boundary={boundary}'},
+        method='POST',
+    )
+    with urllib.request.urlopen(request, timeout=120) as response:
+        return json.loads(response.read())
 
 # ---------------------------------------------------------------------------
 # OpenAI call
@@ -166,20 +209,43 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=DIR, **kwargs)
 
-    # CORS / pre-flight (mesma origem na maior parte dos casos, mas garantido)
     def end_headers(self):
-        self.send_header('Access-Control-Allow-Origin',  '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         # No-cache absoluto: editor é dev-time, browser sempre busca versão fresh
         self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
         self.send_header('Pragma', 'no-cache')
         self.send_header('Expires', '0')
         super().end_headers()
 
-    def do_OPTIONS(self):
-        self.send_response(204)
-        self.end_headers()
+    def _request_is_loopback(self) -> bool:
+        try:
+            peer = ipaddress.ip_address(self.client_address[0])
+        except ValueError:
+            return False
+        host = urllib.parse.urlsplit('//' + self.headers.get('Host', '')).hostname
+        return peer.is_loopback and host in LOOPBACK_NAMES
+
+    def _mutation_is_authorized(self) -> bool:
+        if not self._request_is_loopback():
+            return False
+        host = self.headers.get('Host', '').lower()
+        origin = self.headers.get('Origin', '').lower()
+        if not origin or urllib.parse.urlsplit(origin).scheme != 'http':
+            return False
+        if urllib.parse.urlsplit(origin).netloc != host:
+            return False
+        return secrets.compare_digest(self.headers.get('X-Carrossel-CSRF', ''), CSRF_TOKEN)
+
+    def _reject_nonlocal(self) -> bool:
+        if self._request_is_loopback():
+            return False
+        self._send_json(403, {'error': 'acesso_local_obrigatorio'})
+        return True
+
+    def _reject_unauthorized_mutation(self) -> bool:
+        if self._mutation_is_authorized():
+            return False
+        self._send_json(403, {'error': 'origem_ou_token_invalido'})
+        return True
 
     def _send_html(self, status: int, body: str):
         payload = body.encode('utf-8')
@@ -193,14 +259,28 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
         self._send_html(200, _render_hub())
 
     def do_GET(self):
+        if self._reject_nonlocal():
+            return
         path = urllib.parse.urlparse(self.path).path
         if path in ("", "/", "/index.html"):
             return self._send_root()
+        if path == '/api/telegram/status':
+            try:
+                _read_telegram_config()
+                configured = True
+            except Exception:
+                configured = False
+            return self._send_json(200, {'configured': configured})
 
         name = Path(urllib.parse.unquote(path)).name
-        if name.endswith(".pid") or name == "server.log":
+        if name.endswith(".pid") or name in {"server.log", "telegram-config.json"}:
             self.send_error(404, "arquivo interno")
             return
+
+        if name.endswith('.html'):
+            target = (Path(DIR) / name).resolve()
+            if target.parent == Path(DIR).resolve() and target.is_file():
+                return self._send_html(200, _inject_local_runtime(target.read_text(encoding='utf-8')))
 
         return super().do_GET()
 
@@ -222,6 +302,8 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
         self.wfile.write(payload)
 
     def do_POST(self):
+        if self._reject_unauthorized_mutation():
+            return
         try:
             if self.path == '/api/sessoes':
                 return self._handle_create_session()
@@ -231,6 +313,10 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
                 return self._handle_salvar()
             if self.path == '/api/publicar-instagram':
                 return self._handle_publicar_instagram()
+            if self.path == '/api/telegram/test':
+                return self._handle_telegram_test()
+            if self.path == '/api/telegram/send':
+                return self._handle_telegram_send()
             self._send_json(404, {'error': f'rota POST {self.path} não existe'})
         except urllib.error.HTTPError as e:
             body = e.read().decode('utf-8', errors='replace')
@@ -266,6 +352,46 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json(400, {'error': 'template_invalido', 'detail': str(exc)})
             return
         self._send_json(201, {'ok': True, 'session_id': session.id, 'url': session.url})
+
+    def do_DELETE(self):
+        if self._reject_unauthorized_mutation():
+            return
+        path = urllib.parse.urlparse(self.path).path
+        match = re.fullmatch(r'/api/sessoes/(hub-(?:tweet|stories)-[0-9a-f]{12})', path)
+        if not match:
+            self._send_json(404, {'error': 'sessao_invalida'})
+            return
+        session_id = match.group(1)
+        target = Path(DIR) / f'{session_id}.html'
+        existed = target.is_file()
+        target.unlink(missing_ok=True)
+        self._send_json(200, {'ok': True, 'deleted': existed})
+
+    def _handle_telegram_test(self):
+        result = _telegram_api_request('getMe', {})
+        self._send_json(200, {'ok': bool(result.get('ok')), 'configured': True})
+
+    def _handle_telegram_send(self):
+        body = self._read_json_body()
+        images_b64 = body.get('images_b64') or []
+        caption = str(body.get('caption') or '')
+        if not isinstance(images_b64, list) or not 1 <= len(images_b64) <= 10:
+            self._send_json(400, {'error': 'images_b64 deve conter de 1 a 10 PNGs'})
+            return
+        _, chat_id = _read_telegram_config()
+        images = [base64.b64decode(str(item).split(',')[-1], validate=True) for item in images_b64]
+        media = []
+        for index in range(len(images)):
+            item = {'type': 'photo', 'media': f'attach://file{index}'}
+            if index == 0 and caption:
+                item['caption'] = caption[:1024]
+            media.append(item)
+        result = _telegram_api_request(
+            'sendMediaGroup',
+            {'chat_id': chat_id, 'media': json.dumps(media, ensure_ascii=False)},
+            images,
+        )
+        self._send_json(200, {'ok': bool(result.get('ok')), 'sent': len(images)})
 
     def _handle_gerar(self):
         body = self._read_json_body()
@@ -376,7 +502,7 @@ class ReusableThreadingTCPServer(socketserver.ThreadingTCPServer):
 if __name__ == '__main__':
     os.chdir(DIR)
     cleanup_hub_sessions(Path(DIR))
-    with ReusableThreadingTCPServer(("", PORT), CarrosselHandler) as httpd:
+    with ReusableThreadingTCPServer(("127.0.0.1", PORT), CarrosselHandler) as httpd:
         print(f"servindo {DIR} em http://localhost:{PORT}")
         print(f"endpoints API:")
         print(f"  POST http://localhost:{PORT}/api/sessoes")

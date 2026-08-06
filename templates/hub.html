@@ -427,7 +427,10 @@
       try {
         const response = await fetch('/api/sessoes', {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Carrossel-CSRF': window.CARROSSEL_CSRF
+          },
           body: JSON.stringify({template: templateId})
         });
         const payload = await response.json();

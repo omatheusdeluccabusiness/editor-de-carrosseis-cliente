@@ -766,18 +766,14 @@
 <div id="tg-modal" class="modal">
   <div class="modal-card">
     <h2>Configurar Telegram</h2>
-    <label for="tg-token">Bot Token</label>
-    <input type="password" id="tg-token" placeholder="123456789:ABC-..." autocomplete="off">
-    <label for="tg-chat">Chat ID</label>
-    <input type="text" id="tg-chat" placeholder="-100123... ou @canalpublico">
+    <p id="tg-config-status" class="help">Verificando configuração local…</p>
     <div class="help">
-      Use a config global em <code>~/.matheusao-telegram.json</code> ou cole aqui pra essa sessão.
-      Pra obter: cria bot com <b>@BotFather</b>, manda mensagem pro bot, pega chat ID em <code>https://api.telegram.org/bot&lt;TOKEN&gt;/getUpdates</code>.
+      As credenciais ficam somente no servidor local em <code>~/.matheusao-telegram.json</code>.
+      Use <code>./configurar-credenciais.sh</code> para configurar este computador.
     </div>
     <div class="actions">
-      <button class="btn" id="tg-test">Testar conexão</button>
-      <button class="btn" id="tg-cancel">Cancelar</button>
-      <button class="btn primary" id="tg-save">Salvar</button>
+      <button class="btn" id="tg-test">Testar configuração</button>
+      <button class="btn primary" id="tg-cancel">Fechar</button>
     </div>
   </div>
 </div>
@@ -2402,32 +2398,11 @@
     }
   });
 
-  // ==== TELEGRAM CONFIG (compartilhado com modelo tweet) ====
-  const TG_CONFIG_KEY = 'matheusao-telegram-config';
-  let tgBootstrapPromise = null;
-
-  function getTgConfig() {
-    try { return JSON.parse(localStorage.getItem(TG_CONFIG_KEY) || '{}'); }
-    catch (e) { return {}; }
-  }
-  function saveTgConfig(cfg) {
-    try { localStorage.setItem(TG_CONFIG_KEY, JSON.stringify(cfg)); } catch (e) {}
-  }
-  function bootstrapTgConfig() {
-    if (tgBootstrapPromise) return tgBootstrapPromise;
-    tgBootstrapPromise = (async () => {
-      const existing = getTgConfig();
-      if (existing.botToken && existing.chatId) return;
-      try {
-        const r = await fetch('telegram-config.json', { cache: 'no-store' });
-        if (!r.ok) return;
-        const cfg = await r.json();
-        if (cfg.botToken && cfg.chatId) {
-          saveTgConfig({ botToken: cfg.botToken, chatId: cfg.chatId });
-        }
-      } catch (e) { /* arquivo ausente — ignora silenciosamente */ }
-    })();
-    return tgBootstrapPromise;
+  // ==== API LOCAL PROTEGIDA ====
+  function localApiFetch(url, options = {}) {
+    const headers = new Headers(options.headers || {});
+    headers.set('X-Carrossel-CSRF', window.CARROSSEL_CSRF || '');
+    return fetch(url, { ...options, headers });
   }
 
   function setSendStatus(msg, kind) {
@@ -3031,14 +3006,6 @@
 
   // ==== SEND TO TELEGRAM ====
   async function sendToTelegram() {
-    await bootstrapTgConfig();
-    const cfg = getTgConfig();
-    if (!cfg.botToken || !cfg.chatId) {
-      setSendStatus('Configure o bot do Telegram primeiro.', 'error');
-      openTgModal();
-      return;
-    }
-
     setSendStatus('Capturando ' + doc.slides.length + ' slides…');
     const wasSelected = getSelectedBlockEl();
     deselectBlock();
@@ -3057,43 +3024,14 @@
       }
 
       setSendStatus('Enviando ' + doc.slides.length + ' slides ao Telegram…');
-      // sendMediaGroup aceita até 10 fotos por chamada. Dividimos em 2 grupos de 4 pra evitar timeout.
-      const groups = [];
-      for (let g = 0; g < blobs.length; g += 4) groups.push(blobs.slice(g, g + 4));
-      let groupIndex = 0;
-      for (const group of groups) {
-        groupIndex++;
-        setSendStatus(`Enviando grupo ${groupIndex}/2 (${group.length} fotos)…`);
-        const formData = new FormData();
-        formData.append('chat_id', cfg.chatId);
-        const media = [];
-        group.forEach((blob, j) => {
-          const slideNum = (groupIndex - 1) * 4 + j + 1;
-          const filename = 'slide-' + String(slideNum).padStart(2, '0') + '.png';
-          const fieldName = 'photo' + j;
-          formData.append(fieldName, blob, filename);
-          media.push({ type: 'photo', media: 'attach://' + fieldName });
-        });
-        formData.append('media', JSON.stringify(media));
-
-        const url = 'https://api.telegram.org/bot' + cfg.botToken + '/sendMediaGroup';
-        let res, json;
-        try {
-          res = await fetch(url, { method: 'POST', body: formData });
-        } catch (netErr) {
-          throw new Error('Rede falhou: ' + (netErr && netErr.message ? netErr.message : 'desconhecido'));
-        }
-        try {
-          json = await res.json();
-        } catch (parseErr) {
-          throw new Error('Resposta inválida do Telegram (status ' + res.status + ')');
-        }
-        if (!json.ok) {
-          throw new Error('Telegram: ' + (json.description || 'erro_code=' + (json.error_code || '?')));
-        }
-        // Pausa breve entre grupos pra evitar rate limit
-        if (groupIndex < groups.length) await new Promise(r => setTimeout(r, 1000));
-      }
+      const images_b64 = await Promise.all(blobs.map(blobToB64NoPrefix));
+      const caption = document.getElementById('ig-caption')?.value || '';
+      const res = await localApiFetch('/api/telegram/send', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ images_b64, caption }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) throw new Error(json.error || 'Falha no Telegram');
       setSendStatus('✓ ' + doc.slides.length + ' slides enviados pro Telegram.', 'success');
     } catch (e) {
       console.error('[sendToTelegram]', e);
@@ -3106,36 +3044,27 @@
 
   // ==== TELEGRAM MODAL ====
   async function openTgModal() {
-    await bootstrapTgConfig();
-    const cfg = getTgConfig();
-    document.getElementById('tg-token').value = cfg.botToken || '';
-    document.getElementById('tg-chat').value = cfg.chatId || '';
     document.getElementById('tg-modal').classList.add('visible');
+    const status = document.getElementById('tg-config-status');
+    try {
+      const response = await fetch('/api/telegram/status', { cache: 'no-store' });
+      const payload = await response.json();
+      status.textContent = payload.configured ? '✓ Telegram configurado neste computador.' : 'Telegram ainda não configurado neste computador.';
+    } catch (error) {
+      status.textContent = 'Não foi possível verificar a configuração local.';
+    }
   }
   function closeTgModal() {
     document.getElementById('tg-modal').classList.remove('visible');
   }
-  function tgSave() {
-    const token = document.getElementById('tg-token').value.trim();
-    const chatId = document.getElementById('tg-chat').value.trim();
-    if (!token || !chatId) { alert('Preenche bot token + chat ID.'); return; }
-    saveTgConfig({ botToken: token, chatId });
-    closeTgModal();
-    setSendStatus('✓ Configuração do Telegram salva.', 'success');
-  }
   async function tgTestConnection() {
-    const token = document.getElementById('tg-token').value.trim();
-    if (!token) { alert('Cole o bot token primeiro.'); return; }
     try {
-      const res = await fetch(`https://api.telegram.org/bot${token}/getMe`);
+      const res = await localApiFetch('/api/telegram/test', { method: 'POST' });
       const json = await res.json();
-      if (json.ok) {
-        alert('✓ Conexão OK. Bot: @' + json.result.username + ' (' + json.result.first_name + ')');
-      } else {
-        alert('✗ Erro: ' + (json.description || 'token inválido'));
-      }
+      if (!res.ok || !json.ok) throw new Error(json.error || 'configuração inválida');
+      setSendStatus('✓ Telegram configurado e acessível.', 'success');
     } catch (e) {
-      alert('✗ Erro de rede: ' + e.message);
+      setSendStatus('✗ ' + e.message, 'error');
     }
   }
 
@@ -3178,7 +3107,7 @@
       }
       setSendStatus('Enviando pra Meta API… (pode levar 30-60s)');
       const slides_b64 = await Promise.all(blobs.map(blobToB64NoPrefix));
-      const r = await fetch('/api/publicar-instagram', {
+      const r = await localApiFetch('/api/publicar-instagram', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -3218,6 +3147,7 @@
   }
 
   const HUB_SESSION = {{HUB_SESSION}};
+  const HUB_SESSION_ID = '{{HUB_SESSION_ID}}';
 
   function configureHubSession() {
     if (!HUB_SESSION) return;
@@ -3228,14 +3158,29 @@
     backButton.addEventListener('click', returnToHub);
   }
 
-  function returnToHub() {
+  function clearHubSessionStorage() {
+    for (const storage of [localStorage, sessionStorage]) {
+      for (let i = storage.length - 1; i >= 0; i--) {
+        const key = storage.key(i);
+        if (key === DOC_KEY || key?.startsWith(DOC_KEY + '-')) storage.removeItem(key);
+      }
+    }
+  }
+
+  async function returnToHub() {
     if (!window.confirm('Descartar esta criação e voltar aos modelos?')) return;
-    window.location.assign('/');
+    try {
+      const response = await localApiFetch('/api/sessoes/' + encodeURIComponent(HUB_SESSION_ID), { method: 'DELETE' });
+      if (!response.ok) throw new Error('Não foi possível descartar esta criação.');
+      clearHubSessionStorage();
+      window.location.replace('/');
+    } catch (error) {
+      setSendStatus('✗ ' + error.message, 'error');
+    }
   }
 
   document.addEventListener('DOMContentLoaded', () => {
     configureHubSession();
-    bootstrapTgConfig();
     loadCaptionFromStorage();
     armEditorUndo();
     const btnPub = document.getElementById('btn-publish-ig');
@@ -3244,7 +3189,6 @@
     document.getElementById('btn-send-tg').addEventListener('click', sendToTelegram);
     document.getElementById('btn-config-tg').addEventListener('click', openTgModal);
     document.getElementById('tg-cancel').addEventListener('click', closeTgModal);
-    document.getElementById('tg-save').addEventListener('click', tgSave);
     document.getElementById('tg-test').addEventListener('click', tgTestConnection);
     document.getElementById('tg-modal').addEventListener('click', (e) => {
       if (e.target.id === 'tg-modal') closeTgModal();

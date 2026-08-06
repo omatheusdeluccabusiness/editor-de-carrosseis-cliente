@@ -936,6 +936,7 @@ def launch_editor(
     title_html = (parsed["title"] or "")\
         .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
+    slug = slugify(parsed["title"])
     out_html = template_html
     out_html = out_html.replace("{{TITLE}}", title_html)
     out_html = out_html.replace("{{N_SLIDES}}", str(n_slides))
@@ -945,8 +946,8 @@ def launch_editor(
     out_html = out_html.replace("{{DOC_KEY}}", doc_key)
     out_html = out_html.replace("{{PECA_PATH}}", peca_path)
     out_html = out_html.replace("{{HUB_SESSION}}", "true" if hub_session else "false")
+    out_html = out_html.replace("{{HUB_SESSION_ID}}", slug if hub_session else "")
 
-    slug = slugify(parsed["title"])
     out_path = EDITOR_DIR / f"{slug}.html"
     out_path.write_text(out_html, encoding="utf-8")
     print(f"\n📝 HTML do editor: {out_path}")

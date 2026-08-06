@@ -78,6 +78,13 @@ ID, Meta App Secret e token do Instagram nunca aparecem em texto puro no Git.
 O comando de configuracao restaura `.env` no projeto e
 `~/.matheusao-telegram.json` no computador local, ambos ignorados pelo Git.
 
+As credenciais do Telegram permanecem somente no servidor local: o navegador
+consulta apenas se a integracao esta configurada e envia os PNGs para um
+endpoint local protegido. O servidor aceita conexoes apenas de
+`127.0.0.1` e exige origem local e um token efemero nas operacoes que alteram
+estado. Ao descartar uma criacao pelo HUB, o HTML temporario e o estado daquela
+sessao sao removidos; arquivos criados pelo fluxo tecnico nao sao afetados.
+
 Se precisar conferir a configuracao sem revelar valores:
 
 ```bash
