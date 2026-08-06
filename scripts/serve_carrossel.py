@@ -247,7 +247,19 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json(500, {'error': type(e).__name__, 'detail': str(e)})
 
     def _handle_create_session(self):
-        template_id = str(self._read_json_body().get('template', '')).strip()
+        try:
+            body = self._read_json_body()
+        except json.JSONDecodeError as exc:
+            self._send_json(400, {'error': 'json_invalido', 'detail': str(exc)})
+            return
+        if not isinstance(body, dict):
+            self._send_json(400, {
+                'error': 'payload_invalido',
+                'detail': 'O corpo da requisição deve ser um objeto JSON.',
+            })
+            return
+
+        template_id = str(body.get('template', '')).strip()
         try:
             session = create_hub_session(template_id, Path(DIR))
         except KeyError as exc:

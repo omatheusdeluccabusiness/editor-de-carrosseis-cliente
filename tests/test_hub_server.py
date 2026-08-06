@@ -87,6 +87,45 @@ class HubServerTest(unittest.TestCase):
             body = json.loads(raised.exception.read())
             self.assertEqual(body["error"], "template_invalido")
 
+    def test_malformed_json_returns_400(self) -> None:
+        with running_test_server() as base_url:
+            req = urllib.request.Request(
+                base_url + "/api/sessoes",
+                data=b"{",
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+
+            with self.assertRaises(urllib.error.HTTPError) as raised:
+                urllib.request.urlopen(req)
+
+            self.assertEqual(raised.exception.code, 400)
+            body = json.loads(raised.exception.read())
+            self.assertEqual(body["error"], "json_invalido")
+
+    def test_non_object_json_returns_400(self) -> None:
+        for payload in (b"null", b"[]"):
+            with self.subTest(payload=payload), running_test_server() as base_url:
+                req = urllib.request.Request(
+                    base_url + "/api/sessoes",
+                    data=payload,
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+
+                with self.assertRaises(urllib.error.HTTPError) as raised:
+                    urllib.request.urlopen(req)
+
+                self.assertEqual(raised.exception.code, 400)
+                body = json.loads(raised.exception.read())
+                self.assertEqual(body["error"], "payload_invalido")
+
+    def test_focus_indicator_uses_solid_action_blue(self) -> None:
+        html = serve_carrossel._render_hub()
+
+        self.assertIn("outline: 3px solid var(--acao);", html)
+        self.assertNotIn("outline: 3px solid rgba(0, 122, 255, 0.34);", html)
+
 
 if __name__ == "__main__":
     unittest.main()
