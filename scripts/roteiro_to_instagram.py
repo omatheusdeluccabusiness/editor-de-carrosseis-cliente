@@ -32,6 +32,11 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
+try:
+    from scripts.template_catalog import TEMPLATE_CATALOG
+except ImportError:
+    from template_catalog import TEMPLATE_CATALOG
+
 # ============================================================================
 # CONSTANTES VISUAIS
 # ============================================================================
@@ -641,14 +646,10 @@ def publish(images: list[Path], caption: str, dry_run: bool = False) -> None:
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 EDITOR_PORT = int(os.environ.get("CARROSSEL_EDITOR_PORT", "8777"))
-TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
-EDITOR_TEMPLATES = {
-    "stories": TEMPLATE_DIR / "stories_editor.html",
-    "tweet": TEMPLATE_DIR / "tweet_editor.html",
-}
+EDITOR_TEMPLATES = {key: item.template_path for key, item in TEMPLATE_CATALOG.items()}
 EDITOR_TEMPLATE = EDITOR_TEMPLATES["tweet"]  # default; sobrescrito por --template
 TEMPLATE_TOTAL_SLIDES = 10  # default para todos os templates
-TEMPLATE_SLIDES_BY_NAME = {"stories": 10, "tweet": 10}
+TEMPLATE_SLIDES_BY_NAME = {key: item.initial_slides for key, item in TEMPLATE_CATALOG.items()}
 EDITOR_DIR = Path(os.environ.get("CARROSSEL_EDITOR_DIR", "/tmp/carrossel-editor"))
 SERVE_SCRIPT = Path(__file__).with_name("serve_carrossel.py")  # canônico unificado
 SERVICE_SCRIPT = Path(__file__).with_name("carrossel_service.py")
