@@ -1,8 +1,8 @@
 # Editor de Carrosseis
 
-Editor visual local para criar e exportar carrosseis nos modelos `tweet`,
-`stories` e `ostentacao`. O projeto e independente de outros workspaces e usa
-Python no servidor local, com os editores implementados em HTML, CSS e JavaScript.
+HUB local para criar, editar e finalizar carrosseis nos modelos Tweet e Stories,
+ambos com 10 slides. O projeto e independente de outros workspaces e usa Python
+no servidor local, com os editores implementados em HTML, CSS e JavaScript.
 
 ## Instalar em outro computador
 
@@ -36,15 +36,21 @@ Para trabalhar pelo Codex, abra essa pasta como workspace. O arquivo
 
 ```bash
 ./start.sh
-./novo.sh tweet
-./novo.sh stories
-./stop.sh
 ```
 
-O projeto usa `http://localhost:8777` e escreve os HTMLs temporarios em `/tmp/carrossel-editor`.
-Abrir a raiz do localhost redireciona para o editor HTML mais recente.
+Abra `http://localhost:8777`, escolha Tweet ou Stories, edite e finalize pelo
+HUB. A partir do editor, exporte PNGs ou envie o resultado ao Telegram. O HUB
+nao mantem historico: cada sessao existe apenas durante o uso local.
 
-Os rascunhos ficam em `content/rascunhos/`.
+O fluxo tecnico continua disponivel para quem trabalha a partir de Markdown:
+
+```bash
+./novo.sh tweet
+./novo.sh stories
+```
+
+Esses comandos criam rascunhos em `content/rascunhos/` e geram o editor
+correspondente. Os HTMLs temporarios ficam em `/tmp/carrossel-editor`.
 
 ## Sincronizar alteracoes
 
@@ -53,6 +59,9 @@ Antes de comecar a trabalhar em outro computador:
 ```bash
 git pull --ff-only
 ```
+
+Esse comando atualiza o produto sem substituir as credenciais locais, que ficam
+fora do Git.
 
 Depois de alterar e validar o projeto:
 
@@ -77,7 +86,7 @@ python3 scripts/credenciais.py status
 
 ## Estrutura
 
-- `templates/`: HTML dos editores tweet, stories e ostentacao.
+- `templates/`: HUB e HTML dos editores Tweet e Stories.
 - `scripts/`: gerador, servidor local, supervisor persistente e publisher.
 - `assets/`: imagens compartilhadas do editor.
 - `content/rascunhos/`: markdowns criados pelo `./novo.sh`.

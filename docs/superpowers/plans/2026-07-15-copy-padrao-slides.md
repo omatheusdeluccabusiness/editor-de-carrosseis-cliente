@@ -4,7 +4,7 @@
 
 **Goal:** Fazer todo slide vazio de Tweet ou Stories nascer com o texto exato `adicione aqui a sua copy`.
 
-**Architecture:** O gerador Markdown passa a produzir 10 ou 17 parágrafos idênticos. O fatiador preserva esse placeholder curto sem agrupá-lo, enquanto mantém o agrupamento atual para copy real. Os templates usam a mesma frase ao adicionar slides, e uma migração pontual atualiza os cinco rascunhos existentes.
+**Architecture:** O gerador Markdown passa a produzir 10 parágrafos idênticos para ambos os modelos. O fatiador preserva esse placeholder curto sem agrupá-lo, enquanto mantém o agrupamento atual para copy real. Os templates usam a mesma frase ao adicionar slides, e uma migração pontual atualiza os cinco rascunhos existentes.
 
 **Tech Stack:** Python 3, `unittest`, HTML/CSS/JavaScript estático, servidor HTTP local.
 
@@ -12,7 +12,7 @@
 
 - O texto deve ser exatamente `adicione aqui a sua copy`, em minúsculas e sem ponto final.
 - Títulos, frontmatter e captions existentes devem permanecer intactos.
-- Tweet deve continuar gerando 10 slides e Stories, 17 slides.
+- Tweet e Stories devem continuar gerando 10 slides.
 - O template legado Ostentação fica fora do escopo.
 - A porta local permanece `8777`.
 
@@ -30,7 +30,7 @@
 
 - [ ] **Step 1: Criar testes para conteúdo, contagem, templates e rascunhos**
 
-O teste deve extrair `## Roteiro`, verificar 10 ocorrências no Tweet e 17 no Stories, exigir que o fatiador preserve cada ocorrência, exigir a frase no botão `+ Slide` dos dois templates e verificar os cinco arquivos atuais conforme o tipo do frontmatter.
+O teste deve extrair `## Roteiro`, verificar 10 ocorrências no Tweet e no Stories, exigir que o fatiador preserve cada ocorrência, exigir a frase no botão `+ Slide` dos dois templates e verificar os cinco arquivos atuais conforme o tipo do frontmatter.
 
 - [ ] **Step 2: Executar e confirmar a falha correta**
 
@@ -53,7 +53,7 @@ Expected: `FAIL`, mostrando que os placeholders atuais e o agrupamento de parág
 
 - [ ] **Step 1: Gerar o roteiro padrão por repetição**
 
-Em `tweet_placeholder`, montar exatamente 10 parágrafos de `DEFAULT_SLIDE_COPY`. Em `stories_placeholder`, montar exatamente 17. Manter frontmatter, H1 e caption atuais.
+Em `tweet_placeholder` e `stories_placeholder`, montar exatamente 10 parágrafos de `DEFAULT_SLIDE_COPY`. Manter frontmatter, H1 e caption atuais.
 
 - [ ] **Step 2: Preservar o placeholder curto no fatiador**
 
@@ -74,14 +74,14 @@ Expected: testes de gerador, parser e templates passam; os testes dos rascunhos 
 **Files:**
 - Modify: `content/rascunhos/novo-carrossel-20260715-1753.md`
 - Modify: `content/rascunhos/novo-tweet-20260715-1753.md`
-- Modify: `content/rascunhos/teste-stories-17.md`
+- Modify: `content/rascunhos/teste-stories-10.md`
 - Modify: `content/rascunhos/teste-tweet-10.md`
 - Modify: `content/rascunhos/validacao-editor-final.md`
 - Test: `tests/test_copy_padrao.py`
 
 **Interfaces:**
 - Consumes: contagem definida pelo campo `tipo` do frontmatter.
-- Produces: seções `## Roteiro` com 10 blocos no Tweet e 17 no Stories.
+- Produces: seções `## Roteiro` com 10 blocos no Tweet e no Stories.
 
 - [ ] **Step 1: Substituir somente o bloco Roteiro**
 

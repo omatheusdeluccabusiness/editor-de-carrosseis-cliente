@@ -4,11 +4,10 @@ Este projeto e a pasta isolada para trabalhar exclusivamente no editor local de 
 
 ## Objetivo
 
-Manter e evoluir apenas o editor visual dos modelos:
+Manter e evoluir apenas o HUB local e seus dois modelos visuais:
 
-- `tweet`: editor estilo post do X, normalmente 10 slides.
-- `stories`: editor vertical de stories, normalmente 17 slides.
-- `ostentacao`: template legado ainda mantido como referencia.
+- `Tweet`: editor estilo post do X, com 10 slides.
+- `Stories`: editor vertical, com 10 slides.
 
 Nao puxar regras editoriais do vault Matheusao Brain para este projeto, a menos que o usuario peca explicitamente. Aqui o foco e produto/ferramenta local, nao criacao de pecas.
 
@@ -16,10 +15,16 @@ Nao puxar regras editoriais do vault Matheusao Brain para este projeto, a menos 
 
 ```bash
 ./start.sh
-./novo.sh tweet
-./novo.sh stories
 ./stop.sh
 ```
+
+Abra `http://localhost:8777` para usar o HUB: escolha Tweet ou Stories, edite e
+exporte PNGs ou envie o resultado ao Telegram. O HUB não mantém histórico de
+sessões.
+
+`./novo.sh tweet` e `./novo.sh stories` continuam disponíveis como fluxo
+técnico: criam um rascunho Markdown em `content/rascunhos/` e geram o editor
+correspondente.
 
 O servidor isolado roda em:
 
@@ -45,8 +50,11 @@ content/rascunhos/
 - `scripts/roteiro_to_instagram.py`: parser markdown -> HTML do editor.
 - `scripts/serve_carrossel.py`: servidor HTTP e endpoints locais.
 - `scripts/carrossel_service.py`: supervisor persistente start/stop/status.
-- `templates/tweet_editor.html`: template tweet.
-- `templates/stories_editor.html`: template stories.
+- `templates/hub.html`: tela inicial do HUB.
+- `scripts/template_catalog.py`: catálogo dos templates disponíveis no HUB.
+- `scripts/hub_sessions.py`: sessões efêmeras do HUB.
+- `templates/tweet_editor.html`: template Tweet.
+- `templates/stories_editor.html`: template Stories.
 
 ## Regras de trabalho
 

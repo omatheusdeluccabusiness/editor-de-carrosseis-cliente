@@ -103,7 +103,7 @@ Expected: `OK`.
 
 **Files:**
 - Regenerate: `/tmp/carrossel-editor/validacao-editor-final.html`
-- Regenerate: `/tmp/carrossel-editor/teste-stories-17.html`
+- Regenerate: `/tmp/carrossel-editor/teste-stories-10.html`
 
 **Interfaces:**
 - Consumes: os templates modificados.
@@ -115,9 +115,9 @@ Run: `python3 -m py_compile scripts/*.py`
 
 Run Tweet: `python3 scripts/roteiro_to_instagram.py content/rascunhos/validacao-editor-final.md --editor --template tweet --no-launch`
 
-Run Stories: `python3 scripts/roteiro_to_instagram.py content/rascunhos/teste-stories-17.md --editor --template stories --no-launch`
+Run Stories: `python3 scripts/roteiro_to_instagram.py content/rascunhos/teste-stories-10.md --editor --template stories --no-launch`
 
-Expected: Tweet com 10 slides e Stories com 17 slides.
+Expected: Tweet e Stories com 10 slides.
 
 - [ ] **Step 2: Verificar desktop e mobile no navegador**
 
@@ -125,7 +125,7 @@ Desktop: `1440×1000`. Mobile: `390×844`. Confirmar header, rail, canvas, inspe
 
 - [ ] **Step 3: Verificar HTTP e suíte final**
 
-Run: `curl -I http://localhost:8777/validacao-editor-final.html` e `curl -I http://localhost:8777/teste-stories-17.html`.
+Run: `curl -I http://localhost:8777/validacao-editor-final.html` e `curl -I http://localhost:8777/teste-stories-10.html`.
 
 Run: `python3 -m unittest discover -s tests -v`
 

@@ -16,6 +16,18 @@ class PackagingTest(unittest.TestCase):
             with self.subTest(dependency=dependency):
                 self.assertIn(dependency, requirements)
 
+    def test_active_docs_describe_the_hub_and_current_templates(self) -> None:
+        agents = (PROJECT_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+        readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+        for text in (agents, readme):
+            self.assertIn("Tweet", text)
+            self.assertIn("Stories", text)
+            self.assertIn("10 slides", text)
+            self.assertNotIn("ostentacao", text.lower())
+            self.assertNotIn("17 slides", text.lower())
+        self.assertIn("HUB", readme)
+        self.assertIn("http://localhost:8777", readme)
+
 
 if __name__ == "__main__":
     unittest.main()

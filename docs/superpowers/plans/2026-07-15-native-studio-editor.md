@@ -150,7 +150,7 @@ Expected: todos os testes do shell passam.
 
 **Files:**
 - Regenerate: `/tmp/carrossel-editor/validacao-editor-final.html`
-- Regenerate: `/tmp/carrossel-editor/teste-stories-17.html`
+- Regenerate: `/tmp/carrossel-editor/teste-stories-10.html`
 
 **Interfaces:**
 - Consumes: templates finais e rascunhos existentes.
@@ -170,7 +170,7 @@ Expected: exit 0 sem saída.
 
 Run: `python3 scripts/roteiro_to_instagram.py content/rascunhos/validacao-editor-final.md --editor --template tweet --no-launch`
 
-Run: `python3 scripts/roteiro_to_instagram.py content/rascunhos/teste-stories-17.md --editor --template stories --no-launch`
+Run: `python3 scripts/roteiro_to_instagram.py content/rascunhos/teste-stories-10.md --editor --template stories --no-launch`
 
 Expected: HTMLs gerados em `/tmp/carrossel-editor`.
 
@@ -178,7 +178,7 @@ Expected: HTMLs gerados em `/tmp/carrossel-editor`.
 
 Run: `curl -I http://localhost:8777/validacao-editor-final.html`
 
-Run: `curl -I http://localhost:8777/teste-stories-17.html`
+Run: `curl -I http://localhost:8777/teste-stories-10.html`
 
 Expected: `HTTP/1.0 200 OK` nos dois endereços.
 

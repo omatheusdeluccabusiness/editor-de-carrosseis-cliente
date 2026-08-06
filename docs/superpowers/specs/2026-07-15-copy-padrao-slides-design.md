@@ -11,7 +11,7 @@ A alteração vale para os modelos Tweet e Stories, para slides adicionados manu
 ## Escopo
 
 - Substituir o conteúdo padrão dos 10 slides de um novo carrossel Tweet.
-- Substituir o conteúdo padrão dos 17 slides de um novo carrossel Stories.
+- Substituir o conteúdo padrão dos 10 slides de um novo carrossel Stories.
 - Usar o mesmo conteúdo ao acionar o botão `+ Slide` nos dois editores.
 - Atualizar apenas o conteúdo da seção `## Roteiro` dos rascunhos existentes.
 - Preservar títulos, frontmatter, captions e demais metadados.
