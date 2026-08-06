@@ -315,7 +315,7 @@ def parse_roteiro(md_path: Path) -> dict:
         if sm:
             capa_subtitulo = sm.group(1).strip()
 
-    # fatia o roteiro no número de slides configurado (default 10, stories=17)
+    # fatia o roteiro no número de slides configurado (default 10)
     slides = _fatiar_roteiro_em_slides(roteiro_text, capa_titulo, capa_subtitulo, total_slides=TEMPLATE_TOTAL_SLIDES)
     if not slides:
         raise ValueError(f"Roteiro em {md_path.name} muito curto pra fatiar em {TEMPLATE_TOTAL_SLIDES} slides")
@@ -648,8 +648,8 @@ EDITOR_TEMPLATES = {
     "tweet":      TEMPLATE_DIR / "tweet_editor.html",
 }
 EDITOR_TEMPLATE = EDITOR_TEMPLATES["ostentacao"]  # default; sobrescrito por --template
-TEMPLATE_TOTAL_SLIDES = 10  # default (ostentacao); stories sobrescreve pra 17, tweet usa 10
-TEMPLATE_SLIDES_BY_NAME = {"ostentacao": 10, "stories": 17, "tweet": 10}
+TEMPLATE_TOTAL_SLIDES = 10  # default para todos os templates
+TEMPLATE_SLIDES_BY_NAME = {"ostentacao": 10, "stories": 10, "tweet": 10}
 EDITOR_DIR = Path(os.environ.get("CARROSSEL_EDITOR_DIR", "/tmp/carrossel-editor"))
 SERVE_SCRIPT = Path(__file__).with_name("serve_carrossel.py")  # canônico unificado
 SERVICE_SCRIPT = Path(__file__).with_name("carrossel_service.py")
@@ -784,7 +784,7 @@ def _generate_slides_html(parsed: dict) -> str:
     return "\n\n".join(_build_slide_html(s, total) for s in parsed["slides"])
 
 
-SCHEMA_VERSION = "v5"  # v4: novo template stories (PT Serif, 17 slides, fontSize por bloco, .hot = só cor de texto sem pill nem underline)
+SCHEMA_VERSION = "v5"  # v4: novo template stories (PT Serif, fontSize por bloco, .hot = só cor de texto sem pill nem underline)
 
 
 def _make_doc_key(roteiro_md: Path, content_hash: str = "") -> str:

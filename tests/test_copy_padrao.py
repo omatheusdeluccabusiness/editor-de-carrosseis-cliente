@@ -32,9 +32,9 @@ class DefaultCopyTest(unittest.TestCase):
         markdown = novo_carrossel.tweet_placeholder("Título", "2026-07-15")
         self.assertEqual(roteiro_blocks(markdown), [DEFAULT_COPY] * 10)
 
-    def test_stories_placeholder_has_seventeen_identical_slides(self) -> None:
+    def test_stories_placeholder_has_ten_identical_slides(self) -> None:
         markdown = novo_carrossel.stories_placeholder("Título", "2026-07-15")
-        self.assertEqual(roteiro_blocks(markdown), [DEFAULT_COPY] * 17)
+        self.assertEqual(roteiro_blocks(markdown), [DEFAULT_COPY] * 10)
 
     def test_parser_preserves_short_default_copy_as_individual_slides(self) -> None:
         roteiro = "\n\n".join([DEFAULT_COPY] * 10)
@@ -64,9 +64,9 @@ class DefaultCopyTest(unittest.TestCase):
 
     def test_existing_drafts_use_default_copy_on_every_slide(self) -> None:
         expected_counts = {
-            "novo-carrossel-20260715-1753.md": 17,
+            "novo-carrossel-20260715-1753.md": 10,
             "novo-tweet-20260715-1753.md": 10,
-            "teste-stories-17.md": 17,
+            "teste-stories-10.md": 10,
             "teste-tweet-10.md": 10,
             "validacao-editor-final.md": 10,
         }

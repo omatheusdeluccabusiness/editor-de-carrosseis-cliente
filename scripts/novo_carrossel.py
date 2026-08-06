@@ -69,7 +69,7 @@ Caption curta resumindo a tese. Reescreve aqui.
 
 
 def stories_placeholder(title: str, date: str) -> str:
-    roteiro = default_roteiro(17)
+    roteiro = default_roteiro(10)
     return f"""---
 status: rascunho
 tipo: carrossel

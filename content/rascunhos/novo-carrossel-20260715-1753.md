@@ -33,20 +33,6 @@ adicione aqui a sua copy
 
 adicione aqui a sua copy
 
-adicione aqui a sua copy
-
-adicione aqui a sua copy
-
-adicione aqui a sua copy
-
-adicione aqui a sua copy
-
-adicione aqui a sua copy
-
-adicione aqui a sua copy
-
-adicione aqui a sua copy
-
 
 ## Caption Instagram
 

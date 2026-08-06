@@ -9,7 +9,7 @@ tags:
   - manual
 ---
 
-# teste-stories-17
+# teste-stories-10
 
 ## Roteiro
 
@@ -32,21 +32,6 @@ adicione aqui a sua copy
 adicione aqui a sua copy
 
 adicione aqui a sua copy
-
-adicione aqui a sua copy
-
-adicione aqui a sua copy
-
-adicione aqui a sua copy
-
-adicione aqui a sua copy
-
-adicione aqui a sua copy
-
-adicione aqui a sua copy
-
-adicione aqui a sua copy
-
 
 ## Caption Instagram
 
