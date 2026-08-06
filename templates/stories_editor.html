@@ -2932,7 +2932,8 @@
   function drawLegibilityFilter_storiesNoop() { return; }
 
   async function renderSlideToCanvas(canvas, slideData) {
-    const dpr = 2;
+    // A entrega do carrossel usa pixels nativos: 1080×1350.
+    const dpr = 1;
     canvas.width = SLIDE_W * dpr;
     canvas.height = SLIDE_H * dpr;
     const ctx = canvas.getContext('2d');

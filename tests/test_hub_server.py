@@ -40,10 +40,13 @@ class HubServerTest(unittest.TestCase):
         with running_test_server() as base_url:
             with urllib.request.urlopen(base_url + "/") as response:
                 html = response.read().decode("utf-8")
+                status = response.status
+                final_url = response.geturl()
+                content_type = response.headers.get_content_type()
 
-            self.assertEqual(response.status, 200)
-            self.assertEqual(response.geturl(), base_url + "/")
-            self.assertEqual(response.headers.get_content_type(), "text/html")
+            self.assertEqual(status, 200)
+            self.assertEqual(final_url, base_url + "/")
+            self.assertEqual(content_type, "text/html")
             self.assertIn('"id": "tweet"', html)
             self.assertIn('"id": "stories"', html)
 

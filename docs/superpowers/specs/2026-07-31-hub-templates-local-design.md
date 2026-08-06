@@ -53,7 +53,7 @@ A tela não terá dashboard, métricas, projetos recentes, onboarding, menu late
 ### Stories
 
 - 10 slides iniciais;
-- proporção 9:16;
+- proporção 4:5 (1080×1350), preservando a geometria validada do editor;
 - editor atual preservado;
 - usuário pode adicionar ou remover slides.
 

@@ -35,7 +35,7 @@ TEMPLATE_CATALOG = {
         PROJECT_ROOT / "templates" / "tweet_editor.html", "tweet", True,
     ),
     "stories": TemplateDefinition(
-        "stories", "Stories", "Narrativa vertical em tela cheia.", "9:16", 10,
+        "stories", "Stories", "Narrativa vertical em tela cheia.", "4:5", 10,
         PROJECT_ROOT / "templates" / "stories_editor.html", "stories", True,
     ),
 }

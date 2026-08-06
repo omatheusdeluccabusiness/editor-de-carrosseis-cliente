@@ -26,6 +26,23 @@ class TemplateCatalogTest(unittest.TestCase):
         items = public_template_catalog()
         self.assertEqual([item["id"] for item in items], ["tweet", "stories"])
         self.assertEqual([item["initial_slides"] for item in items], [10, 10])
+        self.assertEqual([item["aspect_ratio"] for item in items], ["4:5", "4:5"])
+
+    def test_stories_catalog_and_preview_match_native_export_ratio(self) -> None:
+        hub = (PROJECT_ROOT / "templates" / "hub.html").read_text(encoding="utf-8")
+        tweet = (PROJECT_ROOT / "templates" / "tweet_editor.html").read_text(encoding="utf-8")
+        stories = (PROJECT_ROOT / "templates" / "stories_editor.html").read_text(encoding="utf-8")
+
+        self.assertEqual(get_template("stories").aspect_ratio, "4:5")
+        self.assertRegex(
+            hub,
+            r"\.preview-sheet--stories\s*\{[^}]*aspect-ratio:\s*4\s*/\s*5;",
+        )
+        self.assertIn("const SLIDE_W = 1080;", stories)
+        self.assertIn("const SLIDE_H = 1350;", stories)
+        self.assertIn("const dpr = 1;", stories)
+        self.assertIn("const W = 1080;", tweet)
+        self.assertIn("'4:5': 1350", tweet)
 
     def test_unknown_template_is_rejected(self) -> None:
         with self.assertRaisesRegex(KeyError, "Template desconhecido"):
