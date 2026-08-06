@@ -61,6 +61,9 @@ class EditorShellTest(unittest.TestCase):
             "font-variant-numeric: tabular-nums",
             "border-left: 3px solid var(--ui-blue)",
             "transition: background-color 150ms ease",
+            "{{HUB_SESSION}}",
+            'id="btn-back-hub"',
+            "function returnToHub()",
         )
         for template_path in TEMPLATES:
             html = template_path.read_text(encoding="utf-8")

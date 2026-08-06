@@ -59,6 +59,7 @@ def create_hub_session(template_id: str, editor_dir: Path) -> HubSession:
                     "--template",
                     definition.id,
                     "--no-launch",
+                    "--hub-session",
                 ],
                 check=True,
                 capture_output=True,

@@ -895,7 +895,12 @@ def _generate_slides_json(parsed: dict) -> str:
     return json.dumps(slides_data, ensure_ascii=False)
 
 
-def launch_editor(parsed: dict, roteiro_md: Path, no_launch: bool = False) -> str:
+def launch_editor(
+    parsed: dict,
+    roteiro_md: Path,
+    no_launch: bool = False,
+    hub_session: bool = False,
+) -> str:
     """
     Gera HTML do editor pré-populado.
     Se no_launch=False (padrão), sobe servidor próprio e abre browser.
@@ -939,6 +944,7 @@ def launch_editor(parsed: dict, roteiro_md: Path, no_launch: bool = False) -> st
     out_html = out_html.replace("{{SLIDES_JSON}}", slides_json)
     out_html = out_html.replace("{{DOC_KEY}}", doc_key)
     out_html = out_html.replace("{{PECA_PATH}}", peca_path)
+    out_html = out_html.replace("{{HUB_SESSION}}", "true" if hub_session else "false")
 
     slug = slugify(parsed["title"])
     out_path = EDITOR_DIR / f"{slug}.html"
@@ -978,6 +984,7 @@ def main():
                         help="Abre editor visual interativo no browser pra ajustar antes de publicar")
     parser.add_argument("--no-launch", action="store_true",
                         help="Em modo --editor, só gera o HTML (não sobe servidor nem abre browser). Use quando o servidor é gerenciado externamente (preview_start).")
+    parser.add_argument("--hub-session", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--dry-run", action="store_true",
                         help="Gera PNGs e mantém pra revisão, NÃO publica")
     parser.add_argument("--keep-images", action="store_true",
@@ -1008,7 +1015,12 @@ def main():
 
     # Modo editor: abre HTML interativo e termina
     if args.editor:
-        launch_editor(parsed, md_path, no_launch=args.no_launch)
+        launch_editor(
+            parsed,
+            md_path,
+            no_launch=args.no_launch,
+            hub_session=args.hub_session,
+        )
         return
 
     # define output dir

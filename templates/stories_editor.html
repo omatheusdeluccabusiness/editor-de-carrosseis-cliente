@@ -686,6 +686,7 @@
     <div class="doc-meta">{{N_SLIDES}} slides · 1080×1350 · @omatheusdelucca</div>
   </div>
   <div class="app-actions">
+    <button id="btn-back-hub" class="shell-button quiet" type="button" hidden>Voltar aos modelos</button>
     <button id="btn-download-all" class="shell-button">Exportar PNGs</button>
     <button id="btn-publish-ig" class="shell-button publish">Publicar</button>
   </div>
@@ -3214,7 +3215,24 @@
     });
   }
 
+  const HUB_SESSION = {{HUB_SESSION}};
+
+  function configureHubSession() {
+    if (!HUB_SESSION) return;
+    const backButton = document.getElementById('btn-back-hub');
+    const publishButton = document.getElementById('btn-publish-ig');
+    backButton.hidden = false;
+    publishButton.hidden = true;
+    backButton.addEventListener('click', returnToHub);
+  }
+
+  function returnToHub() {
+    if (!window.confirm('Descartar esta criação e voltar aos modelos?')) return;
+    window.location.assign('/');
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
+    configureHubSession();
     bootstrapTgConfig();
     loadCaptionFromStorage();
     armEditorUndo();
