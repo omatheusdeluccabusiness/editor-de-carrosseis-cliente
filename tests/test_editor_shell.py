@@ -77,6 +77,12 @@ class EditorShellTest(unittest.TestCase):
             with self.subTest(template=template_path.name):
                 self.assertNotIn("backdrop-filter:", html)
 
+    def test_hidden_shell_buttons_are_removed_from_layout(self) -> None:
+        for template_path in TEMPLATES:
+            html = template_path.read_text(encoding="utf-8")
+            with self.subTest(template=template_path.name):
+                self.assertIn(".shell-button[hidden] { display: none; }", html)
+
     def test_shell_uses_quiet_creation_language(self) -> None:
         required = (
             '<span class="rail-heading">Slides</span>',
