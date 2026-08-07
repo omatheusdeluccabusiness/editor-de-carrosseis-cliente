@@ -215,6 +215,19 @@ class EditorShellTest(unittest.TestCase):
                 self.assertIn(confirmation, html)
                 self.assertIn("function restartCarousel()", html)
 
+    def test_carousel_restart_is_a_visible_header_action_not_maintenance(self) -> None:
+        for template_path in TEMPLATES:
+            html = template_path.read_text(encoding="utf-8")
+            header = re.search(r"<header class=\"app-header\">(.*?)</header>", html, re.DOTALL)
+            maintenance = re.search(
+                r'<details class="maintenance">(.*?)</details>', html, re.DOTALL
+            )
+            with self.subTest(editor=template_path.name):
+                self.assertIsNotNone(header)
+                self.assertIsNotNone(maintenance)
+                self.assertIn('id="btn-restart-carousel"', header.group(1))
+                self.assertNotIn('id="btn-restart-carousel"', maintenance.group(1))
+
     def test_restart_contract_resets_content_but_preserves_user_profile(self) -> None:
         tweet = TEMPLATES[0].read_text(encoding="utf-8")
         stories = TEMPLATES[1].read_text(encoding="utf-8")

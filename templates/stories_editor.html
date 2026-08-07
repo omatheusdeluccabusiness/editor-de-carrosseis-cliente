@@ -593,6 +593,8 @@
   .shell-button.publish:hover, .shell-button.action:hover { background: #006EE6; border-color: #006EE6; }
   .shell-button.danger { color: var(--ui-danger); border-color: rgba(255, 59, 48, 0.26); }
   .shell-button.danger:hover { background: rgba(255, 59, 48, 0.08); }
+  .shell-button.restart-carousel { color: var(--ui-danger); border-color: rgba(255, 59, 48, 0.34); }
+  .shell-button.restart-carousel:hover { background: rgba(255, 59, 48, 0.08); border-color: rgba(255, 59, 48, 0.52); }
   .shell-button.quiet { background: transparent; }
   .production-layout {
     width: 100%; min-height: calc(100vh - 64px); margin: 0;
@@ -701,6 +703,7 @@
   </div>
   <div class="app-actions">
     <button id="btn-back-hub" class="shell-button quiet" type="button" hidden>Voltar aos modelos</button>
+    <button id="btn-restart-carousel" class="shell-button restart-carousel" type="button">Reiniciar carrossel</button>
     <button id="btn-download-all" class="shell-button">Exportar PNGs</button>
     <button id="btn-publish-ig" class="shell-button publish">Publicar</button>
   </div>
@@ -772,7 +775,6 @@
         <div class="inspector-stack">
           <button id="btn-reset" class="shell-button danger">Limpar imagens</button>
           <button id="btn-reset-text" class="shell-button danger">Restaurar texto original</button>
-          <button id="btn-restart-carousel" class="shell-button danger">Reiniciar carrossel</button>
         </div>
       </details>
     </section>
