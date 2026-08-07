@@ -26,3 +26,7 @@ tmp/
 .idea/
 .vscode/
 .worktrees/
+
+# Sidecar desktop empacotado
+editor-carrosseis-sidecar
+editor-carrosseis-sidecar.exe

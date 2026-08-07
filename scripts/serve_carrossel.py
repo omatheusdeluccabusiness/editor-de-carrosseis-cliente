@@ -50,7 +50,9 @@ except ImportError:
 # Config
 # ---------------------------------------------------------------------------
 
-PROJECT_ROOT     = Path(__file__).resolve().parent.parent
+# PyInstaller extracts bundled data folders into ``_MEIPASS``.  In source
+# mode, preserve the repository-root calculation used by the local editor.
+PROJECT_ROOT     = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent.parent))
 HUB_TEMPLATE     = PROJECT_ROOT / 'templates' / 'hub.html'
 APP_DATA_DIR     = os.environ.get('CARROSSEL_APP_DATA_DIR')
 RUNTIME_PATHS    = desktop_runtime_paths(APP_DATA_DIR) if APP_DATA_DIR else None

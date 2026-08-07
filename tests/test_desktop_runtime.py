@@ -18,6 +18,9 @@ from scripts import serve_carrossel
 from scripts.desktop_paths import desktop_runtime_paths
 
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
 @contextmanager
 def desktop_runtime_server():
     previous_env = os.environ.get("CARROSSEL_APP_DATA_DIR")
@@ -45,6 +48,20 @@ def desktop_runtime_server():
 
 
 class DesktopRuntimeTest(unittest.TestCase):
+    def test_sidecar_entrypoint_uses_loopback_and_healthcheck(self) -> None:
+        source = (PROJECT_ROOT / "scripts" / "desktop_sidecar.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("127.0.0.1", source)
+        self.assertIn("CARROSSEL_APP_DATA_DIR", source)
+
+    def test_sidecar_builder_includes_templates_and_assets(self) -> None:
+        source = (PROJECT_ROOT / "scripts" / "build_sidecar.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("templates", source)
+        self.assertIn("assets", source)
+
     def test_desktop_paths_keep_runtime_and_credentials_out_of_project(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp).resolve()
