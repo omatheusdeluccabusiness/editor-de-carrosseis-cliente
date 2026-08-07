@@ -30,6 +30,7 @@ import urllib.parse
 from pathlib import Path
 
 try:
+    from scripts.desktop_paths import desktop_runtime_paths
     from scripts.hub_sessions import (
         create_hub_session,
         hub_session_needs_refresh,
@@ -37,6 +38,7 @@ try:
     )
     from scripts.template_catalog import public_template_catalog
 except ImportError:
+    from desktop_paths import desktop_runtime_paths
     from hub_sessions import (
         create_hub_session,
         hub_session_needs_refresh,
@@ -50,10 +52,12 @@ except ImportError:
 
 PROJECT_ROOT     = Path(__file__).resolve().parent.parent
 HUB_TEMPLATE     = PROJECT_ROOT / 'templates' / 'hub.html'
-DIR              = os.environ.get('CARROSSEL_EDITOR_DIR', '/tmp/carrossel-editor')
+APP_DATA_DIR     = os.environ.get('CARROSSEL_APP_DATA_DIR')
+RUNTIME_PATHS    = desktop_runtime_paths(APP_DATA_DIR) if APP_DATA_DIR else None
+DIR              = str(RUNTIME_PATHS.editor_dir) if RUNTIME_PATHS else os.environ.get('CARROSSEL_EDITOR_DIR', '/tmp/carrossel-editor')
 PORT             = int(os.environ.get('CARROSSEL_EDITOR_PORT', '8777'))
-HOME_TG          = os.path.expanduser('~/.matheusao-telegram.json')
-HOME_OPENAI      = os.path.expanduser('~/.matheusao-openai.json')
+HOME_TG          = str(RUNTIME_PATHS.credentials_dir / '.matheusao-telegram.json') if RUNTIME_PATHS else os.path.expanduser('~/.matheusao-telegram.json')
+HOME_OPENAI      = str(RUNTIME_PATHS.credentials_dir / '.matheusao-openai.json') if RUNTIME_PATHS else os.path.expanduser('~/.matheusao-openai.json')
 VAULT_ROOT       = os.environ.get('CARROSSEL_CONTENT_ROOT', str(PROJECT_ROOT / 'content'))
 DEFAULT_MODEL    = 'gpt-image-2'
 ALLOWED_SIZES    = {'1024x1024', '1024x1536', '1536x1024', '1024x1792', '1792x1024'}
@@ -270,6 +274,8 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
         if self._reject_nonlocal():
             return
         path = urllib.parse.urlparse(self.path).path
+        if path == '/api/health':
+            return self._send_json(200, {'ok': True, 'service': 'editor-carrosseis'})
         if path in ("", "/", "/index.html"):
             return self._send_root()
         if path == '/api/telegram/status':

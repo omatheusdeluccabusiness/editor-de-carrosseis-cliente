@@ -19,14 +19,37 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 from dotenv import dotenv_values
 
+try:
+    from scripts.desktop_paths import desktop_runtime_paths
+except ImportError:
+    from desktop_paths import desktop_runtime_paths
+
 
 VAULT_VERSION = 1
 ASSOCIATED_DATA = b"carrossel-editor-credentials-v1"
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_VAULT_PATH = PROJECT_ROOT / "secrets" / "credentials.enc.json"
-DEFAULT_KEY_PATH = Path.home() / ".carrossel-editor-recovery-key"
-DEFAULT_PROJECT_ENV_PATH = PROJECT_ROOT / ".env"
-DEFAULT_TELEGRAM_PATH = Path.home() / ".matheusao-telegram.json"
+APP_DATA_DIR = os.environ.get("CARROSSEL_APP_DATA_DIR")
+RUNTIME_PATHS = desktop_runtime_paths(APP_DATA_DIR) if APP_DATA_DIR else None
+DEFAULT_VAULT_PATH = (
+    RUNTIME_PATHS.credentials_dir / "credentials.enc.json"
+    if RUNTIME_PATHS
+    else PROJECT_ROOT / "secrets" / "credentials.enc.json"
+)
+DEFAULT_KEY_PATH = (
+    RUNTIME_PATHS.credentials_dir / ".carrossel-editor-recovery-key"
+    if RUNTIME_PATHS
+    else Path.home() / ".carrossel-editor-recovery-key"
+)
+DEFAULT_PROJECT_ENV_PATH = (
+    RUNTIME_PATHS.credentials_dir / ".env"
+    if RUNTIME_PATHS
+    else PROJECT_ROOT / ".env"
+)
+DEFAULT_TELEGRAM_PATH = (
+    RUNTIME_PATHS.credentials_dir / ".matheusao-telegram.json"
+    if RUNTIME_PATHS
+    else Path.home() / ".matheusao-telegram.json"
+)
 META_KEYS = (
     "INSTAGRAM_BUSINESS_ID",
     "INSTAGRAM_ACCESS_TOKEN",
