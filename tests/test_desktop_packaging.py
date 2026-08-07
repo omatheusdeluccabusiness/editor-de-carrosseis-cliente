@@ -12,6 +12,15 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 class DesktopPackagingTest(unittest.TestCase):
+    def test_release_workflow_builds_each_platform_natively(self) -> None:
+        workflow = (
+            PROJECT_ROOT / ".github/workflows/desktop-release.yml"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("macos-latest", workflow)
+        self.assertIn("windows-latest", workflow)
+        self.assertIn("desktop/src-tauri/binaries", workflow)
+
     def test_tauri_configuration_uses_native_window_and_sidecar(self) -> None:
         config = json.loads(
             (PROJECT_ROOT / "desktop/src-tauri/tauri.conf.json").read_text(

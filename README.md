@@ -52,6 +52,22 @@ O fluxo tecnico continua disponivel para quem trabalha a partir de Markdown:
 Esses comandos criam rascunhos em `content/rascunhos/` e geram o editor
 correspondente. Os HTMLs temporarios ficam em `/tmp/carrossel-editor`.
 
+## Instaladores desktop
+
+O GitHub Actions gera instaladores nativos sob demanda, sem publicar uma
+release externa. Na aba **Actions**, execute o workflow **Desktop release
+bundles**: ele compila o sidecar nativamente em cada plataforma e disponibiliza
+artefatos privados com o `.dmg` do macOS e os instaladores `.msi` e `.exe` do
+Windows. O workflow nao usa nem imprime credenciais.
+
+Para conferir o empacotamento local, a partir de `desktop/`:
+
+```bash
+npm ci
+npm run prepare-sidecar
+npm run build
+```
+
 ## Sincronizar alteracoes
 
 Antes de comecar a trabalhar em outro computador:
