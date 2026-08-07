@@ -522,13 +522,20 @@
     width: var(--inline-width, 100%);
     aspect-ratio: var(--inline-aspect, 16 / 9);
     align-self: center;
-    border-radius: 16px;
-    overflow: hidden;
-    background: #0B0B0B;
     flex-shrink: 0;
     position: relative;
   }
-  .slide .inline-photo img {
+  .slide .inline-photo-media {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    border-radius: 16px;
+    background: #0B0B0B;
+    transform: scale(var(--inline-scale, 1));
+    transform-origin: center;
+    will-change: transform;
+  }
+  .slide .inline-photo-media img {
     width: 100%; height: 100%;
     object-fit: contain;
     display: block;
@@ -1572,16 +1579,17 @@
     // Reserva espaço para a copy, mesmo quando a imagem é vertical.
     const maxHeight = zoneH * 0.68;
     const fittedWidth = Math.min(zoneW, maxHeight * aspectRatio);
-    const size = getInlineImageSize(inlineImage);
-    const width = fittedWidth * size / 100;
+    const scale = getInlineImageSize(inlineImage) / 100;
+    const width = fittedWidth;
     const height = width / aspectRatio;
-    return { aspectRatio, width, height, x: (zoneW - width) / 2, size };
+    return { aspectRatio, width, height, x: (zoneW - width) / 2, size: scale * 100, scale };
   }
 
   function applyInlinePhotoLayout(node, inlineImage) {
     const layout = getInlineImageLayout(900, 990, inlineImage);
     node.style.setProperty('--inline-aspect', String(layout.aspectRatio));
     node.style.setProperty('--inline-width', (layout.width / 900 * 100) + '%');
+    node.style.setProperty('--inline-scale', String(layout.scale));
     const resizeInput = node.querySelector('.inline-photo-controls input');
     if (resizeInput) resizeInput.value = String(layout.size);
   }
@@ -1600,8 +1608,11 @@
       node = document.createElement('div');
       node.className = 'inline-photo';
       node.contentEditable = 'false';
+      const media = document.createElement('div');
+      media.className = 'inline-photo-media';
       const im = document.createElement('img');
-      node.appendChild(im);
+      media.appendChild(im);
+      node.appendChild(media);
       const controls = document.createElement('label');
       controls.className = 'inline-photo-controls';
       controls.setAttribute('aria-label', 'Tamanho da imagem');
@@ -1615,7 +1626,7 @@
       controls.appendChild(input);
       node.appendChild(controls);
     }
-    const im = node.querySelector('img');
+    const im = node.querySelector('.inline-photo-media img');
     const resizeInput = node.querySelector('.inline-photo-controls input');
     let resizeFrame = 0;
     const updateSize = (persist) => {
@@ -3078,32 +3089,36 @@
     return total;
   }
 
-  async function drawInlinePhoto(ctx, inlineImage, x, y, w, h) {
+  async function drawInlinePhoto(ctx, inlineImage, x, y, w, h, scale = 1) {
     if (!inlineImage || !inlineImage.dataURL) return;
     const img = await loadImage(inlineImage.dataURL);
     if (!img) return;
+    const scaledW = w * scale;
+    const scaledH = h * scale;
+    const scaledX = x + (w - scaledW) / 2;
+    const scaledY = y + (h - scaledH) / 2;
     const radius = 16;
     ctx.save();
     ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(x, y, w, h, radius);
+    if (ctx.roundRect) ctx.roundRect(scaledX, scaledY, scaledW, scaledH, radius);
     else {
-      ctx.moveTo(x + radius, y);
-      ctx.lineTo(x + w - radius, y); ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
-      ctx.lineTo(x + w, y + h - radius); ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
-      ctx.lineTo(x + radius, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
-      ctx.lineTo(x, y + radius); ctx.quadraticCurveTo(x, y, x + radius, y);
+      ctx.moveTo(scaledX + radius, scaledY);
+      ctx.lineTo(scaledX + scaledW - radius, scaledY); ctx.quadraticCurveTo(scaledX + scaledW, scaledY, scaledX + scaledW, scaledY + radius);
+      ctx.lineTo(scaledX + scaledW, scaledY + scaledH - radius); ctx.quadraticCurveTo(scaledX + scaledW, scaledY + scaledH, scaledX + scaledW - radius, scaledY + scaledH);
+      ctx.lineTo(scaledX + radius, scaledY + scaledH); ctx.quadraticCurveTo(scaledX, scaledY + scaledH, scaledX, scaledY + scaledH - radius);
+      ctx.lineTo(scaledX, scaledY + radius); ctx.quadraticCurveTo(scaledX, scaledY, scaledX + radius, scaledY);
     }
     ctx.clip();
     // Mantém a imagem inteira no quadro, sem crop.
     const srcR = img.width / img.height;
-    const dstR = w / h;
-    let drawW = w, drawH = h, drawX = x, drawY = y;
+    const dstR = scaledW / scaledH;
+    let drawW = scaledW, drawH = scaledH, drawX = scaledX, drawY = scaledY;
     if (srcR > dstR) {
-      drawH = w / srcR;
-      drawY = y + (h - drawH) / 2;
+      drawH = scaledW / srcR;
+      drawY = scaledY + (scaledH - drawH) / 2;
     } else {
-      drawW = h * srcR;
-      drawX = x + (w - drawW) / 2;
+      drawW = scaledH * srcR;
+      drawX = scaledX + (scaledW - drawW) / 2;
     }
     ctx.drawImage(img, drawX, drawY, drawW, drawH);
     ctx.restore();
@@ -3151,7 +3166,7 @@
       // Slide com inline-image: imagem âncora no TOPO do zone, texto centralizado
       // no espaço restante (zone abaixo da imagem). Previsível e evita overflow
       // do stack que era centralizado como um todo.
-      await drawInlinePhoto(ctx, inlineImage, zoneX + inlineLayout.x, zoneY, inlineLayout.width, inlineLayout.height);
+      await drawInlinePhoto(ctx, inlineImage, zoneX + inlineLayout.x, zoneY, inlineLayout.width, inlineLayout.height, inlineLayout.scale);
       const textZoneY = zoneY + inlineImageH + gap;
       const textZoneH = zoneH - inlineImageH - gap;
       const textStackH = measureTextOnlyStack();

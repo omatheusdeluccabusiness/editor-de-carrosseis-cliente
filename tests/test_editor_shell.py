@@ -332,12 +332,16 @@ class EditorShellTest(unittest.TestCase):
             "input.setAttribute('aria-label', 'Redimensionar imagem')",
             "requestAnimationFrame(() =>",
             "resizeInput.onchange = () => commitResize();",
+            "className = 'inline-photo-media'",
+            "--inline-scale",
+            "transform: scale(var(--inline-scale, 1));",
+            "const scale = getInlineImageSize(inlineImage) / 100;",
+            "drawInlinePhoto(ctx, inlineImage, zoneX + inlineLayout.x, zoneY, inlineLayout.width, inlineLayout.height, inlineLayout.scale)",
             "object-fit: contain",
             "await loadImage(dataURL)",
             "function normalizeInlineImageDataURL(dataURL, image)",
             "canvas.toDataURL('image/jpeg', 0.9)",
             "dataURL: normalized.dataURL",
-            "drawInlinePhoto(ctx, inlineImage, zoneX + inlineLayout.x, zoneY, inlineLayout.width, inlineLayout.height)",
         )
         for marker in required:
             self.assertIn(marker, html)
