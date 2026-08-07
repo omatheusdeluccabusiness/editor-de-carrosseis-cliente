@@ -30,6 +30,11 @@ import urllib.parse
 from pathlib import Path
 
 try:
+    from scripts.credenciais import (
+        CredentialsError,
+        credentials_ready,
+        import_credentials_to_directory,
+    )
     from scripts.desktop_paths import desktop_runtime_paths
     from scripts.hub_sessions import (
         create_hub_session,
@@ -38,6 +43,11 @@ try:
     )
     from scripts.template_catalog import public_template_catalog
 except ImportError:
+    from credenciais import (
+        CredentialsError,
+        credentials_ready,
+        import_credentials_to_directory,
+    )
     from desktop_paths import desktop_runtime_paths
     from hub_sessions import (
         create_hub_session,
@@ -146,6 +156,17 @@ def _read_telegram_config() -> tuple[str, str]:
     if not token or not chat_id:
         raise RuntimeError('Configuração do Telegram incompleta.')
     return token, chat_id
+
+
+def _desktop_credentials_configured() -> bool:
+    """Return only a redacted readiness signal for the installed app."""
+
+    if not RUNTIME_PATHS:
+        return False
+    return credentials_ready(
+        RUNTIME_PATHS.credentials_dir / ".env",
+        RUNTIME_PATHS.credentials_dir / ".matheusao-telegram.json",
+    )
 
 
 def _telegram_api_request(method: str, fields: dict[str, str], images: list[bytes] | None = None) -> dict:
@@ -294,6 +315,10 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
             except Exception:
                 configured = False
             return self._send_json(200, {'configured': configured})
+        if path == '/api/desktop-credentials/status':
+            if not RUNTIME_PATHS:
+                return self._send_json(404, {'error': 'recurso_disponivel_apenas_no_app_desktop'})
+            return self._send_json(200, {'configured': _desktop_credentials_configured()})
 
         name = Path(urllib.parse.unquote(path)).name
         if name.endswith(".pid") or name in {"server.log", "telegram-config.json"}:
@@ -346,6 +371,8 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
                 return self._handle_telegram_test()
             if self.path == '/api/telegram/send':
                 return self._handle_telegram_send()
+            if self.path == '/api/desktop-credentials/import':
+                return self._handle_desktop_credentials_import()
             self._send_json(404, {'error': f'rota POST {self.path} não existe'})
         except urllib.error.HTTPError as e:
             body = e.read().decode('utf-8', errors='replace')
@@ -399,6 +426,34 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
     def _handle_telegram_test(self):
         result = _telegram_api_request('getMe', {})
         self._send_json(200, {'ok': bool(result.get('ok')), 'configured': True})
+
+    def _handle_desktop_credentials_import(self):
+        if not RUNTIME_PATHS:
+            self._send_json(404, {'error': 'recurso_disponivel_apenas_no_app_desktop'})
+            return
+        try:
+            body = self._read_json_body()
+        except json.JSONDecodeError:
+            self._send_json(400, {'error': 'payload_invalido'})
+            return
+        if not isinstance(body, dict):
+            self._send_json(400, {'error': 'payload_invalido'})
+            return
+
+        vault_json = body.get('vault_json')
+        recovery_key = body.get('recovery_key')
+        if not isinstance(vault_json, str) or not isinstance(recovery_key, str):
+            self._send_json(400, {'error': 'payload_invalido'})
+            return
+        try:
+            import_credentials_to_directory(
+                vault_json, recovery_key, RUNTIME_PATHS.credentials_dir
+            )
+        except CredentialsError:
+            # Do not expose parsing, cryptographic or credential details.
+            self._send_json(400, {'error': 'cofre_ou_chave_invalidos'})
+            return
+        self._send_json(200, {'ok': True, 'configured': _desktop_credentials_configured()})
 
     def _handle_telegram_send(self):
         body = self._read_json_body()

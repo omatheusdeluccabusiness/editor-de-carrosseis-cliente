@@ -26,10 +26,13 @@ faca um envio de teste depois de restaurar as credenciais locais.
 
 ### Restaurar credenciais com seguranca
 
-Na primeira abertura, use a **chave de recuperacao** somente se o app informar
-que a configuracao local esta ausente e solicita-la. Insira-a apenas nessa tela
-do aplicativo. A chave restaura as configuracoes neste computador e nao entra
-no instalador, no repositorio ou no carrossel.
+Para configurar Telegram e Instagram em um computador novo, receba o arquivo
+criptografado `credentials.enc.json` por um canal seguro, separadamente do
+instalador. No HUB, abra **Configurar integrações**, selecione esse arquivo e
+insira a **chave de recuperacao** somente naquele formulário do aplicativo. O
+app valida o cofre e a chave antes de gravar a configuracao privada local; se a
+validacao falhar, a configuracao existente nao e alterada. O cofre e a chave
+nao entram no instalador, no repositorio ou no carrossel.
 
 Nem o aplicativo nem o suporte solicitarao por chat o Telegram Bot Token, Chat
 ID, Meta App Secret, token do Instagram ou a chave de recuperacao. Nao envie

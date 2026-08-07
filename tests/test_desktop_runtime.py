@@ -15,6 +15,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from scripts import serve_carrossel
+from scripts.credenciais import encrypt_payload
 from scripts.desktop_paths import desktop_runtime_paths
 
 
@@ -118,6 +119,80 @@ class DesktopRuntimeTest(unittest.TestCase):
             self.assertEqual(
                 run.call_args.kwargs["env"]["CARROSSEL_APP_DATA_DIR"], str(app_data_dir)
             )
+
+    def test_desktop_credentials_import_is_local_authorized_and_redacted(self) -> None:
+        recovery_key = "desktop-recovery-key-for-test"
+        envelope = encrypt_payload(
+            {
+                "telegram": {"botToken": "telegram-secret", "chatId": "123"},
+                "meta": {
+                    "INSTAGRAM_BUSINESS_ID": "456",
+                    "INSTAGRAM_ACCESS_TOKEN": "meta-secret",
+                },
+            },
+            recovery_key,
+        )
+        body = json.dumps(
+            {"vault_json": json.dumps(envelope), "recovery_key": recovery_key}
+        ).encode()
+        with desktop_runtime_server() as (app_data_dir, base_url):
+            with urllib.request.urlopen(
+                base_url + "/api/desktop-credentials/status"
+            ) as response:
+                self.assertEqual(json.load(response), {"configured": False})
+
+            unauthorized = urllib.request.Request(
+                base_url + "/api/desktop-credentials/import",
+                data=body,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with self.assertRaises(urllib.error.HTTPError) as raised:
+                urllib.request.urlopen(unauthorized)
+            self.assertEqual(raised.exception.code, 403)
+            self.assertFalse((app_data_dir / "credentials" / ".env").exists())
+
+            invalid = urllib.request.Request(
+                base_url + "/api/desktop-credentials/import",
+                data=json.dumps(
+                    {"vault_json": json.dumps(envelope), "recovery_key": "wrong-key"}
+                ).encode(),
+                headers={
+                    "Content-Type": "application/json",
+                    "Origin": base_url,
+                    "X-Carrossel-CSRF": serve_carrossel.CSRF_TOKEN,
+                },
+                method="POST",
+            )
+            with self.assertRaises(urllib.error.HTTPError) as raised:
+                urllib.request.urlopen(invalid)
+            self.assertEqual(raised.exception.code, 400)
+            invalid_response = raised.exception.read().decode("utf-8")
+            self.assertEqual(json.loads(invalid_response), {"error": "cofre_ou_chave_invalidos"})
+            self.assertNotIn("telegram-secret", invalid_response)
+            self.assertFalse((app_data_dir / "credentials" / ".env").exists())
+
+            authorized = urllib.request.Request(
+                base_url + "/api/desktop-credentials/import",
+                data=body,
+                headers={
+                    "Content-Type": "application/json",
+                    "Origin": base_url,
+                    "X-Carrossel-CSRF": serve_carrossel.CSRF_TOKEN,
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(authorized) as response:
+                self.assertEqual(json.load(response), {"ok": True, "configured": True})
+
+            with urllib.request.urlopen(
+                base_url + "/api/desktop-credentials/status"
+            ) as response:
+                status_response = response.read().decode("utf-8")
+            self.assertEqual(json.loads(status_response), {"configured": True})
+            self.assertNotIn("telegram-secret", status_response)
+            self.assertNotIn("meta-secret", status_response)
+            self.assertTrue((app_data_dir / "credentials" / "credentials.enc.json").is_file())
 
 
 if __name__ == "__main__":
