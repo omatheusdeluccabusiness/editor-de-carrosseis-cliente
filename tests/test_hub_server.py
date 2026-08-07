@@ -94,6 +94,19 @@ class HubServerTest(unittest.TestCase):
             self.assertEqual(body["url"], "/hub-tweet-abc.html")
             self.assertEqual(body["session_id"], "hub-tweet-abc")
 
+    def test_stale_hub_session_is_refreshed_on_reload(self) -> None:
+        session_id = "hub-stories-0123456789ab"
+        with running_test_server() as base_url:
+            path = Path(serve_carrossel.DIR) / f"{session_id}.html"
+            path.write_text("<html>versão antiga</html>", encoding="utf-8")
+            with patch.object(serve_carrossel, "hub_session_needs_refresh", return_value=True), patch.object(
+                serve_carrossel, "refresh_hub_session"
+            ) as refresh:
+                with urllib.request.urlopen(base_url + f"/{path.name}") as response:
+                    self.assertEqual(response.status, 200)
+
+            refresh.assert_called_once_with(session_id, Path(serve_carrossel.DIR))
+
     def test_invalid_template_returns_400(self) -> None:
         with running_test_server() as base_url:
             req = urllib.request.Request(

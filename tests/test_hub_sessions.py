@@ -3,8 +3,13 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+import re
 
-from scripts.hub_sessions import cleanup_hub_sessions, create_hub_session
+from scripts.hub_sessions import (
+    cleanup_hub_sessions,
+    create_hub_session,
+    refresh_hub_session,
+)
 from scripts.novo_carrossel import CONTENT_DIR
 
 
@@ -27,6 +32,22 @@ class HubSessionsTest(unittest.TestCase):
             html = session.path.read_text(encoding="utf-8")
 
         self.assertIn("10 slides", html)
+
+    def test_refresh_keeps_hub_document_key_and_replaces_template_source(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            session = create_hub_session("stories", root)
+            before = session.path.read_text(encoding="utf-8")
+            doc_key = re.search(r"const DOC_KEY = '([^']+)'", before).group(1)
+            # Representa um HTML aberto antes de uma atualização de template.
+            session.path.write_text("versão antiga", encoding="utf-8")
+
+            refreshed = refresh_hub_session(session.id, root)
+            after = refreshed.path.read_text(encoding="utf-8")
+
+        self.assertEqual(refreshed.id, session.id)
+        self.assertIn(f"const DOC_KEY = '{doc_key}'", after)
+        self.assertIn("Modelo Stories", after)
 
     def test_cleanup_removes_only_hub_html(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

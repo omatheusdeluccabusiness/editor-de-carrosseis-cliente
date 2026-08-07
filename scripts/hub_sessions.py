@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import date
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -39,6 +40,32 @@ def cleanup_hub_sessions(editor_dir: Path) -> list[Path]:
 def create_hub_session(template_id: str, editor_dir: Path) -> HubSession:
     definition = get_template(template_id)
     session_id = f"hub-{definition.id}-{uuid.uuid4().hex[:12]}"
+    return _generate_hub_session(definition.id, session_id, editor_dir)
+
+
+def refresh_hub_session(session_id: str, editor_dir: Path) -> HubSession:
+    """Regenera uma sessão do Hub sem mudar sua chave local de documento.
+
+    O id integra o nome do markdown temporário e, portanto, o DOC_KEY do editor.
+    Manter esse id permite atualizar o HTML após uma evolução do template sem
+    descartar copy, imagens ou preferências já salvas no navegador.
+    """
+    match = re.fullmatch(r"hub-(tweet|stories)-[0-9a-f]{12}", session_id)
+    if not match:
+        raise ValueError("Identificador de sessão inválido.")
+    return _generate_hub_session(match.group(1), session_id, editor_dir)
+
+
+def hub_session_needs_refresh(path: Path, template_id: str) -> bool:
+    """Informa se o HTML de uma sessão foi gerado antes de seu template."""
+    if not path.is_file():
+        return False
+    definition = get_template(template_id)
+    return path.stat().st_mtime < definition.template_path.stat().st_mtime
+
+
+def _generate_hub_session(template_id: str, session_id: str, editor_dir: Path) -> HubSession:
+    definition = get_template(template_id)
     placeholder = tweet_placeholder if definition.id == "tweet" else stories_placeholder
     markdown = placeholder(session_id, date.today().isoformat())
     editor_dir.mkdir(parents=True, exist_ok=True)

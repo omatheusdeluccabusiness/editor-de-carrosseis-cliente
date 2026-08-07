@@ -30,10 +30,18 @@ import urllib.parse
 from pathlib import Path
 
 try:
-    from scripts.hub_sessions import cleanup_hub_sessions, create_hub_session
+    from scripts.hub_sessions import (
+        create_hub_session,
+        hub_session_needs_refresh,
+        refresh_hub_session,
+    )
     from scripts.template_catalog import public_template_catalog
 except ImportError:
-    from hub_sessions import cleanup_hub_sessions, create_hub_session
+    from hub_sessions import (
+        create_hub_session,
+        hub_session_needs_refresh,
+        refresh_hub_session,
+    )
     from template_catalog import public_template_catalog
 
 # ---------------------------------------------------------------------------
@@ -280,6 +288,12 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
         if name.endswith('.html'):
             target = (Path(DIR) / name).resolve()
             if target.parent == Path(DIR).resolve() and target.is_file():
+                session_match = re.fullmatch(r'hub-(tweet|stories)-[0-9a-f]{12}\.html', name)
+                if session_match and hub_session_needs_refresh(target, session_match.group(1)):
+                    # Sessões do Hub preservam estado no DOC_KEY. Regenerar o
+                    # HTML com o mesmo id atualiza a interface ao recarregar
+                    # sem apagar a copy/imagens já salvas no browser.
+                    refresh_hub_session(target.stem, Path(DIR))
                 return self._send_html(200, _inject_local_runtime(target.read_text(encoding='utf-8')))
 
         return super().do_GET()
@@ -515,7 +529,9 @@ class ReusableThreadingTCPServer(socketserver.ThreadingTCPServer):
 
 if __name__ == '__main__':
     os.chdir(DIR)
-    cleanup_hub_sessions(Path(DIR))
+    # Sessões do Hub não são descartáveis: o estado da criação fica ligado ao
+    # id delas no navegador. Mantê-las permite reiniciar o servidor e continuar
+    # exatamente de onde a pessoa parou.
     with ReusableThreadingTCPServer(("127.0.0.1", PORT), CarrosselHandler) as httpd:
         print(f"servindo {DIR} em http://localhost:{PORT}")
         print(f"endpoints API:")
