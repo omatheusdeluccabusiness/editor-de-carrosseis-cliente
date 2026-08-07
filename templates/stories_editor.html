@@ -772,6 +772,7 @@
         <div class="inspector-stack">
           <button id="btn-reset" class="shell-button danger">Limpar imagens</button>
           <button id="btn-reset-text" class="shell-button danger">Restaurar texto original</button>
+          <button id="btn-restart-carousel" class="shell-button danger">Reiniciar carrossel</button>
         </div>
       </details>
     </section>
@@ -893,6 +894,7 @@
 
   // ==== STATE ====
   let doc = null;
+  let initialStoriesDocument = null;
   let activeStageIndex = null;
   let selectedBlockId = null;
   let selectedSlideIdx = null;
@@ -1206,11 +1208,12 @@
   }
 
   // ==== DOC: BUILD/LOAD/SAVE ====
-  function buildDocFromDOM() {
-    const legacyText = safeGet(LEGACY_TEXT_KEY) || {};
-    const legacyBz = safeGet(LEGACY_BZ_KEY) || {};
-    const legacyImg = safeGet(LEGACY_IMG_KEY) || {};
-    const legacyInline = safeGet(LEGACY_INLINE_KEY) || {};
+  function buildDocFromDOM(options = {}) {
+    const useLegacy = options.useLegacy !== false;
+    const legacyText = useLegacy ? (safeGet(LEGACY_TEXT_KEY) || {}) : {};
+    const legacyBz = useLegacy ? (safeGet(LEGACY_BZ_KEY) || {}) : {};
+    const legacyImg = useLegacy ? (safeGet(LEGACY_IMG_KEY) || {}) : {};
+    const legacyInline = useLegacy ? (safeGet(LEGACY_INLINE_KEY) || {}) : {};
 
     const slides = [];
     document.querySelectorAll('.slide-wrap').forEach((wrap, sIdx) => {
@@ -1260,6 +1263,35 @@
     });
 
     return { version: 7, typography: 'serif', slides };
+  }
+
+  function createBlankStoriesDocument() {
+    const source = initialStoriesDocument || buildDocFromDOM({ useLegacy: false });
+    const blank = JSON.parse(JSON.stringify(source));
+    blank.version = 7;
+    blank.typography = doc && doc.typography === 'sans' ? 'sans' : 'serif';
+    blank.slides.forEach((slide, slideIndex) => {
+      slide.id = 's' + (slideIndex + 1);
+      slide.blocks = slide.blocks.map(block => ({ ...block, id: uid(), html: 'adicione aqui a sua copy' }));
+      slide.bzTransform = { tx: 0, ty: 0, scale: 1 };
+      slide.image = null;
+      slide.inlineImage = null;
+    });
+    return blank;
+  }
+
+  function restartCarousel() {
+    const confirmation = 'Você quer reiniciar esse template e começar outro do zero? Se sim, certifique-se de ter exportado os slides antes';
+    if (!confirm(confirmation)) return;
+    pushCurrentUndoSnapshot();
+    doc = createBlankStoriesDocument();
+    safeSet(DOC_KEY, doc);
+    safeSet(DOC_KEY + '-caption', '');
+    localStorage.removeItem(LEGACY_TEXT_KEY);
+    localStorage.removeItem(LEGACY_BZ_KEY);
+    localStorage.removeItem(LEGACY_IMG_KEY);
+    localStorage.removeItem(LEGACY_INLINE_KEY);
+    window.location.reload();
   }
 
   function migrateDoc(d) {
@@ -2283,6 +2315,7 @@
     const STAGE_SCALE = 0.5;
     const SCALE_INV = 1 / STAGE_SCALE;
 
+    initialStoriesDocument = buildDocFromDOM({ useLegacy: false });
     loadOrInitDoc();
     const typographySelector = document.getElementById('stories-typography');
     if (typographySelector) {
@@ -2480,6 +2513,7 @@
       localStorage.removeItem(LEGACY_BZ_KEY);
       window.location.reload();
     });
+    document.getElementById('btn-restart-carousel').addEventListener('click', restartCarousel);
   });
 
   document.addEventListener('paste', (e) => {

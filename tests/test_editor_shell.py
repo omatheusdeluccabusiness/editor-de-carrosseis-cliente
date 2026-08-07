@@ -202,6 +202,30 @@ class EditorShellTest(unittest.TestCase):
         self.assertIn("<h1>Modelo Stories</h1>", identity_html)
         self.assertNotIn("{{TITLE}}", identity_html)
 
+    def test_both_templates_offer_a_confirmed_carousel_restart(self) -> None:
+        confirmation = (
+            "Você quer reiniciar esse template e começar outro do zero? "
+            "Se sim, certifique-se de ter exportado os slides antes"
+        )
+        for template_path in TEMPLATES:
+            html = template_path.read_text(encoding="utf-8")
+            with self.subTest(editor=template_path.name):
+                self.assertIn('id="btn-restart-carousel"', html)
+                self.assertIn("Reiniciar carrossel", html)
+                self.assertIn(confirmation, html)
+                self.assertIn("function restartCarousel()", html)
+
+    def test_restart_contract_resets_content_but_preserves_user_profile(self) -> None:
+        tweet = TEMPLATES[0].read_text(encoding="utf-8")
+        stories = TEMPLATES[1].read_text(encoding="utf-8")
+        self.assertIn("function createBlankTweetSlides()", tweet)
+        self.assertIn("text: 'adicione aqui a sua copy'", tweet)
+        self.assertIn("imageDataURL: null", tweet)
+        self.assertNotIn("profileState =", tweet[tweet.index("function restartCarousel()"):])
+        self.assertIn("function createBlankStoriesDocument()", stories)
+        self.assertIn("inlineImage: null", stories)
+        self.assertIn("image: null", stories)
+
     def test_tweet_inspector_exposes_profile_controls(self) -> None:
         html = (PROJECT_ROOT / "templates" / "tweet_editor.html").read_text(
             encoding="utf-8"

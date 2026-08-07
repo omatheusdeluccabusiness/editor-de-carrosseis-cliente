@@ -565,6 +565,7 @@
         <details class="maintenance">
           <summary>Manutenção</summary>
           <button id="btn-reset" class="shell-button danger" style="width:100%;">Restaurar texto original</button>
+          <button id="btn-restart-carousel" class="shell-button danger" style="width:100%; margin-top:8px;">Reiniciar carrossel</button>
         </details>
       </section>
     </aside>
@@ -2229,6 +2230,25 @@
       slidesState.forEach((_, i) => { loadSlideImage(i); renderSlide(i); });
     }
 
+    function createBlankTweetSlides() {
+      return ORIGINAL_SLIDES.map((slide, index) => ({
+        label: slide.label || (index === 0 ? 'Capa' : 'Slide ' + (index + 1)),
+        text: 'adicione aqui a sua copy',
+        fontSize: slide.fontSize || 42,
+        imageDataURL: null
+      }));
+    }
+
+    function restartCarousel() {
+      const confirmation = 'Você quer reiniciar esse template e começar outro do zero? Se sim, certifique-se de ter exportado os slides antes';
+      if (!confirm(confirmation)) return;
+      pushCurrentUndoSnapshot();
+      slidesState = createBlankTweetSlides();
+      safeStorageSet(STORAGE_KEY, JSON.stringify(slidesState));
+      safeStorageSet(STORAGE_KEY + '-caption', '');
+      location.reload();
+    }
+
     // OSNL Design: removido openTgModal, closeTgModal, tgTestConnection, tgSave e sendToTelegram.
     // Editor standalone só pra design + export PNG local via downloadAll.
 
@@ -2295,6 +2315,7 @@
     document.getElementById('btn-add-slide')?.addEventListener('click', addSlide);
     document.getElementById('btn-delete-slide')?.addEventListener('click', deleteCurrentSlide);
     document.getElementById('btn-reset').addEventListener('click', resetTexts);
+    document.getElementById('btn-restart-carousel').addEventListener('click', restartCarousel);
     document.getElementById('btn-theme').addEventListener('click', toggleTheme);
     document.querySelectorAll('[data-ratio]').forEach(btn => {
       btn.addEventListener('click', () => setRatio(btn.dataset.ratio));
