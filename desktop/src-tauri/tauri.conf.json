@@ -1,0 +1,34 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Editor de Carrosseis",
+  "version": "0.1.0",
+  "identifier": "com.matheusdelucca.editor-carrosseis",
+  "build": {
+    "frontendDist": "../splash"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Editor de Carrosseis",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 600
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' http://127.0.0.1:8777; img-src 'self' data: blob: http://127.0.0.1:8777; style-src 'self' 'unsafe-inline' http://127.0.0.1:8777; script-src 'self' 'unsafe-inline' http://127.0.0.1:8777; connect-src 'self' http://127.0.0.1:8777"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "../../assets/avatar.png"
+    ],
+    "externalBin": [
+      "binaries/editor-carrosseis-sidecar"
+    ]
+  }
+}
