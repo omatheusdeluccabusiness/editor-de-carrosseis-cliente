@@ -29,7 +29,6 @@ def build(target_dir: Path) -> Path:
     datas = [
         (PROJECT_ROOT / "templates", "templates"),
         (PROJECT_ROOT / "assets", "assets"),
-        (PROJECT_ROOT / "secrets" / "credentials.enc.json", "secrets"),
     ]
     add_data = [f"{source}{os.pathsep}{destination}" for source, destination in datas]
 
@@ -49,6 +48,14 @@ def build(target_dir: Path) -> Path:
                 work_dir,
                 "--hidden-import",
                 "serve_carrossel",
+                "--hidden-import",
+                "hub_sessions",
+                "--hidden-import",
+                "novo_carrossel",
+                "--hidden-import",
+                "roteiro_to_instagram",
+                "--hidden-import",
+                "template_catalog",
                 *[item for pair in zip(["--add-data"] * len(add_data), add_data) for item in pair],
                 str(PROJECT_ROOT / "scripts" / "desktop_sidecar.py"),
             ]

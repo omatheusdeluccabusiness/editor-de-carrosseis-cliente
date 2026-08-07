@@ -29,6 +29,7 @@ import time
 import unicodedata
 import webbrowser
 from pathlib import Path
+from typing import Optional
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -274,7 +275,7 @@ def _coalesce_short_paragraphs(paragraphs: list[str], min_chars: int = 60) -> li
     return result
 
 
-def parse_roteiro(md_path: Path) -> dict:
+def parse_roteiro(md_path: Path, total_slides: Optional[int] = None) -> dict:
     """
     Extrai dos arquivos da Trilha:
       - título (do H1)
@@ -320,10 +321,12 @@ def parse_roteiro(md_path: Path) -> dict:
         if sm:
             capa_subtitulo = sm.group(1).strip()
 
-    # fatia o roteiro no número de slides configurado (default 10)
-    slides = _fatiar_roteiro_em_slides(roteiro_text, capa_titulo, capa_subtitulo, total_slides=TEMPLATE_TOTAL_SLIDES)
+    # O argumento permite que consumidores in-process escolham o modelo sem
+    # mutar a configuração global preservada para o CLI histórico.
+    total_slides = total_slides or TEMPLATE_TOTAL_SLIDES
+    slides = _fatiar_roteiro_em_slides(roteiro_text, capa_titulo, capa_subtitulo, total_slides=total_slides)
     if not slides:
-        raise ValueError(f"Roteiro em {md_path.name} muito curto pra fatiar em {TEMPLATE_TOTAL_SLIDES} slides")
+        raise ValueError(f"Roteiro em {md_path.name} muito curto pra fatiar em {total_slides} slides")
 
     # extrai caption
     caption_match = re.search(
@@ -976,6 +979,54 @@ def launch_editor(
     print(f"   • Publicar direto no @omatheusdelucca")
     print(f"\n   Edições salvam automaticamente no localStorage do navegador.")
     return url
+
+
+def generate_editor_from_markdown(
+    roteiro_md: Path,
+    template_id: str,
+    editor_dir: Path,
+    *,
+    hub_session: bool = False,
+) -> Path:
+    """Generate an editor HTML in-process, without starting a server/browser.
+
+    This API is intentionally independent from the CLI's global template
+    selection so the packaged desktop sidecar can create Hub sessions without
+    launching a second Python executable.
+    """
+
+    try:
+        template_path = EDITOR_TEMPLATES[template_id]
+        total_slides = TEMPLATE_SLIDES_BY_NAME[template_id]
+    except KeyError as error:
+        raise ValueError(f"Template desconhecido: {template_id}") from error
+    if not template_path.is_file():
+        raise FileNotFoundError(f"Template não encontrado: {template_path}")
+
+    parsed = parse_roteiro(roteiro_md, total_slides=total_slides)
+    editor_dir.mkdir(parents=True, exist_ok=True)
+    template_html = template_path.read_text(encoding="utf-8")
+    slides_html = _generate_slides_html(parsed)
+    slides_json = _generate_slides_json(parsed)
+    hash_source = slides_json if "{{SLIDES_JSON}}" in template_html else slides_html
+    content_hash = _hash_roteiro(hash_source)
+    doc_key = _make_doc_key(roteiro_md, content_hash)
+    caption_html = (parsed["caption"] or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    title_html = (parsed["title"] or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    slug = slugify(parsed["title"])
+    out_html = template_html
+    out_html = out_html.replace("{{TITLE}}", title_html)
+    out_html = out_html.replace("{{N_SLIDES}}", str(len(parsed["slides"])))
+    out_html = out_html.replace("{{CAPTION}}", caption_html)
+    out_html = out_html.replace("{{SLIDES_HTML}}", slides_html)
+    out_html = out_html.replace("{{SLIDES_JSON}}", slides_json)
+    out_html = out_html.replace("{{DOC_KEY}}", doc_key)
+    out_html = out_html.replace("{{PECA_PATH}}", str(roteiro_md.parent))
+    out_html = out_html.replace("{{HUB_SESSION}}", "true" if hub_session else "false")
+    out_html = out_html.replace("{{HUB_SESSION_ID}}", slug if hub_session else "")
+    out_path = editor_dir / f"{slug}.html"
+    out_path.write_text(out_html, encoding="utf-8")
+    return out_path
 
 
 def main():

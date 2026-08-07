@@ -61,6 +61,7 @@ class DesktopRuntimeTest(unittest.TestCase):
         )
         self.assertIn("templates", source)
         self.assertIn("assets", source)
+        self.assertNotIn("credentials.enc.json", source)
 
     def test_desktop_paths_keep_runtime_and_credentials_out_of_project(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

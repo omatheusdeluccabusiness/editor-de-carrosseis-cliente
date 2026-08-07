@@ -54,3 +54,27 @@
 - O sidecar usa a porta configurada por `CARROSSEL_EDITOR_PORT` (8777 por
   padrão); o ciclo de vida e a escolha de porta pelo Tauri ficam para as
   tarefas seguintes.
+
+## Fix round 1
+
+- `hub_sessions` não executa mais `sys.executable` nem tenta despachar
+  `roteiro_to_instagram.py` como subprocesso. Foi adicionada a API
+  `generate_editor_from_markdown(...)`, que seleciona o template, faz parse e
+  grava o HTML da sessão no mesmo processo. O CLI existente continua usando
+  seu fluxo atual.
+- O builder agora inclui somente `templates` e `assets`. O arquivo
+  `credentials.enc.json` não é adicionado como dado PyInstaller; as
+  credenciais ficam exclusivamente sob `CARROSSEL_APP_DATA_DIR`.
+- `template_catalog` também reconhece `sys._MEIPASS`, para que os templates
+  internos do arquivo one-file possam ser lidos durante a geração da sessão.
+- Adicionado `tests/test_desktop_sidecar_smoke.py`: ele constrói o binário,
+  verifica que o cofre não aparece no executável, sobe uma instância isolada
+  e cria de verdade sessões Tweet e Stories por `POST /api/sessoes`.
+
+Validação da correção:
+
+1. `./.venv/bin/python -m unittest tests.test_hub_sessions tests.test_hub_editor_mode tests.test_desktop_runtime -v`
+   - PASS: 11 testes.
+2. `./.venv/bin/python -m unittest tests.test_desktop_sidecar_smoke -v`
+   - PASS: gera um sidecar PyInstaller macOS arm64 e cria as duas sessões no
+     binário congelado.
