@@ -317,6 +317,30 @@ class EditorShellTest(unittest.TestCase):
         )
         self.assertIn("#block-toolbar.empty { display: none; }", html)
 
+    def test_stories_inline_images_keep_their_source_ratio_and_offer_manual_resize(self) -> None:
+        html = (PROJECT_ROOT / "templates" / "stories_editor.html").read_text(
+            encoding="utf-8"
+        )
+        required = (
+            "function getInlineImageLayout(zoneW, zoneH, inlineImage)",
+            "aspectRatio",
+            "inlineImage.size",
+            "--inline-aspect",
+            "--inline-width",
+            "className = 'inline-photo-controls'",
+            "input.type = 'range'",
+            "input.setAttribute('aria-label', 'Redimensionar imagem')",
+            "object-fit: contain",
+            "await loadImage(dataURL)",
+            "function normalizeInlineImageDataURL(dataURL, image)",
+            "canvas.toDataURL('image/jpeg', 0.9)",
+            "dataURL: normalized.dataURL",
+            "drawInlinePhoto(ctx, inlineImage, zoneX + inlineLayout.x, zoneY, inlineLayout.width, inlineLayout.height)",
+        )
+        for marker in required:
+            self.assertIn(marker, html)
+        self.assertNotIn(".slide.capa .inline-photo { aspect-ratio: 4 / 3; }", html)
+
     def test_stories_canvas_isolates_transformed_slide_paint(self) -> None:
         html = (PROJECT_ROOT / "templates" / "stories_editor.html").read_text(
             encoding="utf-8"

@@ -57,8 +57,7 @@
   .slide.active .photo-img.has-src { cursor: grab; }
   .slide.active .photo-img.has-src.dragging { cursor: grabbing; }
   /* Stories aesthetic: zero gradient, zero decoração.
-     Full-bleed photo (.photo) foi descontinuado — TUDO usa .inline-photo agora
-     (4:3 na capa, 16:9 nos demais) pra layout previsível. */
+     Full-bleed photo (.photo) foi descontinuado — TUDO usa .inline-photo agora. */
   .slide .photo::before, .slide .photo::after { content: none; }
   .slide .photo { display: none !important; }
 
@@ -81,8 +80,9 @@
      as classes .align-left/.align-center/.align-right que vêm do block.align. */
   .slide .body-zone > * { width: 100%; }
 
-  /* Layout pra slides com inline-image (16:9):
-     imagem âncora no topo, texto ocupa espaço restante centralizado.
+  /* Layout pra slides com inline-image:
+     imagem âncora no topo, mantendo a proporção original, e texto centralizado
+     no espaço restante.
      Usa pseudo-element como spacer flex que empurra os blocos pro centro vertical
      do espaço abaixo da imagem. */
   .slide .body-zone.has-inline-image {
@@ -92,7 +92,7 @@
     flex-shrink: 0;
     margin-bottom: var(--block-gap, 36px);
   }
-  .slide .body-zone.has-inline-image > *:not(.inline-photo):first-of-type {
+  .slide .body-zone.has-inline-image > .inline-photo + [data-block-id] {
     margin-top: auto;
   }
   .slide .body-zone.has-inline-image::after {
@@ -130,11 +130,6 @@
   /* Footer-bar não existe no Stories. Escondido via display:none pra preservar
      o DOM gerado pelo pipeline genérico. */
   .slide .footer-bar { display: none !important; }
-
-  /* Capa Stories: mesma estrutura do body-zone padrão (180/180), inline-image
-     entra como bloco âncora no topo via has-inline-image. Aspect 4:3 na capa
-     pra ter mais peso visual que os demais (16:9). */
-  .slide.capa .inline-photo { aspect-ratio: 4 / 3; }
 
   /* Estado ativo (slide selecionado pra paste) e flash */
   .stage { cursor: pointer; transition: outline 0.15s ease; }
@@ -522,10 +517,11 @@
     color: #EBC14B !important;
   }
 
-  /* Inline photo 16:9 — opcional, vai como primeiro filho do body-zone */
+  /* Inline photo proporcional — opcional, vai como primeiro filho do body-zone. */
   .slide .inline-photo {
-    width: 100%;
-    aspect-ratio: 16 / 9;
+    width: var(--inline-width, 100%);
+    aspect-ratio: var(--inline-aspect, 16 / 9);
+    align-self: center;
     border-radius: 16px;
     overflow: hidden;
     background: #0B0B0B;
@@ -534,9 +530,40 @@
   }
   .slide .inline-photo img {
     width: 100%; height: 100%;
-    object-fit: cover;
+    object-fit: contain;
     display: block;
     user-select: none; -webkit-user-drag: none;
+  }
+  .inline-photo-controls {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.68);
+    color: #fff;
+    font: 700 18px/1 -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+    letter-spacing: 0;
+    opacity: 0.88;
+    pointer-events: auto;
+    transition: opacity 150ms ease;
+  }
+  .stage.active .inline-photo-controls,
+  .inline-photo:hover .inline-photo-controls,
+  .inline-photo:focus-within .inline-photo-controls {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .inline-photo-controls input[type="range"] {
+    width: 148px;
+    height: 18px;
+    accent-color: #F4C430;
+    cursor: ew-resize;
   }
 
   /* ===== NATIVE STUDIO: shell da página (não altera os slides) ===== */
@@ -1526,7 +1553,39 @@
     setTimeout(() => slide.classList.remove('flash'), 600);
   }
 
-  // ==== INLINE PHOTO (16:9 dentro do body-zone) ====
+  // ==== INLINE PHOTO PROPORCIONAL DENTRO DO BODY-ZONE ====
+  function getInlineImageAspectRatio(inlineImage) {
+    const ratio = Number(inlineImage && inlineImage.aspectRatio);
+    return Number.isFinite(ratio) && ratio > 0.15 && ratio < 8 ? ratio : (16 / 9);
+  }
+
+  function getInlineImageSize(inlineImage) {
+    const size = Number(inlineImage && inlineImage.size);
+    return Number.isFinite(size) ? Math.min(100, Math.max(45, size)) : 100;
+  }
+
+  function getInlineImageLayout(zoneW, zoneH, inlineImage) {
+    if (!inlineImage || !inlineImage.dataURL) {
+      return { aspectRatio: 16 / 9, width: 0, height: 0, x: 0, size: 100 };
+    }
+    const aspectRatio = getInlineImageAspectRatio(inlineImage);
+    // Reserva espaço para a copy, mesmo quando a imagem é vertical.
+    const maxHeight = zoneH * 0.68;
+    const fittedWidth = Math.min(zoneW, maxHeight * aspectRatio);
+    const size = getInlineImageSize(inlineImage);
+    const width = fittedWidth * size / 100;
+    const height = width / aspectRatio;
+    return { aspectRatio, width, height, x: (zoneW - width) / 2, size };
+  }
+
+  function applyInlinePhotoLayout(node, inlineImage) {
+    const layout = getInlineImageLayout(900, 990, inlineImage);
+    node.style.setProperty('--inline-aspect', String(layout.aspectRatio));
+    node.style.setProperty('--inline-width', (layout.width / 900 * 100) + '%');
+    const resizeInput = node.querySelector('.inline-photo-controls input');
+    if (resizeInput) resizeInput.value = String(layout.size);
+  }
+
   function applyInlinePhotoToSlide(slideEl, inlineImage) {
     const bz = slideEl.querySelector('.body-zone');
     if (!bz) return;
@@ -1543,9 +1602,48 @@
       node.contentEditable = 'false';
       const im = document.createElement('img');
       node.appendChild(im);
+      const controls = document.createElement('label');
+      controls.className = 'inline-photo-controls';
+      controls.setAttribute('aria-label', 'Tamanho da imagem');
+      controls.innerHTML = '<span aria-hidden="true">↔</span>';
+      const input = document.createElement('input');
+      input.type = 'range';
+      input.min = '45';
+      input.max = '100';
+      input.step = '1';
+      input.setAttribute('aria-label', 'Redimensionar imagem');
+      controls.appendChild(input);
+      node.appendChild(controls);
     }
     const im = node.querySelector('img');
-    if (im.src !== inlineImage.dataURL) im.src = inlineImage.dataURL;
+    const resizeInput = node.querySelector('.inline-photo-controls input');
+    const updateSize = (persist) => {
+      const stageIndex = getStageIndex(slideEl);
+      const current = doc.slides[stageIndex] && doc.slides[stageIndex].inlineImage;
+      if (!current) return;
+      current.size = getInlineImageSize({ size: resizeInput.value });
+      applyInlinePhotoLayout(node, current);
+      if (persist) saveDoc();
+      else safeSet(DOC_KEY, doc);
+    };
+    resizeInput.oninput = () => updateSize(false);
+    resizeInput.onchange = () => updateSize(true);
+    if (im.src !== inlineImage.dataURL) {
+      im.onload = () => {
+        const stageIndex = getStageIndex(slideEl);
+        const current = doc.slides[stageIndex] && doc.slides[stageIndex].inlineImage;
+        if (!current || current.dataURL !== inlineImage.dataURL || !im.naturalHeight) return;
+        const aspectRatio = im.naturalWidth / im.naturalHeight;
+        if (!Number.isFinite(current.aspectRatio) || Math.abs(current.aspectRatio - aspectRatio) > 0.0001) {
+          current.aspectRatio = aspectRatio;
+          if (!Number.isFinite(Number(current.size))) current.size = 100;
+          safeSet(DOC_KEY, doc);
+        }
+        applyInlinePhotoLayout(node, current);
+      };
+      im.src = inlineImage.dataURL;
+    }
+    applyInlinePhotoLayout(node, inlineImage);
     if (bz.firstChild !== node) bz.insertBefore(node, bz.firstChild);
   }
 
@@ -2252,6 +2350,23 @@
   });
 
   // ==== IMAGE / BODY-ZONE ====
+  function normalizeInlineImageDataURL(dataURL, image) {
+    if (!image || !image.width || !image.height) {
+      return { dataURL, aspectRatio: 16 / 9 };
+    }
+    const maxDimension = 1600;
+    const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(image.width * scale));
+    canvas.height = Math.max(1, Math.round(image.height * scale));
+    const context = canvas.getContext('2d');
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    return {
+      dataURL: canvas.toDataURL('image/jpeg', 0.9),
+      aspectRatio: image.width / image.height
+    };
+  }
+
   function commitImage(stageIndex, dataURL) {
     const slideData = doc.slides[stageIndex];
     slideData.image = { dataURL, tx: 0, ty: 0, scale: 1 };
@@ -2261,9 +2376,11 @@
     applyImageToSlide(slideEl, slideData.image);
     flash(slideEl);
   }
-  function commitInlineImage(stageIndex, dataURL) {
+  async function commitInlineImage(stageIndex, dataURL) {
+    const image = await loadImage(dataURL);
+    const normalized = normalizeInlineImageDataURL(dataURL, image);
     const slideData = doc.slides[stageIndex];
-    slideData.inlineImage = { dataURL };
+    slideData.inlineImage = { dataURL: normalized.dataURL, aspectRatio: normalized.aspectRatio, size: 100 };
     saveDoc();
     const stage = document.querySelectorAll('.stage')[stageIndex];
     const slideEl = stage.querySelector('.slide');
@@ -2278,7 +2395,7 @@
     const slideEl = stage.querySelector('.slide');
     applyInlinePhotoToSlide(slideEl, null);
   }
-  // Stories: TUDO vira inline-image (4:3 na capa, 16:9 nos demais).
+  // Stories: TUDO vira inline-image proporcional.
   // Full-bleed photo (slideData.image) foi descontinuado pra Stories
   // pra simplificar layout e evitar overflow de texto longo.
   function commitImageRouted(stageIndex, dataURL) {
@@ -2931,13 +3048,6 @@
     ctx.restore();
   }
 
-  // Altura da inline-photo (16:9, full-width do body-zone). 0 se sem imagem.
-  function getInlineImageHeight(zoneW, hasImage, isCapa) {
-    if (!hasImage) return 0;
-    // Capa: 4:3 (mais peso visual). Demais: 16:9.
-    return isCapa ? Math.round(zoneW * 3 / 4) : Math.round(zoneW * 9 / 16);
-  }
-
   // Pré-mede o stack completo (inline-image + blocks com lines + gaps) pra centralização.
   function measureStackHeight(ctx, blocks, zoneW, isCapa, gap, inlineImageH) {
     let total = 0;
@@ -2971,19 +3081,25 @@
       ctx.lineTo(x, y + radius); ctx.quadraticCurveTo(x, y, x + radius, y);
     }
     ctx.clip();
-    // Cover crop (centralizado)
+    // Mantém a imagem inteira no quadro, sem crop.
     const srcR = img.width / img.height;
     const dstR = w / h;
-    let sx = 0, sy = 0, sw = img.width, sh = img.height;
-    if (srcR > dstR) { sw = img.height * dstR; sx = (img.width - sw) / 2; }
-    else { sh = img.width / dstR; sy = (img.height - sh) / 2; }
-    ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+    let drawW = w, drawH = h, drawX = x, drawY = y;
+    if (srcR > dstR) {
+      drawH = w / srcR;
+      drawY = y + (h - drawH) / 2;
+    } else {
+      drawW = h * srcR;
+      drawX = x + (w - drawW) / 2;
+    }
+    ctx.drawImage(img, drawX, drawY, drawW, drawH);
     ctx.restore();
   }
 
   async function drawBlocks(ctx, blocks, zoneX, zoneY, zoneW, zoneH, isCapa, gap, inlineImage) {
     if (gap == null) gap = 36;
-    const inlineImageH = getInlineImageHeight(zoneW, !!(inlineImage && inlineImage.dataURL), isCapa);
+    const inlineLayout = getInlineImageLayout(zoneW, zoneH, inlineImage);
+    const inlineImageH = inlineLayout.height;
 
     // Mede o stack só de TEXTO (sem inline image)
     function measureTextOnlyStack() {
@@ -3022,7 +3138,7 @@
       // Slide com inline-image: imagem âncora no TOPO do zone, texto centralizado
       // no espaço restante (zone abaixo da imagem). Previsível e evita overflow
       // do stack que era centralizado como um todo.
-      await drawInlinePhoto(ctx, inlineImage, zoneX, zoneY, zoneW, inlineImageH);
+      await drawInlinePhoto(ctx, inlineImage, zoneX + inlineLayout.x, zoneY, inlineLayout.width, inlineLayout.height);
       const textZoneY = zoneY + inlineImageH + gap;
       const textZoneH = zoneH - inlineImageH - gap;
       const textStackH = measureTextOnlyStack();
@@ -3072,15 +3188,14 @@
 
     // 2. Photo
     // Stories: full-bleed photo (slideData.image) foi descontinuado.
-    // TUDO usa inline-photo (drawBlocks handles 4:3 capa, 16:9 demais).
+    // TUDO usa inline-photo proporcional (drawBlocks preserva o aspecto da fonte).
 
     // 3. Legibility filter (per-slide fade)
     drawLegibilityFilter(ctx, SLIDE_W, SLIDE_H, getEffectiveFade(slideData));
 
     // 4. Body-zone unificado (mesma área pra capa e demais).
-    // Capa e não-capa usam o mesmo zone 180/180. A diferença visual vem
-    // do inline-photo aspect-ratio (4:3 capa, 16:9 demais) renderizado dentro
-    // da própria body-zone via drawBlocks.
+    // Capa e não-capa usam o mesmo zone 180/180. A imagem preserva sua
+    // proporção original dentro da própria body-zone via drawBlocks.
     const isCapa = slideData.isCapa;
     const zoneX = 90;
     const zoneTop = 180;
