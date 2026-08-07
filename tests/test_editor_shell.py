@@ -330,6 +330,8 @@ class EditorShellTest(unittest.TestCase):
             "className = 'inline-photo-controls'",
             "input.type = 'range'",
             "input.setAttribute('aria-label', 'Redimensionar imagem')",
+            "requestAnimationFrame(() =>",
+            "resizeInput.onchange = () => commitResize();",
             "object-fit: contain",
             "await loadImage(dataURL)",
             "function normalizeInlineImageDataURL(dataURL, image)",
@@ -340,6 +342,7 @@ class EditorShellTest(unittest.TestCase):
         for marker in required:
             self.assertIn(marker, html)
         self.assertNotIn(".slide.capa .inline-photo { aspect-ratio: 4 / 3; }", html)
+        self.assertNotIn("else safeSet(DOC_KEY, doc);", html)
 
     def test_stories_canvas_isolates_transformed_slide_paint(self) -> None:
         html = (PROJECT_ROOT / "templates" / "stories_editor.html").read_text(

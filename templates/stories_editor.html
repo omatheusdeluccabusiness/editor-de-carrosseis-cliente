@@ -1617,6 +1617,7 @@
     }
     const im = node.querySelector('img');
     const resizeInput = node.querySelector('.inline-photo-controls input');
+    let resizeFrame = 0;
     const updateSize = (persist) => {
       const stageIndex = getStageIndex(slideEl);
       const current = doc.slides[stageIndex] && doc.slides[stageIndex].inlineImage;
@@ -1624,10 +1625,22 @@
       current.size = getInlineImageSize({ size: resizeInput.value });
       applyInlinePhotoLayout(node, current);
       if (persist) saveDoc();
-      else safeSet(DOC_KEY, doc);
     };
-    resizeInput.oninput = () => updateSize(false);
-    resizeInput.onchange = () => updateSize(true);
+    resizeInput.oninput = () => {
+      if (resizeFrame) cancelAnimationFrame(resizeFrame);
+      resizeFrame = requestAnimationFrame(() => {
+        resizeFrame = 0;
+        updateSize(false);
+      });
+    };
+    const commitResize = () => {
+      if (resizeFrame) {
+        cancelAnimationFrame(resizeFrame);
+        resizeFrame = 0;
+      }
+      updateSize(true);
+    };
+    resizeInput.onchange = () => commitResize();
     if (im.src !== inlineImage.dataURL) {
       im.onload = () => {
         const stageIndex = getStageIndex(slideEl);
