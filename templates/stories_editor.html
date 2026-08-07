@@ -1288,13 +1288,13 @@
       slides.push(slideData);
     });
 
-    return { version: 7, typography: 'serif', slides };
+    return { version: 8, typography: 'serif', slides };
   }
 
   function createBlankStoriesDocument() {
     const source = initialStoriesDocument || buildDocFromDOM({ useLegacy: false });
     const blank = JSON.parse(JSON.stringify(source));
-    blank.version = 7;
+    blank.version = 8;
     blank.typography = doc && doc.typography === 'sans' ? 'sans' : 'serif';
     blank.slides.forEach((slide, slideIndex) => {
       slide.id = 's' + (slideIndex + 1);
@@ -1347,6 +1347,16 @@
       d.typography = d.typography === 'sans' ? 'sans' : 'serif';
       d.version = 7;
     }
+    if (d.version < 8) {
+      // v8: a imagem passa a ter posição na pilha visual. Sem posição, ela
+      // mantém o comportamento anterior: antes de todos os blocos de texto.
+      d.slides.forEach(s => {
+        if (s.inlineImage && s.inlineImage.dataURL && !Number.isInteger(s.inlineImage.position)) {
+          s.inlineImage.position = 0;
+        }
+      });
+      d.version = 8;
+    }
     return d;
   }
 
@@ -1375,7 +1385,7 @@
       return;
     }
     doc = buildDocFromDOM();
-    doc.version = 7;
+    doc.version = 8;
     setStoriesTypography('serif', { persist: false, record: false });
     saveDoc();
   }
@@ -1561,6 +1571,12 @@
     return Number.isFinite(size) ? Math.min(100, Math.max(45, size)) : 100;
   }
 
+  function getInlineImagePosition(inlineImage, blockCount) {
+    const position = Number(inlineImage && inlineImage.position);
+    const normalized = Number.isInteger(position) ? position : 0;
+    return Math.max(0, Math.min(blockCount, normalized));
+  }
+
   function getInlineImageLayout(zoneW, zoneH, inlineImage) {
     if (!inlineImage || !inlineImage.dataURL) {
       return { aspectRatio: 16 / 9, width: 0, height: 0, x: 0, size: 100 };
@@ -1586,12 +1602,12 @@
 
   function applyInlinePhotoToSlide(slideEl, inlineImage) {
     const bz = slideEl.querySelector('.body-zone');
-    if (!bz) return;
+    if (!bz) return null;
     let node = bz.querySelector('.inline-photo');
     if (!inlineImage || !inlineImage.dataURL) {
       if (node) node.remove();
       bz.classList.remove('has-inline-image');
-      return;
+      return null;
     }
     bz.classList.add('has-inline-image');
     if (!node) {
@@ -1658,7 +1674,7 @@
       im.src = inlineImage.dataURL;
     }
     applyInlinePhotoLayout(node, inlineImage);
-    if (bz.firstChild !== node) bz.insertBefore(node, bz.firstChild);
+    return node;
   }
 
   // ==== RENDER ====
@@ -1715,9 +1731,13 @@
       existingNodes.set(n.dataset.blockId, n);
     });
 
-    // Render in order
+    const inlinePhotoNode = applyInlinePhotoToSlide(slideEl, slideData.inlineImage);
+    const inlineImagePosition = getInlineImagePosition(slideData.inlineImage, slideData.blocks.length);
+
+    // Uma única pilha visual: os controles de ordem podem atravessar a imagem.
     const newOrder = [];
-    slideData.blocks.forEach(block => {
+    slideData.blocks.forEach((block, blockIndex) => {
+      if (inlinePhotoNode && blockIndex === inlineImagePosition) newOrder.push(inlinePhotoNode);
       let node = existingNodes.get(block.id);
       if (!node) {
         node = buildBlockNode(block);
@@ -1736,6 +1756,7 @@
       }
       newOrder.push(node);
     });
+    if (inlinePhotoNode && inlineImagePosition === slideData.blocks.length) newOrder.push(inlinePhotoNode);
 
     existingNodes.forEach(n => n.remove());
     newOrder.forEach(n => bodyZone.appendChild(n));
@@ -1768,8 +1789,6 @@
     } else {
       clearImageFromSlide(slideEl);
     }
-
-    applyInlinePhotoToSlide(slideEl, slideData.inlineImage);
 
     const footerEl = slideEl.querySelector('.footer-bar');
     if (footerEl) {
@@ -2143,10 +2162,20 @@
   function moveBlock(blockEl, direction) {
     const ctx = getBlockContext(blockEl);
     if (!ctx) return;
-    const newIdx = ctx.blockIdx + direction;
-    if (newIdx < 0 || newIdx >= ctx.slideData.blocks.length) return;
-    const [block] = ctx.slideData.blocks.splice(ctx.blockIdx, 1);
-    ctx.slideData.blocks.splice(newIdx, 0, block);
+    const { slideData, block } = ctx;
+    const items = slideData.blocks.map(item => ({ type: 'block', item }));
+    if (slideData.inlineImage && slideData.inlineImage.dataURL) {
+      items.splice(getInlineImagePosition(slideData.inlineImage, slideData.blocks.length), 0, { type: 'image' });
+    }
+    const currentIdx = items.findIndex(item => item.type === 'block' && item.item.id === block.id);
+    const nextIdx = currentIdx + direction;
+    if (currentIdx < 0 || nextIdx < 0 || nextIdx >= items.length) return;
+
+    const [moved] = items.splice(currentIdx, 1);
+    items.splice(nextIdx, 0, moved);
+    slideData.blocks = items.filter(item => item.type === 'block').map(item => item.item);
+    const imageIdx = items.findIndex(item => item.type === 'image');
+    if (imageIdx >= 0) slideData.inlineImage.position = imageIdx;
     saveDoc();
     renderSlide(ctx.sIdx);
     const newEl = document.querySelector(`[data-block-id="${block.id}"]`);
@@ -2394,7 +2423,13 @@
     const image = await loadImage(dataURL);
     const normalized = normalizeInlineImageDataURL(dataURL, image);
     const slideData = doc.slides[stageIndex];
-    slideData.inlineImage = { dataURL: normalized.dataURL, aspectRatio: normalized.aspectRatio, size: 100 };
+    const previousImage = slideData.inlineImage;
+    slideData.inlineImage = {
+      dataURL: normalized.dataURL,
+      aspectRatio: normalized.aspectRatio,
+      size: 100,
+      position: getInlineImagePosition(previousImage, slideData.blocks.length)
+    };
     saveDoc();
     const stage = document.querySelectorAll('.stage')[stageIndex];
     const slideEl = stage.querySelector('.slide');
@@ -3135,29 +3170,44 @@
       return total;
     }
 
+    function drawBlockAt(block, cursorY) {
+      const style = resolveBlockStyle(block, isCapa);
+      if (!style) return cursorY;
+      const segments = parseHtmlSegments(block.html);
+      const lines = wrapSegmentsIntoLines(ctx, segments, zoneW, style);
+      const align = resolveBlockAlign(block, isCapa);
+      for (const line of lines) {
+        const baselineY = cursorY + style.size * 0.85;
+        drawTextLine(ctx, line, zoneX, baselineY, zoneW, style, align);
+        cursorY += style.lineHeight;
+      }
+      return cursorY;
+    }
+
     function drawBlocksFlow(startY) {
       let cursorY = startY;
       blocks.forEach((block, bIdx) => {
-        const style = resolveBlockStyle(block, isCapa);
-        if (!style) return;
-        const segments = parseHtmlSegments(block.html);
-        const lines = wrapSegmentsIntoLines(ctx, segments, zoneW, style);
-        const align = resolveBlockAlign(block, isCapa);
-        for (const line of lines) {
-          const baselineY = cursorY + style.size * 0.85;
-          drawTextLine(ctx, line, zoneX, baselineY, zoneW, style, align);
-          cursorY += style.lineHeight;
-        }
+        cursorY = drawBlockAt(block, cursorY);
         if (bIdx < blocks.length - 1) cursorY += gap;
       });
     }
 
     if (inlineImageH > 0) {
-      // Slide com inline-image: imagem âncora no topo e copy logo abaixo.
-      // Deve espelhar o flow flex do preview (um único `gap` entre elementos).
-      await drawInlinePhoto(ctx, inlineImage, zoneX + inlineLayout.x, zoneY, inlineLayout.width, inlineLayout.height, inlineLayout.scale);
-      const textZoneY = zoneY + inlineImageH + gap;
-      drawBlocksFlow(textZoneY);
+      // A imagem participa da mesma pilha visual do preview. Isso permite que
+      // os controles de cima/baixo levem a copy para ambos os lados dela.
+      const items = blocks.map(block => ({ type: 'block', block }));
+      items.splice(getInlineImagePosition(inlineImage, blocks.length), 0, { type: 'image' });
+      let cursorY = zoneY;
+      for (let index = 0; index < items.length; index++) {
+        const item = items[index];
+        if (item.type === 'image') {
+          await drawInlinePhoto(ctx, inlineImage, zoneX + inlineLayout.x, cursorY, inlineLayout.width, inlineLayout.height, inlineLayout.scale);
+          cursorY += inlineImageH;
+        } else {
+          cursorY = drawBlockAt(item.block, cursorY);
+        }
+        if (index < items.length - 1) cursorY += gap;
+      }
       return;
     }
 

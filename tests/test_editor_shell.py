@@ -202,15 +202,16 @@ class EditorShellTest(unittest.TestCase):
         self.assertIn("<h1>Modelo Stories</h1>", identity_html)
         self.assertNotIn("{{TITLE}}", identity_html)
 
-    def test_stories_inline_copy_follows_its_image_with_one_gap(self) -> None:
+    def test_stories_inline_copy_and_image_share_one_ordered_flow(self) -> None:
         html = (PROJECT_ROOT / "templates" / "stories_editor.html").read_text(
             encoding="utf-8"
         )
-        # Preview and PNG must keep the copy close to an inline image. The
-        # image must not add an extra margin or use an auto spacer to centre
-        # the text in the remaining body zone.
-        self.assertIn("const textZoneY = zoneY + inlineImageH + gap;", html)
-        self.assertIn("drawBlocksFlow(textZoneY);", html)
+        # Preview and PNG must keep one gap between visual items and support
+        # moving a text block through the inline image.
+        self.assertIn("function getInlineImagePosition(inlineImage, blockCount)", html)
+        self.assertIn("items.splice(getInlineImagePosition(inlineImage, blocks.length), 0, { type: 'image' });", html)
+        self.assertIn("slideData.inlineImage.position = imageIdx;", html)
+        self.assertIn("const inlineImagePosition = getInlineImagePosition(slideData.inlineImage, slideData.blocks.length);", html)
         self.assertNotIn("margin-bottom: var(--block-gap, 36px);", html)
         self.assertNotIn("margin-top: auto;", html)
 
@@ -348,7 +349,7 @@ class EditorShellTest(unittest.TestCase):
             "--inline-scale",
             "transform: scale(var(--inline-scale, 1));",
             "const scale = getInlineImageSize(inlineImage) / 100;",
-            "drawInlinePhoto(ctx, inlineImage, zoneX + inlineLayout.x, zoneY, inlineLayout.width, inlineLayout.height, inlineLayout.scale)",
+            "await drawInlinePhoto(ctx, inlineImage, zoneX + inlineLayout.x, cursorY, inlineLayout.width, inlineLayout.height, inlineLayout.scale);",
             "object-fit: contain",
             "await loadImage(dataURL)",
             "function normalizeInlineImageDataURL(dataURL, image)",
