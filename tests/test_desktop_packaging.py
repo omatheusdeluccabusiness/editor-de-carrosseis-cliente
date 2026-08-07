@@ -69,6 +69,18 @@ class DesktopPackagingTest(unittest.TestCase):
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_windows_workflow_runs_the_production_rust_lifecycle_test(self) -> None:
+        workflow = (
+            PROJECT_ROOT / ".github/workflows/desktop-lifecycle-windows.yml"
+        ).read_text(encoding="utf-8")
+
+        self.assertRegex(workflow, r"runs-on:\s*windows-latest")
+        self.assertIn(
+            "cargo test --manifest-path desktop/src-tauri/Cargo.toml",
+            workflow,
+        )
+        self.assertIn("tests.test_desktop_sidecar_integration", workflow)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,28 @@
+name: Desktop lifecycle Windows
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/desktop-lifecycle-windows.yml"
+      - "desktop/**"
+      - "scripts/**"
+      - "templates/**"
+      - "tests/**"
+      - "requirements.txt"
+
+jobs:
+  lifecycle:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Python build dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Exercise the production Rust tree shutdown and sentinel test
+        run: cargo test --manifest-path desktop/src-tauri/Cargo.toml -- --test-threads=1
+      - name: Exercise the native PyInstaller sidecar integration
+        run: python -m unittest tests.test_desktop_sidecar_integration -v

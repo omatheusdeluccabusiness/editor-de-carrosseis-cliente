@@ -16,6 +16,7 @@ from scripts.build_sidecar import build
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 HEALTH_PAYLOAD = b'{"ok": true, "service": "editor-carrosseis"}'
+SIDECAR_STARTUP_TIMEOUT = 10
 
 
 def _free_loopback_port() -> int:
@@ -138,7 +139,7 @@ class DesktopSidecarIntegrationTest(unittest.TestCase):
         try:
             _wait_for(
                 lambda: sidecar.poll() is not None,
-                timeout=5,
+                timeout=SIDECAR_STARTUP_TIMEOUT,
                 message="sidecar não falhou ao encontrar a porta externa ocupada",
             )
             self.assertIsNone(sentinel.poll())

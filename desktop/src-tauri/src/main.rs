@@ -10,7 +10,9 @@ use std::{
 
 use tauri::{AppHandle, Manager, RunEvent, WebviewWindow, WebviewWindowBuilder, WindowEvent};
 
-#[cfg(all(test, unix))]
+#[cfg(all(test, windows))]
+use std::io::BufRead;
+#[cfg(all(test, any(unix, windows)))]
 use std::process::Stdio;
 
 const SIDECAR_NAME: &str = "editor-carrosseis-sidecar";
@@ -355,5 +357,61 @@ mod tests {
         });
         let _ = std::fs::remove_file(pid_file);
         assert!(descendant_gone, "o descendente do sidecar continuou vivo");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn termination_stops_windows_tree_without_touching_external_sentinel() {
+        let mut sentinel_command = Command::new("powershell.exe");
+        sentinel_command
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "Start-Sleep -Seconds 30",
+            ])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        let mut sentinel = sentinel_command.spawn().unwrap();
+
+        let mut parent_command = Command::new("powershell.exe");
+        parent_command
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "$child = Start-Process -FilePath powershell.exe -ArgumentList '-NoProfile -NonInteractive -Command Start-Sleep -Seconds 30' -PassThru; [Console]::Out.WriteLine($child.Id); Wait-Process -Id $child.Id",
+            ])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        configure_sidecar_command(&mut parent_command);
+        let mut parent = parent_command.spawn().unwrap();
+        let child_id = {
+            let stdout = parent.stdout.take().unwrap();
+            let mut line = String::new();
+            std::io::BufReader::new(stdout)
+                .read_line(&mut line)
+                .unwrap();
+            line.trim().parse::<u32>().unwrap()
+        };
+
+        terminate_process_tree(&mut parent);
+
+        let check_child_command =
+            format!("if (Get-Process -Id {child_id} -ErrorAction SilentlyContinue) {{ exit 1 }}");
+        let child_gone = Command::new("powershell.exe")
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                &check_child_command,
+            ])
+            .status()
+            .unwrap()
+            .success();
+        assert!(child_gone, "o descendente Windows continuou vivo");
+        assert!(matches!(sentinel.try_wait(), Ok(None)));
+
+        terminate_process_tree(&mut sentinel);
     }
 }
