@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "pretauri": "node scripts/prepare-sidecar.mjs",
+    "test:sidecar-integration": "node scripts/run-sidecar-integration.mjs",
     "tauri": "tauri"
   },
   "devDependencies": {

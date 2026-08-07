@@ -51,15 +51,23 @@ class DesktopPackagingTest(unittest.TestCase):
         self.assertEqual(
             package["scripts"]["pretauri"], "node scripts/prepare-sidecar.mjs"
         )
-
-        prepare_script = PROJECT_ROOT / "desktop/scripts/prepare-sidecar.mjs"
-        result = subprocess.run(
-            ["node", "--check", str(prepare_script)],
-            capture_output=True,
-            text=True,
-            check=False,
+        self.assertEqual(
+            package["scripts"]["test:sidecar-integration"],
+            "node scripts/run-sidecar-integration.mjs",
         )
-        self.assertEqual(result.returncode, 0, result.stderr)
+
+        for script in (
+            "prepare-sidecar.mjs",
+            "run-sidecar-integration.mjs",
+        ):
+            with self.subTest(script=script):
+                result = subprocess.run(
+                    ["node", "--check", str(PROJECT_ROOT / "desktop/scripts" / script)],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
 
 
 if __name__ == "__main__":
