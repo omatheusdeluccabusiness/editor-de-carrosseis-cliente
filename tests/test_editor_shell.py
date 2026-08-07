@@ -202,6 +202,18 @@ class EditorShellTest(unittest.TestCase):
         self.assertIn("<h1>Modelo Stories</h1>", identity_html)
         self.assertNotIn("{{TITLE}}", identity_html)
 
+    def test_stories_inline_copy_follows_its_image_with_one_gap(self) -> None:
+        html = (PROJECT_ROOT / "templates" / "stories_editor.html").read_text(
+            encoding="utf-8"
+        )
+        # Preview and PNG must keep the copy close to an inline image. The
+        # image must not add an extra margin or use an auto spacer to centre
+        # the text in the remaining body zone.
+        self.assertIn("const textZoneY = zoneY + inlineImageH + gap;", html)
+        self.assertIn("drawBlocksFlow(textZoneY);", html)
+        self.assertNotIn("margin-bottom: var(--block-gap, 36px);", html)
+        self.assertNotIn("margin-top: auto;", html)
+
     def test_both_templates_offer_a_confirmed_carousel_restart(self) -> None:
         confirmation = (
             "Você quer reiniciar esse template e começar outro do zero? "

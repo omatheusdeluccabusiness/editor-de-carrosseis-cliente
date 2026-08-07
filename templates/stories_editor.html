@@ -80,24 +80,14 @@
      as classes .align-left/.align-center/.align-right que vêm do block.align. */
   .slide .body-zone > * { width: 100%; }
 
-  /* Layout pra slides com inline-image:
-     imagem âncora no topo, mantendo a proporção original, e texto centralizado
-     no espaço restante.
-     Usa pseudo-element como spacer flex que empurra os blocos pro centro vertical
-     do espaço abaixo da imagem. */
+  /* Layout pra slides com inline-image: a imagem permanece no topo e a copy
+     começa logo abaixo, usando somente o gap configurado do slide. Assim não
+     sobra um vazio artificial entre os dois elementos. */
   .slide .body-zone.has-inline-image {
     justify-content: flex-start;
   }
   .slide .body-zone.has-inline-image > .inline-photo {
     flex-shrink: 0;
-    margin-bottom: var(--block-gap, 36px);
-  }
-  .slide .body-zone.has-inline-image > .inline-photo + [data-block-id] {
-    margin-top: auto;
-  }
-  .slide .body-zone.has-inline-image::after {
-    content: '';
-    margin-top: auto;
   }
   body.shift-held .stage.active .body-zone {
     outline: 2px dashed rgba(244, 196, 48, 0.7);
@@ -3163,15 +3153,11 @@
     }
 
     if (inlineImageH > 0) {
-      // Slide com inline-image: imagem âncora no TOPO do zone, texto centralizado
-      // no espaço restante (zone abaixo da imagem). Previsível e evita overflow
-      // do stack que era centralizado como um todo.
+      // Slide com inline-image: imagem âncora no topo e copy logo abaixo.
+      // Deve espelhar o flow flex do preview (um único `gap` entre elementos).
       await drawInlinePhoto(ctx, inlineImage, zoneX + inlineLayout.x, zoneY, inlineLayout.width, inlineLayout.height, inlineLayout.scale);
       const textZoneY = zoneY + inlineImageH + gap;
-      const textZoneH = zoneH - inlineImageH - gap;
-      const textStackH = measureTextOnlyStack();
-      const cursorY = textZoneY + Math.max(0, (textZoneH - textStackH) / 2);
-      drawBlocksFlow(cursorY);
+      drawBlocksFlow(textZoneY);
       return;
     }
 
