@@ -120,7 +120,8 @@
   .slide .body.italic { font-style: italic; color: #FFFFFF; font-size: 48px; }
   .slide .body.big { font-size: 60px; line-height: 70px; font-weight: 400; }
   .slide .body.lede { font-size: 56px; line-height: 68px; font-weight: 400; color: #FFFFFF; }
-  .slide .body strong { font-weight: 700; }
+  .slide [data-block-id] strong, .slide [data-block-id] b { font-weight: 700; }
+  .slide [data-block-id] em, .slide [data-block-id] i { font-style: italic; }
 
   /* Stories: cor de texto (foreground), sem highlight de fundo, sem rotação. */
   .hot { color: #E04C3C; background: none; padding: 0; display: inline; transform: none; box-shadow: none; }
@@ -873,8 +874,10 @@
   </div>
 </div>
 
-<!-- Bubble menu (aparece ao selecionar texto pra marcar como hot) -->
+<!-- Bubble menu (aparece ao selecionar texto para formatação inline) -->
 <div id="bubble-menu">
+  <button data-action="format-bold" title="Negrito">B</button>
+  <button data-action="format-italic" title="Itálico">I</button>
   <button class="hot-btn" data-action="hot-red" title="Marcar como Hot vermelho (Cmd+H)">H</button>
   <button class="hot-yellow-btn" data-action="hot-yellow" title="Marcar como Hot amarelo (Cmd+Shift+H)">Hy</button>
   <button data-action="hot-clear" title="Limpar destaque">✕</button>
@@ -2098,7 +2101,7 @@
 
   document.addEventListener('selectionchange', updateBubbleMenu);
 
-  function wrapSelectionInHot(yellow) {
+  function applyHotToSavedSelection(yellow) {
     if (!lastSelection) {
       const sel = window.getSelection();
       if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
@@ -2107,12 +2110,46 @@
     const sel = window.getSelection();
     sel.removeAllRanges();
     sel.addRange(lastSelection);
-    const text = lastSelection.toString();
-    if (!text) return;
-    const cls = yellow ? 'hot yellow' : 'hot';
-    const safeText = text.replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
-    document.execCommand('insertHTML', false, `<span class="${cls}">${safeText}</span>`);
-    const blockEl = document.activeElement;
+    if (lastSelection.collapsed) return;
+    // Extrai o fragmento real do DOM (e não somente textContent): assim <strong>,
+    // <em> e seus equivalentes criados pelo navegador continuam intactos dentro
+    // do marcador de cor.
+    const range = lastSelection;
+    const contents = range.extractContents();
+    const marker = document.createElement('span');
+    marker.className = yellow ? 'hot yellow' : 'hot';
+    marker.appendChild(contents);
+    range.insertNode(marker);
+    const blockEl = marker.closest('[data-block-id]');
+    if (blockEl) {
+      onBlockInput({ currentTarget: blockEl });
+      const nextRange = document.createRange();
+      nextRange.selectNodeContents(marker);
+      sel.removeAllRanges();
+      sel.addRange(nextRange);
+    }
+    bubbleMenu.classList.remove('show');
+    lastSelection = null;
+  }
+
+  function wrapSelectionInHot(yellow) {
+    applyHotToSavedSelection(yellow);
+  }
+
+  function applyInlineFormat(command) {
+    if (!lastSelection) {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+      lastSelection = sel.getRangeAt(0).cloneRange();
+    }
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(lastSelection);
+    if (lastSelection.collapsed) return;
+    document.execCommand(command, false, null);
+    let node = sel.rangeCount ? sel.getRangeAt(0).commonAncestorContainer : null;
+    if (node && node.nodeType !== 1) node = node.parentNode;
+    const blockEl = node && node.closest ? node.closest('[data-block-id]') : document.activeElement;
     if (blockEl && blockEl.dataset && blockEl.dataset.blockId) {
       onBlockInput({ currentTarget: blockEl });
     }
@@ -2138,6 +2175,12 @@
   });
   bubbleMenu.querySelector('[data-action="hot-yellow"]').addEventListener('mousedown', (e) => {
     e.preventDefault(); wrapSelectionInHot(true);
+  });
+  bubbleMenu.querySelector('[data-action="format-bold"]').addEventListener('mousedown', (e) => {
+    e.preventDefault(); applyInlineFormat('bold');
+  });
+  bubbleMenu.querySelector('[data-action="format-italic"]').addEventListener('mousedown', (e) => {
+    e.preventDefault(); applyInlineFormat('italic');
   });
   bubbleMenu.querySelector('[data-action="hot-clear"]').addEventListener('mousedown', (e) => {
     e.preventDefault(); unwrapHot();
@@ -2610,6 +2653,11 @@
     return t.value;
   }
 
+  function nodeHasInlineStyle(node, property, predicate) {
+    const value = node && node.style ? node.style[property] : '';
+    return !!value && predicate(value);
+  }
+
   function parseHtmlSegments(html) {
     // Usa o próprio DOM do navegador pra parsear HTML rico do contenteditable.
     // Resolve em segments com flags: { text, hot, hotYellow, italic, bold }.
@@ -2649,10 +2697,13 @@
       let next = ctx;
       if (tag === 'span' && node.classList.contains('hot')) {
         next = Object.assign({}, ctx, { hot: true, hotYellow: ctx.hotYellow || node.classList.contains('yellow') });
-      } else if (tag === 'i' || tag === 'em') {
-        next = Object.assign({}, ctx, { italic: true });
-      } else if (tag === 'b' || tag === 'strong') {
-        next = Object.assign({}, ctx, { bold: true });
+      }
+      const isItalic = tag === 'i' || tag === 'em' ||
+        nodeHasInlineStyle(node, 'fontStyle', value => value.toLowerCase() === 'italic');
+      const isBold = tag === 'b' || tag === 'strong' ||
+        nodeHasInlineStyle(node, 'fontWeight', value => value.toLowerCase() === 'bold' || parseInt(value, 10) >= 600);
+      if (isItalic || isBold) {
+        next = Object.assign({}, next, { italic: !!next.italic || isItalic, bold: !!next.bold || isBold });
       }
       for (const child of Array.from(node.childNodes)) visit(child, next);
     }
