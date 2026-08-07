@@ -498,7 +498,13 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
 
             print(f"[ig-publish] chamando publisher ({title[:60]})...")
             cmd = [sys.executable, INSTAGRAM_PUBLISHER, '--images'] + image_paths + ['--caption', caption]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=300,
+                env=os.environ.copy(),
+            )
 
             if result.returncode == 0:
                 post_id = None
