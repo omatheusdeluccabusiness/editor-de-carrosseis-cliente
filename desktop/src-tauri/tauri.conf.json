@@ -10,6 +10,7 @@
     "windows": [
       {
         "label": "main",
+        "create": false,
         "title": "Editor de Carrosseis",
         "width": 1280,
         "height": 800,
@@ -18,7 +19,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' http://127.0.0.1:8777; img-src 'self' data: blob: http://127.0.0.1:8777; style-src 'self' 'unsafe-inline' http://127.0.0.1:8777; script-src 'self' 'unsafe-inline' http://127.0.0.1:8777; connect-src 'self' http://127.0.0.1:8777"
+      "csp": "default-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; img-src 'self'; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'none'"
     }
   },
   "bundle": {

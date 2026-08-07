@@ -3,9 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <title>Editor Stories — {{TITLE}}</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=PT+Serif:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { background: #000; color: #f5f2ea; min-height: 100vh; font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif; }
@@ -42,7 +39,7 @@
   }
 
   /* ================= BASE SLIDE (STORIES TEMPLATE 04) ================= */
-  .slide { position: relative; overflow: hidden; font-family: var(--stories-content-font, 'PT Serif', Georgia, 'Times New Roman', serif); color: #FFFFFF; background: #000000; }
+  .slide { position: relative; overflow: hidden; font-family: var(--stories-content-font, Georgia, 'Times New Roman', serif); color: #FFFFFF; background: #000000; }
   .slide .photo { position: absolute; inset: 0; overflow: hidden; }
   .slide .photo-img {
     position: absolute; left: 0; top: 0;
@@ -451,7 +448,7 @@
   /* ============ STORIES TEMPLATE OVERRIDES (re-cravado) ============
      Tema antigo (Direção C / Ostentação editorial) forçava cores douradas,
      sublinhado nos .hot, fonte New York italic na capa. Tudo isso volta pra
-     match Stories: branco PT Serif centralizado, .hot só muda foreground color. */
+     match Stories: branco serif local centralizado, .hot só muda foreground color. */
   .slide .h-display { color: #FFFFFF; }
   .slide .h-display.accent { color: #FFFFFF; }
   .slide .h-display.tiny { color: #FFFFFF; text-transform: none; }
@@ -482,7 +479,7 @@
   .slide.capa .body.lede,
   .slide.capa .body.big,
   .slide.capa .body {
-    font-family: var(--stories-content-font, 'PT Serif', Georgia, 'Times New Roman', serif);
+    font-family: var(--stories-content-font, Georgia, 'Times New Roman', serif);
     font-style: normal;
     font-weight: 400;
     color: #FFFFFF;
@@ -575,7 +572,7 @@
     --ui-blue-soft: rgba(0, 122, 255, 0.10);
     --ui-danger: #FF3B30;
     --ui-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", Inter, sans-serif;
-    --stories-content-font: "PT Serif", Georgia, "Times New Roman", serif;
+    --stories-content-font: Georgia, "Times New Roman", serif;
   }
   html, body {
     background: var(--ui-canvas); color: var(--ui-text);
@@ -1460,8 +1457,8 @@
   const STORIES_THEME_KEY = 'osnl-stories-theme';
   const STORIES_TYPEFACES = {
     serif: {
-      cssFamily: '"PT Serif", Georgia, "Times New Roman", serif',
-      canvasFamily: '"PT Serif", Georgia, "Times New Roman", serif',
+      cssFamily: 'Georgia, "Times New Roman", serif',
+      canvasFamily: 'Georgia, "Times New Roman", serif',
     },
     sans: {
       cssFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif',
@@ -2724,9 +2721,9 @@
   const SLIDE_H = 1350;
   const FOOTER_H = 84;
 
-  // Stories: PT Serif via Google Fonts. Match com CSS.
-  const PTS_BOLD = '"PT Serif", Georgia, "Times New Roman", serif';
-  const PTS_REG  = '"PT Serif", Georgia, "Times New Roman", serif';
+  // Stories: serif local; não depende de fonte ou rede externa.
+  const PTS_BOLD = 'Georgia, "Times New Roman", serif';
+  const PTS_REG  = 'Georgia, "Times New Roman", serif';
   const HCN = PTS_BOLD;
   const HN  = PTS_REG;
   const VARIANT_STYLES = {

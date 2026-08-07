@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "pretauri": "node scripts/prepare-sidecar.mjs",
     "tauri": "tauri"
   },
   "devDependencies": {

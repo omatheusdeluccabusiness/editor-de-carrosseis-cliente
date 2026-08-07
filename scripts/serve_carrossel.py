@@ -69,6 +69,12 @@ DEFAULT_SIZE     = '1024x1536'  # portrait 2:3, frontend faz crop pra 1080x1350
 INSTAGRAM_PUBLISHER = os.environ.get('CARROSSEL_INSTAGRAM_PUBLISHER', str(Path(__file__).with_name('publish_instagram.py')))
 CSRF_TOKEN = secrets.token_urlsafe(32)
 LOOPBACK_NAMES = {'localhost', '127.0.0.1'}
+HTML_CONTENT_SECURITY_POLICY = (
+    "default-src 'self'; base-uri 'none'; form-action 'self'; object-src 'none'; "
+    "img-src 'self' data: blob:; font-src 'self' data:; "
+    "style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; "
+    "connect-src 'self'"
+)
 
 os.makedirs(DIR, exist_ok=True)
 
@@ -265,6 +271,7 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
         payload = body.encode('utf-8')
         self.send_response(status)
         self.send_header('Content-Type', 'text/html; charset=utf-8')
+        self.send_header('Content-Security-Policy', HTML_CONTENT_SECURITY_POLICY)
         self.send_header('Content-Length', str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
