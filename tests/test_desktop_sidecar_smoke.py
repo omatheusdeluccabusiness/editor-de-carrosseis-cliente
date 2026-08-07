@@ -58,7 +58,15 @@ class FrozenDesktopSidecarSmokeTest(unittest.TestCase):
     def tearDownClass(cls) -> None:
         process = getattr(cls, "process", None)
         if process and process.poll() is None:
-            process.terminate()
+            if os.name == "nt":
+                subprocess.run(
+                    ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                    check=False,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            else:
+                process.terminate()
             try:
                 process.wait(timeout=5)
             except subprocess.TimeoutExpired:
