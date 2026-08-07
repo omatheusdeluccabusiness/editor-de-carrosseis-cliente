@@ -28,6 +28,21 @@ class PackagingTest(unittest.TestCase):
         self.assertIn("HUB", readme)
         self.assertIn("http://localhost:8777", readme)
 
+    def test_readme_documents_desktop_install_and_local_credentials(self) -> None:
+        readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+        hub = (PROJECT_ROOT / "templates" / "hub.html").read_text(encoding="utf-8")
+        server = (PROJECT_ROOT / "scripts" / "serve_carrossel.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Aplicativo desktop", readme)
+        self.assertIn("chave de recuperacao", readme)
+        self.assertIn("Windows", readme)
+        self.assertIn("macOS", readme)
+        self.assertIn("Configurar integrações", readme)
+        self.assertIn("Configurar integrações", hub)
+        self.assertIn("/api/desktop-credentials/import", hub)
+        self.assertIn("/api/desktop-credentials/import", server)
+
 
 if __name__ == "__main__":
     unittest.main()

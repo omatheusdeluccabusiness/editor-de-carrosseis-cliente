@@ -19,14 +19,37 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 from dotenv import dotenv_values
 
+try:
+    from scripts.desktop_paths import desktop_runtime_paths
+except ImportError:
+    from desktop_paths import desktop_runtime_paths
+
 
 VAULT_VERSION = 1
 ASSOCIATED_DATA = b"carrossel-editor-credentials-v1"
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_VAULT_PATH = PROJECT_ROOT / "secrets" / "credentials.enc.json"
-DEFAULT_KEY_PATH = Path.home() / ".carrossel-editor-recovery-key"
-DEFAULT_PROJECT_ENV_PATH = PROJECT_ROOT / ".env"
-DEFAULT_TELEGRAM_PATH = Path.home() / ".matheusao-telegram.json"
+APP_DATA_DIR = os.environ.get("CARROSSEL_APP_DATA_DIR")
+RUNTIME_PATHS = desktop_runtime_paths(APP_DATA_DIR) if APP_DATA_DIR else None
+DEFAULT_VAULT_PATH = (
+    RUNTIME_PATHS.credentials_dir / "credentials.enc.json"
+    if RUNTIME_PATHS
+    else PROJECT_ROOT / "secrets" / "credentials.enc.json"
+)
+DEFAULT_KEY_PATH = (
+    RUNTIME_PATHS.credentials_dir / ".carrossel-editor-recovery-key"
+    if RUNTIME_PATHS
+    else Path.home() / ".carrossel-editor-recovery-key"
+)
+DEFAULT_PROJECT_ENV_PATH = (
+    RUNTIME_PATHS.credentials_dir / ".env"
+    if RUNTIME_PATHS
+    else PROJECT_ROOT / ".env"
+)
+DEFAULT_TELEGRAM_PATH = (
+    RUNTIME_PATHS.credentials_dir / ".matheusao-telegram.json"
+    if RUNTIME_PATHS
+    else Path.home() / ".matheusao-telegram.json"
+)
 META_KEYS = (
     "INSTAGRAM_BUSINESS_ID",
     "INSTAGRAM_ACCESS_TOKEN",
@@ -233,6 +256,60 @@ def restore_credentials(
 
     _atomic_write(project_env_path, env_content, mode=0o600)
     _atomic_write(telegram_path, telegram_content, mode=0o600)
+
+
+def import_credentials_to_directory(
+    vault_json: str,
+    recovery_key: str,
+    credentials_dir: Path,
+) -> None:
+    """Validate a user-selected vault, then restore it into desktop app data.
+
+    The vault and recovery key are deliberately supplied by the local user
+    interface; neither belongs in the application bundle.  Parsing, decrypting
+    and payload validation happen before any destination is modified so a bad
+    import cannot replace a working local configuration.
+    """
+
+    if not isinstance(vault_json, str) or len(vault_json.encode("utf-8")) > 131072:
+        raise CredentialsError("Cofre ou chave de recuperação inválidos.")
+    if not isinstance(recovery_key, str) or not recovery_key.strip() or len(recovery_key) > 1024:
+        raise CredentialsError("Cofre ou chave de recuperação inválidos.")
+
+    try:
+        envelope = json.loads(vault_json)
+    except (TypeError, json.JSONDecodeError) as error:
+        raise CredentialsError("Cofre ou chave de recuperação inválidos.") from error
+    if not isinstance(envelope, dict):
+        raise CredentialsError("Cofre ou chave de recuperação inválidos.")
+
+    # Complete validation must precede every write.
+    payload = decrypt_payload(envelope, recovery_key.strip())
+    telegram, meta = _validate_payload(payload)
+    env_content = "\n".join(
+        f"{key}={json.dumps(meta[key], ensure_ascii=False)}"
+        for key in META_KEYS
+        if key in meta
+    ) + "\n"
+    telegram_content = json.dumps(
+        telegram,
+        ensure_ascii=False,
+        indent=2,
+        sort_keys=True,
+    ) + "\n"
+    vault_content = json.dumps(envelope, indent=2, sort_keys=True) + "\n"
+
+    credentials_dir = credentials_dir.expanduser().resolve()
+    _atomic_write(credentials_dir / "credentials.enc.json", vault_content, mode=0o600)
+    _atomic_write(
+        credentials_dir / ".carrossel-editor-recovery-key",
+        recovery_key.strip() + "\n",
+        mode=0o600,
+    )
+    _atomic_write(credentials_dir / ".env", env_content, mode=0o600)
+    _atomic_write(
+        credentials_dir / ".matheusao-telegram.json", telegram_content, mode=0o600
+    )
 
 
 def credentials_ready(project_env_path: Path, telegram_path: Path) -> bool:

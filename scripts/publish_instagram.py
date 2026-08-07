@@ -12,9 +12,15 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 
-# Carrega .env (1 nível acima do scripts/)
+# Carrega o .env do runtime desktop, quando o app o fornece. O fluxo CLI
+# continua usando o .env do projeto.
 SCRIPT_DIR = Path(__file__).parent
-ENV_FILE = SCRIPT_DIR.parent / ".env"
+APP_DATA_DIR = os.environ.get("CARROSSEL_APP_DATA_DIR")
+ENV_FILE = (
+    Path(APP_DATA_DIR).expanduser().resolve() / "credentials" / ".env"
+    if APP_DATA_DIR
+    else SCRIPT_DIR.parent / ".env"
+)
 load_dotenv(ENV_FILE)
 
 IG_ID = os.getenv("INSTAGRAM_BUSINESS_ID")

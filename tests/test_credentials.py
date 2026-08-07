@@ -12,6 +12,7 @@ from scripts.credenciais import (
     decrypt_payload,
     encrypt_payload,
     generate_recovery_key,
+    import_credentials_to_directory,
     restore_credentials,
     seal_credentials,
 )
@@ -154,6 +155,52 @@ class CredentialsFilesTest(unittest.TestCase):
             self.restored_telegram.read_text(encoding="utf-8"),
             "telegram-sentinel",
         )
+
+    def test_desktop_import_restores_selected_encrypted_vault(self) -> None:
+        seal_credentials(
+            self.telegram_source,
+            self.meta_source,
+            self.vault,
+            self.key_file,
+        )
+        destination = self.root / "desktop-data" / "credentials"
+
+        import_credentials_to_directory(
+            self.vault.read_text(encoding="utf-8"),
+            self.key_file.read_text(encoding="utf-8").strip(),
+            destination,
+        )
+
+        self.assertTrue((destination / "credentials.enc.json").is_file())
+        self.assertTrue((destination / ".carrossel-editor-recovery-key").is_file())
+        self.assertIn(
+            "INSTAGRAM_ACCESS_TOKEN=",
+            (destination / ".env").read_text(encoding="utf-8"),
+        )
+        self.assertEqual(
+            json.loads(
+                (destination / ".matheusao-telegram.json").read_text(encoding="utf-8")
+            )["chatId"],
+            "123456",
+        )
+
+    def test_desktop_import_invalid_vault_leaves_existing_state_unchanged(self) -> None:
+        destination = self.root / "desktop-data" / "credentials"
+        destination.mkdir(parents=True)
+        sentinels = {
+            "credentials.enc.json": "vault-sentinel",
+            ".carrossel-editor-recovery-key": "key-sentinel",
+            ".env": "env-sentinel",
+            ".matheusao-telegram.json": "telegram-sentinel",
+        }
+        for name, content in sentinels.items():
+            (destination / name).write_text(content, encoding="utf-8")
+
+        with self.assertRaises(CredentialsError):
+            import_credentials_to_directory("not-json", "wrong-key", destination)
+
+        for name, content in sentinels.items():
+            self.assertEqual((destination / name).read_text(encoding="utf-8"), content)
 
 
 class CredentialsBootstrapTest(unittest.TestCase):

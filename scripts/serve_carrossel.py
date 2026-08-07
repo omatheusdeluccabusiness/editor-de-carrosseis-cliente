@@ -30,6 +30,12 @@ import urllib.parse
 from pathlib import Path
 
 try:
+    from scripts.credenciais import (
+        CredentialsError,
+        credentials_ready,
+        import_credentials_to_directory,
+    )
+    from scripts.desktop_paths import desktop_runtime_paths
     from scripts.hub_sessions import (
         create_hub_session,
         hub_session_needs_refresh,
@@ -37,6 +43,12 @@ try:
     )
     from scripts.template_catalog import public_template_catalog
 except ImportError:
+    from credenciais import (
+        CredentialsError,
+        credentials_ready,
+        import_credentials_to_directory,
+    )
+    from desktop_paths import desktop_runtime_paths
     from hub_sessions import (
         create_hub_session,
         hub_session_needs_refresh,
@@ -48,12 +60,16 @@ except ImportError:
 # Config
 # ---------------------------------------------------------------------------
 
-PROJECT_ROOT     = Path(__file__).resolve().parent.parent
+# PyInstaller extracts bundled data folders into ``_MEIPASS``.  In source
+# mode, preserve the repository-root calculation used by the local editor.
+PROJECT_ROOT     = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent.parent))
 HUB_TEMPLATE     = PROJECT_ROOT / 'templates' / 'hub.html'
-DIR              = os.environ.get('CARROSSEL_EDITOR_DIR', '/tmp/carrossel-editor')
+APP_DATA_DIR     = os.environ.get('CARROSSEL_APP_DATA_DIR')
+RUNTIME_PATHS    = desktop_runtime_paths(APP_DATA_DIR) if APP_DATA_DIR else None
+DIR              = str(RUNTIME_PATHS.editor_dir) if RUNTIME_PATHS else os.environ.get('CARROSSEL_EDITOR_DIR', '/tmp/carrossel-editor')
 PORT             = int(os.environ.get('CARROSSEL_EDITOR_PORT', '8777'))
-HOME_TG          = os.path.expanduser('~/.matheusao-telegram.json')
-HOME_OPENAI      = os.path.expanduser('~/.matheusao-openai.json')
+HOME_TG          = str(RUNTIME_PATHS.credentials_dir / '.matheusao-telegram.json') if RUNTIME_PATHS else os.path.expanduser('~/.matheusao-telegram.json')
+HOME_OPENAI      = str(RUNTIME_PATHS.credentials_dir / '.matheusao-openai.json') if RUNTIME_PATHS else os.path.expanduser('~/.matheusao-openai.json')
 VAULT_ROOT       = os.environ.get('CARROSSEL_CONTENT_ROOT', str(PROJECT_ROOT / 'content'))
 DEFAULT_MODEL    = 'gpt-image-2'
 ALLOWED_SIZES    = {'1024x1024', '1024x1536', '1536x1024', '1024x1792', '1792x1024'}
@@ -63,6 +79,12 @@ DEFAULT_SIZE     = '1024x1536'  # portrait 2:3, frontend faz crop pra 1080x1350
 INSTAGRAM_PUBLISHER = os.environ.get('CARROSSEL_INSTAGRAM_PUBLISHER', str(Path(__file__).with_name('publish_instagram.py')))
 CSRF_TOKEN = secrets.token_urlsafe(32)
 LOOPBACK_NAMES = {'localhost', '127.0.0.1'}
+HTML_CONTENT_SECURITY_POLICY = (
+    "default-src 'self'; base-uri 'none'; form-action 'self'; object-src 'none'; "
+    "img-src 'self' data: blob:; font-src 'self' data:; "
+    "style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; "
+    "connect-src 'self'"
+)
 
 os.makedirs(DIR, exist_ok=True)
 
@@ -134,6 +156,17 @@ def _read_telegram_config() -> tuple[str, str]:
     if not token or not chat_id:
         raise RuntimeError('Configuração do Telegram incompleta.')
     return token, chat_id
+
+
+def _desktop_credentials_configured() -> bool:
+    """Return only a redacted readiness signal for the installed app."""
+
+    if not RUNTIME_PATHS:
+        return False
+    return credentials_ready(
+        RUNTIME_PATHS.credentials_dir / ".env",
+        RUNTIME_PATHS.credentials_dir / ".matheusao-telegram.json",
+    )
 
 
 def _telegram_api_request(method: str, fields: dict[str, str], images: list[bytes] | None = None) -> dict:
@@ -259,6 +292,7 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
         payload = body.encode('utf-8')
         self.send_response(status)
         self.send_header('Content-Type', 'text/html; charset=utf-8')
+        self.send_header('Content-Security-Policy', HTML_CONTENT_SECURITY_POLICY)
         self.send_header('Content-Length', str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
@@ -270,6 +304,8 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
         if self._reject_nonlocal():
             return
         path = urllib.parse.urlparse(self.path).path
+        if path == '/api/health':
+            return self._send_json(200, {'ok': True, 'service': 'editor-carrosseis'})
         if path in ("", "/", "/index.html"):
             return self._send_root()
         if path == '/api/telegram/status':
@@ -279,6 +315,10 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
             except Exception:
                 configured = False
             return self._send_json(200, {'configured': configured})
+        if path == '/api/desktop-credentials/status':
+            if not RUNTIME_PATHS:
+                return self._send_json(404, {'error': 'recurso_disponivel_apenas_no_app_desktop'})
+            return self._send_json(200, {'configured': _desktop_credentials_configured()})
 
         name = Path(urllib.parse.unquote(path)).name
         if name.endswith(".pid") or name in {"server.log", "telegram-config.json"}:
@@ -331,6 +371,8 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
                 return self._handle_telegram_test()
             if self.path == '/api/telegram/send':
                 return self._handle_telegram_send()
+            if self.path == '/api/desktop-credentials/import':
+                return self._handle_desktop_credentials_import()
             self._send_json(404, {'error': f'rota POST {self.path} não existe'})
         except urllib.error.HTTPError as e:
             body = e.read().decode('utf-8', errors='replace')
@@ -384,6 +426,34 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
     def _handle_telegram_test(self):
         result = _telegram_api_request('getMe', {})
         self._send_json(200, {'ok': bool(result.get('ok')), 'configured': True})
+
+    def _handle_desktop_credentials_import(self):
+        if not RUNTIME_PATHS:
+            self._send_json(404, {'error': 'recurso_disponivel_apenas_no_app_desktop'})
+            return
+        try:
+            body = self._read_json_body()
+        except json.JSONDecodeError:
+            self._send_json(400, {'error': 'payload_invalido'})
+            return
+        if not isinstance(body, dict):
+            self._send_json(400, {'error': 'payload_invalido'})
+            return
+
+        vault_json = body.get('vault_json')
+        recovery_key = body.get('recovery_key')
+        if not isinstance(vault_json, str) or not isinstance(recovery_key, str):
+            self._send_json(400, {'error': 'payload_invalido'})
+            return
+        try:
+            import_credentials_to_directory(
+                vault_json, recovery_key, RUNTIME_PATHS.credentials_dir
+            )
+        except CredentialsError:
+            # Do not expose parsing, cryptographic or credential details.
+            self._send_json(400, {'error': 'cofre_ou_chave_invalidos'})
+            return
+        self._send_json(200, {'ok': True, 'configured': _desktop_credentials_configured()})
 
     def _handle_telegram_send(self):
         body = self._read_json_body()
@@ -492,7 +562,13 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
 
             print(f"[ig-publish] chamando publisher ({title[:60]})...")
             cmd = [sys.executable, INSTAGRAM_PUBLISHER, '--images'] + image_paths + ['--caption', caption]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=300,
+                env=os.environ.copy(),
+            )
 
             if result.returncode == 0:
                 post_id = None

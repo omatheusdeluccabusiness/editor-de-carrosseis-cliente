@@ -283,6 +283,92 @@
       color: #b42318;
     }
 
+    .integration-card {
+      margin-top: 22px;
+      border: 1px solid var(--borda);
+      border-radius: 16px;
+      background: var(--papel);
+      overflow: hidden;
+    }
+
+    .integration-card summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      cursor: pointer;
+      list-style: none;
+      padding: 16px 18px;
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .integration-card summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .integration-card summary::after {
+      content: '+';
+      color: var(--texto-secundario);
+      font-size: 20px;
+      font-weight: 400;
+    }
+
+    .integration-card[open] summary::after {
+      content: '−';
+    }
+
+    .integration-content {
+      border-top: 1px solid #e7e7ea;
+      padding: 18px;
+    }
+
+    .integration-content p {
+      margin: 0 0 14px;
+      color: var(--texto-secundario);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .integration-form {
+      display: grid;
+      gap: 12px;
+    }
+
+    .integration-form label {
+      display: grid;
+      gap: 6px;
+      color: var(--tinta);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .integration-form input {
+      min-width: 0;
+      border: 1px solid var(--borda);
+      border-radius: 9px;
+      padding: 10px;
+      color: var(--tinta);
+      background: var(--papel);
+      font: inherit;
+    }
+
+    .integration-form button {
+      justify-self: start;
+    }
+
+    .integration-result {
+      min-height: 20px;
+      margin: 2px 0 0;
+      color: var(--texto-secundario);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .integration-result.is-error {
+      color: #b42318;
+    }
+
     @media (max-width: 720px) {
       .hub-shell {
         width: min(100% - 28px, 520px);
@@ -337,6 +423,22 @@
     </header>
 
     <section id="template-grid" class="template-grid" aria-label="Templates disponíveis"></section>
+    <details id="integration-setup" class="integration-card" hidden>
+      <summary>Configurar integrações</summary>
+      <div class="integration-content">
+        <p>Para ativar Telegram e Instagram neste computador, selecione o cofre criptografado recebido separadamente e informe a chave de recuperação. Nada é incluído no aplicativo.</p>
+        <form id="integration-form" class="integration-form">
+          <label>Cofre criptografado (.json)
+            <input id="credentials-vault" type="file" accept="application/json,.json" required>
+          </label>
+          <label>Chave de recuperação
+            <input id="recovery-key" type="password" autocomplete="off" required>
+          </label>
+          <button id="import-credentials" class="create-button" type="submit">Importar neste computador</button>
+          <p id="integration-result" class="integration-result" role="status" aria-live="polite"></p>
+        </form>
+      </div>
+    </details>
     <p id="hub-status" class="hub-status" role="status" aria-live="polite"></p>
   </main>
 
@@ -345,6 +447,12 @@
 
     const grid = document.getElementById('template-grid');
     const status = document.getElementById('hub-status');
+    const integrationSetup = document.getElementById('integration-setup');
+    const integrationForm = document.getElementById('integration-form');
+    const vaultInput = document.getElementById('credentials-vault');
+    const recoveryKeyInput = document.getElementById('recovery-key');
+    const importButton = document.getElementById('import-credentials');
+    const integrationResult = document.getElementById('integration-result');
 
     function buildPreview(kind) {
       const stage = document.createElement('div');
@@ -421,6 +529,56 @@
       status.classList.toggle('is-error', isError);
     }
 
+    function setIntegrationResult(message, isError = false) {
+      integrationResult.textContent = message;
+      integrationResult.classList.toggle('is-error', isError);
+    }
+
+    async function loadIntegrationStatus() {
+      try {
+        const response = await fetch('/api/desktop-credentials/status');
+        if (!response.ok) return;
+        const payload = await response.json();
+        integrationSetup.hidden = false;
+        if (payload.configured) {
+          setIntegrationResult('Integrações configuradas neste computador. Você pode importar outro cofre se precisar substituir a configuração.');
+        }
+      } catch (_) {
+        // The normal browser/Codex workflow does not expose desktop setup.
+      }
+    }
+
+    integrationForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const vault = vaultInput.files && vaultInput.files[0];
+      if (!vault || !recoveryKeyInput.value) {
+        setIntegrationResult('Selecione o cofre e informe a chave de recuperação.', true);
+        return;
+      }
+      importButton.disabled = true;
+      setIntegrationResult('Validando o cofre neste computador…');
+      try {
+        const vaultJson = await vault.text();
+        const response = await fetch('/api/desktop-credentials/import', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Carrossel-CSRF': window.CARROSSEL_CSRF
+          },
+          body: JSON.stringify({vault_json: vaultJson, recovery_key: recoveryKeyInput.value})
+        });
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) throw new Error('Não foi possível validar o cofre ou a chave de recuperação.');
+        integrationForm.reset();
+        setIntegrationResult('Integrações configuradas com sucesso neste computador.');
+      } catch (_) {
+        setIntegrationResult('Não foi possível validar o cofre ou a chave de recuperação. A configuração atual não foi alterada.', true);
+      } finally {
+        recoveryKeyInput.value = '';
+        importButton.disabled = false;
+      }
+    });
+
     async function createCarousel(templateId, button) {
       button.disabled = true;
       setStatus('Preparando seu editor…');
@@ -443,6 +601,7 @@
     }
 
     renderTemplates();
+    loadIntegrationStatus();
   </script>
 </body>
 </html>

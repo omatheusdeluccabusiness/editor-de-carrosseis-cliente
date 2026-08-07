@@ -26,3 +26,13 @@ tmp/
 .idea/
 .vscode/
 .worktrees/
+
+# Sidecar desktop empacotado
+editor-carrosseis-sidecar
+editor-carrosseis-sidecar.exe
+desktop/node_modules/
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
+desktop/src-tauri/binaries/editor-carrosseis-sidecar*
+build/
+dist/
