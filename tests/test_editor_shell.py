@@ -188,6 +188,20 @@ class EditorShellTest(unittest.TestCase):
         self.assertNotIn("doc-meta", identity_html)
         self.assertNotIn("{{TITLE}}", identity_html)
 
+    def test_stories_header_shows_only_the_model_name(self) -> None:
+        html = (PROJECT_ROOT / "templates" / "stories_editor.html").read_text(
+            encoding="utf-8"
+        )
+        identity = re.search(
+            r'<div class="app-identity">(.*?)</div>\s*<div class="app-actions">',
+            html,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(identity)
+        identity_html = identity.group(1)
+        self.assertIn("<h1>Modelo Stories</h1>", identity_html)
+        self.assertNotIn("{{TITLE}}", identity_html)
+
     def test_tweet_inspector_exposes_profile_controls(self) -> None:
         html = (PROJECT_ROOT / "templates" / "tweet_editor.html").read_text(
             encoding="utf-8"
