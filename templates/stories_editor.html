@@ -42,7 +42,7 @@
   }
 
   /* ================= BASE SLIDE (STORIES TEMPLATE 04) ================= */
-  .slide { position: relative; overflow: hidden; font-family: 'PT Serif', Georgia, 'Times New Roman', serif; color: #FFFFFF; background: #000000; }
+  .slide { position: relative; overflow: hidden; font-family: var(--stories-content-font, 'PT Serif', Georgia, 'Times New Roman', serif); color: #FFFFFF; background: #000000; }
   .slide .photo { position: absolute; inset: 0; overflow: hidden; }
   .slide .photo-img {
     position: absolute; left: 0; top: 0;
@@ -496,7 +496,7 @@
   .slide.capa .body.lede,
   .slide.capa .body.big,
   .slide.capa .body {
-    font-family: 'PT Serif', Georgia, 'Times New Roman', serif;
+    font-family: var(--stories-content-font, 'PT Serif', Georgia, 'Times New Roman', serif);
     font-style: normal;
     font-weight: 400;
     color: #FFFFFF;
@@ -550,6 +550,7 @@
     --ui-blue-soft: rgba(0, 122, 255, 0.10);
     --ui-danger: #FF3B30;
     --ui-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", Inter, sans-serif;
+    --stories-content-font: "PT Serif", Georgia, "Times New Roman", serif;
   }
   html, body {
     background: var(--ui-canvas); color: var(--ui-text);
@@ -633,8 +634,19 @@
   .inspector-section { padding: 18px 0; border-bottom: 1px solid rgba(210,210,215,.72); }
   .inspector-section:last-child { border-bottom: 0; }
   .inspector-title { display: block; margin-bottom: 10px; color: var(--ui-text); font-weight: 600; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
   .inspector-stack { display: grid; gap: 8px; }
   .inspector-stack .shell-button, .inspector-stack label.shell-button { width: 100%; }
+  .typeface-select {
+    width: 100%; min-height: 34px; padding: 0 34px 0 11px;
+    border: 1px solid rgba(210,210,215,.9); border-radius: 9px;
+    background: var(--ui-surface); color: var(--ui-text);
+    font-size: 13px; font-weight: 500; cursor: pointer;
+  }
+  .typeface-select:focus { border-color: var(--ui-blue); box-shadow: 0 0 0 3px rgba(0,122,255,.13); outline: none; }
   .caption-field {
     width: 100%; min-height: 150px; resize: vertical;
     border: 1px solid rgba(210,210,215,.9); border-radius: 10px; padding: 10px 11px;
@@ -725,6 +737,11 @@
     <section class="inspector-section">
       <span class="inspector-title">Documento</span>
       <div class="inspector-stack">
+        <label class="sr-only" for="stories-typography">Tipografia do carrossel</label>
+        <select id="stories-typography" class="typeface-select" aria-label="Tipografia do carrossel">
+          <option value="serif">Serifada</option>
+          <option value="sans">Sem serifa</option>
+        </select>
         <button id="btn-theme-stories" class="shell-button quiet">☀ Modo claro</button>
       </div>
     </section>
@@ -992,7 +1009,8 @@
     return {
       document: snapshotDoc,
       theme: isLightTheme() ? 'light' : 'dark',
-      caption: captionEl ? captionEl.value : ''
+      caption: captionEl ? captionEl.value : '',
+      typography: doc.typography || 'serif'
     };
   }
 
@@ -1021,6 +1039,7 @@
       Math.max(0, doc.slides.length - 1)
     );
     applyStoriesTheme(snapshot.theme);
+    setStoriesTypography(snapshot.typography || 'serif', { persist: false, record: false });
     const captionEl = document.getElementById('ig-caption');
     if (captionEl) captionEl.value = snapshot.caption || '';
     renderAll();
@@ -1237,7 +1256,7 @@
       slides.push(slideData);
     });
 
-    return { version: 3, slides };
+    return { version: 7, typography: 'serif', slides };
   }
 
   function migrateDoc(d) {
@@ -1263,6 +1282,10 @@
       });
       d.version = 6;
     }
+    if (d.version < 7) {
+      d.typography = d.typography === 'sans' ? 'sans' : 'serif';
+      d.version = 7;
+    }
     return d;
   }
 
@@ -1281,6 +1304,7 @@
         }
       });
       doc = migrateDoc(saved);
+      setStoriesTypography(doc.typography || 'serif', { persist: false, record: false });
       // Se doc-state tem número de slides diferente do DOM (usuário adicionou ou removeu),
       // reconstrói o DOM a partir do doc.
       if (doc.slides.length !== N_SLIDES_DOM) {
@@ -1290,7 +1314,8 @@
       return;
     }
     doc = buildDocFromDOM();
-    doc.version = 6;
+    doc.version = 7;
+    setStoriesTypography('serif', { persist: false, record: false });
     saveDoc();
   }
 
@@ -1362,6 +1387,31 @@
 
   // ==== TEMA LIGHT/DARK (Stories) ====
   const STORIES_THEME_KEY = 'osnl-stories-theme';
+  const STORIES_TYPEFACES = {
+    serif: {
+      cssFamily: '"PT Serif", Georgia, "Times New Roman", serif',
+      canvasFamily: '"PT Serif", Georgia, "Times New Roman", serif',
+    },
+    sans: {
+      cssFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif',
+      canvasFamily: '"SF Pro Display", "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif',
+    },
+  };
+  function getStoriesTypeface() {
+    return STORIES_TYPEFACES[doc && doc.typography === 'sans' ? 'sans' : 'serif'];
+  }
+  function setStoriesTypography(nextTypography, options = {}) {
+    const typography = nextTypography === 'sans' ? 'sans' : 'serif';
+    const { persist = true, record = true } = options;
+    if (!doc) return;
+    doc.typography = typography;
+    document.documentElement.style.setProperty('--stories-content-font', getStoriesTypeface().cssFamily);
+    const selector = document.getElementById('stories-typography');
+    if (selector) selector.value = typography;
+    if (persist) safeSet(DOC_KEY, doc);
+    if (record) recordEditorMutation('typography');
+    if (typeof renderAll === 'function') renderAll();
+  }
   function isLightTheme() { return document.body.classList.contains('light'); }
   function applyStoriesTheme(theme) {
     if (theme === 'light') document.body.classList.add('light');
@@ -2191,6 +2241,12 @@
     const SCALE_INV = 1 / STAGE_SCALE;
 
     loadOrInitDoc();
+    const typographySelector = document.getElementById('stories-typography');
+    if (typographySelector) {
+      typographySelector.addEventListener('change', (event) => {
+        setStoriesTypography(event.target.value);
+      });
+    }
     updateSlideScale();
     buildSlideRail();
 
@@ -2436,6 +2492,10 @@
     'body:italic':        { fontSpec: 'italic 400 48px ' + PTS_REG, size: 48, lineHeight: 58, color: '#FFFFFF', letterSpacing: 0 },
   };
 
+  function withStoriesTypeface(fontSpec) {
+    return fontSpec.replace(PTS_BOLD, getStoriesTypeface().canvasFamily);
+  }
+
   function applyStyleToCtx(ctx, style) {
     ctx.font = style.fontSpec;
     try { ctx.letterSpacing = ((style.letterSpacing || 0) * style.size) + 'px'; } catch (e) {}
@@ -2474,9 +2534,9 @@
   const CAPA_HDISPLAY_OVERRIDE = {
     fontSpec: '900 88px ' + HCN, size: 88, lineHeight: 80,
   };
-  // Match com CSS .slide.capa .body.lede { font: italic 400 38px "New York" serif; cor: dourado }
+  // Match com CSS da capa: lede compacto e italic, na tipografia global escolhida.
   const CAPA_LEDE_OVERRIDE = {
-    fontSpec: 'italic 400 38px "New York", "Times New Roman", Georgia, serif',
+    fontSpec: 'italic 400 38px ' + PTS_REG,
     size: 38, lineHeight: 50, color: '#F0C638', letterSpacing: 0,
   };
   function resolveBlockStyle(block, isCapa) {
@@ -2493,11 +2553,11 @@
     // novo tamanho) e do line-height (auto-scale proporcional ao tamanho
     // quando lineHeight não foi explicitamente fixado).
     let size = baseStyle.size;
-    let fontSpec = baseStyle.fontSpec;
+    let fontSpec = withStoriesTypeface(baseStyle.fontSpec);
     let lineHeight = baseStyle.lineHeight;
     if (block.fontSize != null) {
       size = block.fontSize;
-      fontSpec = baseStyle.fontSpec.replace(/(\b\d+(?:\.\d+)?)px\b/, size + 'px');
+      fontSpec = fontSpec.replace(/(\b\d+(?:\.\d+)?)px\b/, size + 'px');
       if (block.lineHeight == null) {
         lineHeight = Math.round(size * (baseStyle.lineHeight / baseStyle.size));
       }

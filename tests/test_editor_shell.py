@@ -110,6 +110,23 @@ class EditorShellTest(unittest.TestCase):
                 for marker in required:
                     self.assertIn(marker, html)
 
+    def test_stories_exposes_a_global_typography_selector_that_matches_canvas(self) -> None:
+        html = (PROJECT_ROOT / "templates" / "stories_editor.html").read_text(
+            encoding="utf-8"
+        )
+        required = (
+            'id="stories-typography"',
+            'aria-label="Tipografia do carrossel"',
+            '<option value="serif">Serifada</option>',
+            '<option value="sans">Sem serifa</option>',
+            "function getStoriesTypeface()",
+            "getStoriesTypeface().canvasFamily",
+            "document.documentElement.style.setProperty('--stories-content-font'",
+            "function setStoriesTypography(nextTypography, options = {})",
+        )
+        for marker in required:
+            self.assertIn(marker, html)
+
     def test_templates_build_and_sync_the_slide_rail(self) -> None:
         required = (
             "function buildSlideRail()",

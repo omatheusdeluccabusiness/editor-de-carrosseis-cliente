@@ -65,17 +65,19 @@ class EditorUndoContractTest(unittest.TestCase):
             self.assertIn(marker, html)
         self.assertNotIn("? Sem desfazer.", html)
 
-    def test_stories_snapshot_covers_document_theme_and_caption(self) -> None:
+    def test_stories_snapshot_covers_document_theme_caption_and_typography(self) -> None:
         html = TEMPLATES["stories"]
         required = (
             "function captureStoriesSnapshot()",
             "document: snapshotDoc",
             "theme: isLightTheme() ? 'light' : 'dark'",
             "caption: captionEl ? captionEl.value : ''",
+            "typography: doc.typography || 'serif'",
             "function restoreStoriesSnapshot(snapshot)",
             "doc.slides.length !== snapshot.document.slides.length",
             "safeSet(DOC_KEY, doc)",
             "applyStoriesTheme(snapshot.theme)",
+            "setStoriesTypography(snapshot.typography || 'serif', { persist: false, record: false })",
             "renderAll()",
             "buildSlideRail()",
             "location.reload()",
@@ -89,6 +91,7 @@ class EditorUndoContractTest(unittest.TestCase):
             "recordEditorMutation('document')",
             "recordEditorMutation('theme')",
             "recordEditorMutation('caption')",
+            "recordEditorMutation('typography')",
         )
         for marker in required:
             self.assertIn(marker, html)
