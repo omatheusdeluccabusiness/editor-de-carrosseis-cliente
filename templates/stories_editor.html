@@ -2433,7 +2433,9 @@
     saveDoc();
     const stage = document.querySelectorAll('.stage')[stageIndex];
     const slideEl = stage.querySelector('.slide');
-    applyInlinePhotoToSlide(slideEl, slideData.inlineImage);
+    // A imagem faz parte da ordem visual do slide. Renderizar aqui a insere
+    // imediatamente no preview, sem depender de outro evento (como tema).
+    renderSlide(stageIndex);
     flash(slideEl);
   }
   function clearInlineImage(stageIndex) {

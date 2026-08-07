@@ -215,6 +215,18 @@ class EditorShellTest(unittest.TestCase):
         self.assertNotIn("margin-bottom: var(--block-gap, 36px);", html)
         self.assertNotIn("margin-top: auto;", html)
 
+    def test_pasted_stories_image_renders_without_a_theme_toggle(self) -> None:
+        html = (PROJECT_ROOT / "templates" / "stories_editor.html").read_text(
+            encoding="utf-8"
+        )
+        commit_image = re.search(
+            r"async function commitInlineImage\(stageIndex, dataURL\) \{(.*?)\n  \}",
+            html,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(commit_image)
+        self.assertIn("renderSlide(stageIndex);", commit_image.group(1))
+
     def test_both_templates_offer_a_confirmed_carousel_restart(self) -> None:
         confirmation = (
             "Você quer reiniciar esse template e começar outro do zero? "
