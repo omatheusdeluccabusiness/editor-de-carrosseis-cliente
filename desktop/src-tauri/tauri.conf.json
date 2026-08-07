@@ -26,7 +26,9 @@
     "active": true,
     "targets": "all",
     "icon": [
-      "../../assets/avatar.png"
+      "icons/icon.icns",
+      "icons/icon.ico",
+      "icons/icon.png"
     ],
     "externalBin": [
       "binaries/editor-carrosseis-sidecar"

@@ -60,6 +60,10 @@ bundles**: ele compila o sidecar nativamente em cada plataforma e disponibiliza
 artefatos privados com o `.dmg` do macOS e os instaladores `.msi` e `.exe` do
 Windows. O workflow nao usa nem imprime credenciais.
 
+Cada instalador e verificado no runner nativo da sua plataforma: o `.dmg` no
+macOS e os `.msi`/`.exe` no Windows. Nao ha build cruzado para os instaladores
+Windows.
+
 Para conferir o empacotamento local, a partir de `desktop/`:
 
 ```bash
