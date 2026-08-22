@@ -72,7 +72,20 @@ class FrozenDesktopSidecarSmokeTest(unittest.TestCase):
             except subprocess.TimeoutExpired:
                 process.kill()
                 process.wait(timeout=5)
-        cls.temp_dir.cleanup()
+
+        # O Windows pode manter o executável recém-encerrado bloqueado por
+        # alguns milissegundos (especialmente enquanto o Defender o examina).
+        # Isso não é uma falha do sidecar e não deve tornar a suíte instável.
+        temp_dir = getattr(cls, "temp_dir", None)
+        if temp_dir is not None:
+            for attempt in range(20):
+                try:
+                    temp_dir.cleanup()
+                    break
+                except PermissionError:
+                    if attempt == 19:
+                        raise
+                    time.sleep(0.1)
 
     def _csrf_token(self) -> str:
         with urllib.request.urlopen(self.base_url + "/", timeout=5) as response:

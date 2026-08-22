@@ -13,6 +13,7 @@ from scripts.credenciais import (
     encrypt_payload,
     generate_recovery_key,
     import_credentials_to_directory,
+    import_telegram_text_source,
     restore_credentials,
     seal_credentials,
 )
@@ -201,6 +202,20 @@ class CredentialsFilesTest(unittest.TestCase):
 
         for name, content in sentinels.items():
             self.assertEqual((destination / name).read_text(encoding="utf-8"), content)
+
+    def test_telegram_text_migration_writes_only_the_local_destination(self) -> None:
+        text_source = self.root / "telegram-transfer.txt"
+        destination = self.root / "other-home" / ".matheusao-telegram.json"
+        text_source.write_text(
+            "Bot token: 123456:abcdefghijklmnopqrstuvwx\nChat ID: -1001234567890\n",
+            encoding="utf-8",
+        )
+
+        import_telegram_text_source(text_source, destination)
+
+        restored = json.loads(destination.read_text(encoding="utf-8"))
+        self.assertEqual(restored["botToken"], "123456:abcdefghijklmnopqrstuvwx")
+        self.assertEqual(restored["chatId"], "-1001234567890")
 
 
 class CredentialsBootstrapTest(unittest.TestCase):

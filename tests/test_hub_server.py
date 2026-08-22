@@ -194,6 +194,27 @@ class HubServerTest(unittest.TestCase):
             self.assertNotIn("secret-token", body)
             self.assertNotIn("secret-chat", body)
 
+    def test_telegram_connection_check_uses_get_without_a_multipart_body(self) -> None:
+        class FakeResponse:
+            def read(self) -> bytes:
+                return b'{"ok": true}'
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args) -> None:
+                return None
+
+        with patch.object(
+            serve_carrossel, "_read_telegram_config", return_value=("server-token", "server-chat")
+        ), patch("scripts.serve_carrossel.urllib.request.urlopen", return_value=FakeResponse()) as open_url:
+            result = serve_carrossel._telegram_api_request("getMe", {})
+
+        request = open_url.call_args.args[0]
+        self.assertEqual(result, {"ok": True})
+        self.assertEqual(request.get_method(), "GET")
+        self.assertIsNone(request.data)
+
     def test_telegram_status_is_redacted_and_send_is_server_side(self) -> None:
         png = base64.b64encode(b"png-0").decode("ascii")
         with running_test_server() as base_url, patch.object(
@@ -217,17 +238,17 @@ class HubServerTest(unittest.TestCase):
                 result = json.loads(response.read())
             self.assertEqual(result, {"ok": True, "sent": 1})
             method, fields, images = telegram_request.call_args.args
-            self.assertEqual(method, "sendPhoto")
+            self.assertEqual(method, "sendDocument")
             self.assertEqual(
                 fields,
-                {"chat_id": "server-chat", "photo": "attach://file0", "caption": "teste"},
+                {"chat_id": "server-chat", "document": "attach://file0", "caption": "teste"},
             )
             self.assertEqual(images, [b"png-0"])
 
     def test_telegram_batches_variable_slide_counts_in_order(self) -> None:
         for count, expected_methods, expected_sizes in (
             (10, ["sendMediaGroup"], [10]),
-            (11, ["sendMediaGroup", "sendPhoto"], [10, 1]),
+            (11, ["sendMediaGroup", "sendDocument"], [10, 1]),
             (22, ["sendMediaGroup", "sendMediaGroup", "sendMediaGroup"], [10, 10, 2]),
         ):
             with self.subTest(count=count), running_test_server() as base_url, patch.object(
@@ -258,6 +279,7 @@ class HubServerTest(unittest.TestCase):
                 self.assertEqual(calls[0].args[1]["chat_id"], "server-chat")
                 first_fields = calls[0].args[1]
                 first_media = json.loads(first_fields["media"])
+                self.assertTrue(all(item["type"] == "document" for item in first_media))
                 self.assertEqual(first_media[0]["caption"], "legenda")
                 for call in calls[1:]:
                     fields = call.args[1]

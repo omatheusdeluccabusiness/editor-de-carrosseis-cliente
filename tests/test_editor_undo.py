@@ -65,19 +65,19 @@ class EditorUndoContractTest(unittest.TestCase):
             self.assertIn(marker, html)
         self.assertNotIn("? Sem desfazer.", html)
 
-    def test_stories_snapshot_covers_document_theme_caption_and_typography(self) -> None:
+    def test_stories_snapshot_covers_document_background_caption_and_typography(self) -> None:
         html = TEMPLATES["stories"]
         required = (
             "function captureStoriesSnapshot()",
             "document: snapshotDoc",
-            "theme: isLightTheme() ? 'light' : 'dark'",
             "caption: captionEl ? captionEl.value : ''",
-            "typography: doc.typography || 'serif'",
+            "typography: doc.typography || 'sans'",
             "function restoreStoriesSnapshot(snapshot)",
             "doc.slides.length !== snapshot.document.slides.length",
             "safeSet(DOC_KEY, doc)",
-            "applyStoriesTheme(snapshot.theme)",
-            "setStoriesTypography(snapshot.typography || 'serif', { persist: false, record: false })",
+            "setStoriesTypography(snapshot.typography || 'sans', { persist: false, record: false })",
+            "function setGlobalBackgroundColor(color)",
+            "function setSlideBackgroundColor(index, color)",
             "renderAll()",
             "buildSlideRail()",
             "location.reload()",
@@ -89,7 +89,6 @@ class EditorUndoContractTest(unittest.TestCase):
         html = TEMPLATES["stories"]
         required = (
             "recordEditorMutation('document')",
-            "recordEditorMutation('theme')",
             "recordEditorMutation('caption')",
             "recordEditorMutation('typography')",
         )

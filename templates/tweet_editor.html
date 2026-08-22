@@ -2,6 +2,15 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
+<script>
+  (() => {
+    const key = 'carrossel-editor-ui-theme-v1';
+    let theme = 'light';
+    try { theme = localStorage.getItem(key) || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); }
+    catch (_) { theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; }
+    document.documentElement.dataset.uiTheme = theme;
+  })();
+</script>
 <title>Tweet Editor — {{TITLE}}</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -309,6 +318,32 @@
     --ui-danger: #FF3B30;
     --ui-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", Inter, sans-serif;
   }
+  .slide-card.content-auto-fitted .slide-label::after { content: 'texto ajustado'; color: #a06b00; }
+  .slide-card.content-overflow .slide-label::after { content: 'reduza o conteúdo'; color: #c33; }
+  html[data-ui-theme="dark"] {
+    color-scheme: dark;
+    --ui-canvas: #0f1115; --ui-surface: #171a20; --ui-surface-muted: #20242c;
+    --ui-text: #f4f6f8; --ui-text-secondary: #9aa3b2; --ui-line: #303744;
+    --ui-blue: #5b8cff; --ui-blue-soft: rgba(91,140,255,.16); --ui-danger: #ff6b61;
+  }
+  html[data-ui-theme="dark"] .app-header { background: rgba(23,26,32,.98); border-color: rgba(255,255,255,.10); }
+  html[data-ui-theme="dark"] .production-rail,
+  html[data-ui-theme="dark"] .inspector-panel,
+  html[data-ui-theme="dark"] .slide-card,
+  html[data-ui-theme="dark"] .slide-controls { background: var(--ui-surface); border-color: rgba(255,255,255,.10); }
+  html[data-ui-theme="dark"] .shell-button,
+  html[data-ui-theme="dark"] .btn,
+  html[data-ui-theme="dark"] .profile-input,
+  html[data-ui-theme="dark"] .profile-handle-field,
+  html[data-ui-theme="dark"] .caption-field,
+  html[data-ui-theme="dark"] .segmented { border-color: rgba(255,255,255,.14); }
+  html[data-ui-theme="dark"] .shell-button:hover,
+  html[data-ui-theme="dark"] .btn:hover { background: #252a33; border-color: #3a424f; }
+  html[data-ui-theme="dark"] .segmented { background: #0f1217; }
+  html[data-ui-theme="dark"] .segmented button.active { background: var(--ui-surface-muted); color: var(--ui-text); }
+  html[data-ui-theme="dark"] .rail-actions,
+  html[data-ui-theme="dark"] .inspector-section { border-color: rgba(255,255,255,.10); }
+  .ui-theme-toggle { width: 34px; padding: 0; font-size: 17px; line-height: 1; }
   html, body {
     background: var(--ui-canvas);
     color: var(--ui-text);
@@ -491,6 +526,7 @@
       <span class="save-status" id="save-status">Aguardando edição</span>
       <button id="btn-back-hub" class="shell-button quiet" type="button" hidden>Voltar aos modelos</button>
       <button id="btn-restart-carousel" class="shell-button restart-carousel" type="button">Reiniciar carrossel</button>
+      <button id="btn-ui-theme" class="shell-button ui-theme-toggle" type="button" aria-label="Ativar interface escura" title="Ativar interface escura" aria-pressed="false"><span id="ui-theme-icon" aria-hidden="true">&#9790;</span></button>
       <button id="btn-download-all" class="shell-button">Exportar PNGs</button>
       <button id="btn-publish-ig" class="shell-button publish">Publicar</button>
     </div>
@@ -550,7 +586,7 @@
           <button id="btn-ratio-3-4" data-ratio="3:4" title="Formato tweet clássico">3:4</button>
         </div>
         <div class="inspector-stack" style="margin-top:8px;">
-          <button id="btn-theme" class="shell-button quiet">Modo escuro</button>
+          <button id="btn-theme" class="shell-button quiet">Fundo escuro</button>
         </div>
       </section>
       <section class="inspector-section">
@@ -585,9 +621,9 @@
   </div>
 
   <!-- Modal Telegram Config -->
-  <div class="modal-backdrop" id="tg-modal">
-    <div class="modal">
-      <h2>Configurar Telegram</h2>
+  <div class="modal-backdrop" id="tg-modal" role="dialog" aria-modal="true" aria-labelledby="tweet-tg-title" aria-hidden="true">
+    <div class="modal" tabindex="-1">
+      <h2 id="tweet-tg-title">Configurar Telegram</h2>
       <div class="sub">As credenciais ficam no arquivo local protegido <code>~/.matheusao-telegram.json</code> e nunca são entregues ao navegador.</div>
       <p id="tg-config-status" class="help">Verificando configuração local…</p>
       <div class="help">
@@ -626,7 +662,7 @@
       if (_storageAvailable !== null) return _storageAvailable;
       try {
         const testKey = '__test__' + Math.random();
-        safeStorageSet(testKey, '1');
+        localStorage.setItem(testKey, '1');
         localStorage.removeItem(testKey);
         _storageAvailable = true;
       } catch { _storageAvailable = false; }
@@ -637,8 +673,13 @@
       catch { return _memStorage[key] || null; }
     }
     function safeStorageSet(key, val) {
-      try { localStorage.setItem(key, val); }
-      catch { _memStorage[key] = val; }
+      try {
+        localStorage.setItem(key, val);
+        return true;
+      } catch {
+        _memStorage[key] = val;
+        return false;
+      }
     }
 
     const DEFAULT_PROFILE = {
@@ -784,7 +825,29 @@
     let avatarImg = null;
     let activeSlideIndex = null;
     let currentTheme = safeStorageGet('matheusao-carrossel-theme') || 'light';
+    const UI_THEME_STORAGE_KEY = 'carrossel-editor-ui-theme-v1';
+    let currentUiTheme = document.documentElement.dataset.uiTheme === 'dark' ? 'dark' : 'light';
     const slideImageCache = new Map();
+
+    function applyUiTheme() {
+      const dark = currentUiTheme === 'dark';
+      document.documentElement.dataset.uiTheme = currentUiTheme;
+      const button = document.getElementById('btn-ui-theme');
+      if (button) {
+        const action = dark ? 'Ativar interface clara' : 'Ativar interface escura';
+        button.setAttribute('aria-label', action);
+        button.setAttribute('title', action);
+        button.setAttribute('aria-pressed', String(dark));
+      }
+      const icon = document.getElementById('ui-theme-icon');
+      if (icon) icon.textContent = dark ? '☀' : '☾';
+    }
+
+    function toggleUiTheme() {
+      currentUiTheme = currentUiTheme === 'dark' ? 'light' : 'dark';
+      safeStorageSet(UI_THEME_STORAGE_KEY, currentUiTheme);
+      applyUiTheme();
+    }
 
     // ─── Undo global do documento ──────────────────────────
     const UNDO_LIMIT = 50;
@@ -1026,11 +1089,17 @@
 
     function saveState() {
       try {
-        safeStorageSet(STORAGE_KEY, JSON.stringify(slidesState));
+        const persisted = safeStorageSet(STORAGE_KEY, JSON.stringify(slidesState));
         recordEditorMutation('slides');
         const status = document.getElementById('save-status');
-        status.textContent = 'salvo no navegador às ' + new Date().toLocaleTimeString();
-        status.classList.add('saved');
+        if (persisted) {
+          status.textContent = 'salvo no navegador às ' + new Date().toLocaleTimeString();
+          status.classList.add('saved');
+        } else {
+          status.textContent = 'não foi possível salvar · exporte antes de fechar';
+          status.classList.remove('saved');
+          setSendStatus('Não foi possível salvar localmente. Exporte antes de fechar.', 'error');
+        }
       } catch (e) {
         document.getElementById('save-status').textContent = 'erro ao salvar: ' + e.message;
       }
@@ -1049,6 +1118,17 @@
       if (kind === 'success' || kind === 'error') {
         setTimeout(() => el.classList.remove('visible'), 6000);
       }
+    }
+
+    let deliveryBusy = false;
+    function setDeliveryBusy(active, ownerId) {
+      deliveryBusy = active;
+      ['btn-download-all', 'btn-send-tg', 'btn-publish-ig'].forEach(id => {
+        const button = document.getElementById(id);
+        if (!button) return;
+        button.disabled = active;
+        button.setAttribute('aria-busy', String(active && id === ownerId));
+      });
     }
 
     // ─── Markdown ↔ HTML helpers ───────────────────────────
@@ -1694,7 +1774,7 @@
         name: profileState.name,
         handle: profileState.handle,
         theme: currentTheme,
-        fontSize: slide.fontSize || 42,
+        fontSize: (slide.fontSize || 42) * (Number(bodyEl.dataset.contentFitScale) || 1),
         slideImage: slideImage,
         avatar: avatarImg,
         precomputedLines: precomputedLines
@@ -1714,7 +1794,7 @@
     function applyTheme() {
       document.body.classList.toggle('theme-dark', currentTheme === 'dark');
       const btn = document.getElementById('btn-theme');
-      if (btn) btn.textContent = currentTheme === 'light' ? 'Modo escuro' : 'Modo claro';
+      if (btn) btn.textContent = currentTheme === 'light' ? 'Fundo escuro' : 'Fundo claro';
       slidesState.forEach((_, i) => renderSlide(i));
     }
 
@@ -1773,6 +1853,11 @@
 
     // ─── Captura PNG (usado por Telegram + Instagram) ────────
     async function captureSlideAsBlob(i) {
+      applyLayout(i);
+      const card = document.querySelectorAll('.slide-card')[i];
+      if (card && card.classList.contains('content-overflow')) {
+        throw new Error('O slide ' + (i + 1) + ' tem conteúdo demais. Reduza o texto ou remova a imagem.');
+      }
       const canvas = exportSlideToCanvas(i);
       if (!canvas) throw new Error('Slide ' + (i + 1) + ' não encontrado');
       return new Promise((resolve, reject) => {
@@ -1792,8 +1877,13 @@
     }
 
     // ─── Modal Telegram ──────────────────────────────────────
+    let telegramModalReturnFocus = null;
     async function openTgModal() {
-      document.getElementById('tg-modal').classList.add('visible');
+      telegramModalReturnFocus = document.activeElement;
+      const modal = document.getElementById('tg-modal');
+      modal.classList.add('visible');
+      modal.setAttribute('aria-hidden', 'false');
+      document.getElementById('tg-cancel').focus();
       const status = document.getElementById('tg-config-status');
       try {
         const response = await fetch('/api/telegram/status', { cache: 'no-store' });
@@ -1804,7 +1894,10 @@
       }
     }
     function closeTgModal() {
-      document.getElementById('tg-modal').classList.remove('visible');
+      const modal = document.getElementById('tg-modal');
+      modal.classList.remove('visible');
+      modal.setAttribute('aria-hidden', 'true');
+      if (telegramModalReturnFocus && telegramModalReturnFocus.focus) telegramModalReturnFocus.focus();
     }
     async function tgTestConnection() {
       try {
@@ -1819,6 +1912,8 @@
 
     // ─── Send to Telegram ───────────────────────────────────
     async function sendToTelegram() {
+      if (deliveryBusy) return;
+      setDeliveryBusy(true, 'btn-send-tg');
       const total = slidesState.length;
       setSendStatus('Capturando ' + total + ' slides…');
       try {
@@ -1839,11 +1934,14 @@
       } catch (e) {
         console.error('[sendToTelegram]', e);
         setSendStatus('✗ ' + (e.message || e), 'error');
+      } finally {
+        setDeliveryBusy(false, 'btn-send-tg');
       }
     }
 
     // ─── Publish Instagram (via /api/publicar-instagram do serve_carrossel) ────
     async function publishInstagram() {
+      if (deliveryBusy) return;
       const captionEl = document.getElementById('ig-caption');
       const caption = captionEl ? captionEl.value.trim() : '';
       if (!caption) {
@@ -1857,6 +1955,7 @@
       }
       const confirmMsg = 'Publicar AGORA no @omatheusdelucca?\n\n' + total + ' slides + caption (' + caption.length + ' chars).\n\nIrreversível. Continuar?';
       if (!confirm(confirmMsg)) return;
+      setDeliveryBusy(true, 'btn-publish-ig');
       setSendStatus('Capturando ' + total + ' slides…');
       try {
         const blobs = [];
@@ -1884,6 +1983,8 @@
       } catch (e) {
         console.error('[publishInstagram]', e);
         setSendStatus('✗ ' + (e.message || e), 'error');
+      } finally {
+        setDeliveryBusy(false, 'btn-publish-ig');
       }
     }
 
@@ -1899,15 +2000,38 @@
       });
     }
 
+    const imageCommitRevisions = new Map();
+    function normalizeSlideImage(dataURL) {
+      return new Promise((resolve) => {
+        const image = new Image();
+        image.onload = () => {
+          const maxDimension = 1600;
+          const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+          canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+          const context = canvas.getContext('2d');
+          context.drawImage(image, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/webp', 0.88));
+        };
+        image.onerror = () => resolve(dataURL);
+        image.src = dataURL;
+      });
+    }
+
     function acceptImageBlob(blob, i) {
       if (!blob) return;
       if (!blob.type || !blob.type.startsWith('image/')) {
         setSendStatus('Arquivo não é imagem', 'error');
         return;
       }
+      const revision = (imageCommitRevisions.get(i) || 0) + 1;
+      imageCommitRevisions.set(i, revision);
       const reader = new FileReader();
-      reader.onload = (e) => {
-        slidesState[i].imageDataURL = e.target.result;
+      reader.onload = async (e) => {
+        const normalized = await normalizeSlideImage(e.target.result);
+        if (imageCommitRevisions.get(i) !== revision || !slidesState[i]) return;
+        slidesState[i].imageDataURL = normalized;
         loadSlideImage(i);
         saveState();
         flashSlide(i);
@@ -2082,12 +2206,14 @@
             for (const item of items) {
               if (item.type && item.type.startsWith('image/')) {
                 e.preventDefault();
+                e.stopPropagation();
                 acceptImageBlob(item.getAsFile(), i);
                 return;
               }
             }
           }
           e.preventDefault();
+          e.stopPropagation();
           const txt = (e.clipboardData || window.clipboardData).getData('text/plain') || '';
           // Insere convertendo **X** em <strong>
           const fragHtml = markdownToHtml(txt);
@@ -2149,6 +2275,7 @@
         removeBtn.className = 'btn danger';
         removeBtn.textContent = 'Remover imagem';
         removeBtn.addEventListener('click', () => {
+          imageCommitRevisions.set(i, (imageCommitRevisions.get(i) || 0) + 1);
           slidesState[i].imageDataURL = null;
           slideImageCache.delete(i);
           renderSlide(i); saveState();
@@ -2189,12 +2316,36 @@
       const photoEl = renderEl.querySelector('.photo');
       const slide = slidesState[i];
       const fontSize = slide.fontSize || 42;
-      bodyEl.style.fontSize = fontSize + 'px';
-      bodyEl.style.lineHeight = (fontSize * 1.4) + 'px';
       const hasImg = !!slide.imageDataURL;
       const headerH = 120, gap = 55, imgGapBetween = 40;
       const maxImgH = Math.min(960 / IMG_RATIO, H * 0.45); // = 540 com IMG_RATIO 16/9
-      // Mede altura real do body em layout natural
+      // Ajusta somente a tipografia quando a pilha precisa de mais altura.
+      // A largura continua nos mesmos 900px, evitando colunas estreitas.
+      const availableStackHeight = H - 140;
+      const measureAt = (fit) => {
+        const effectiveSize = fontSize * fit;
+        bodyEl.style.fontSize = effectiveSize + 'px';
+        bodyEl.style.lineHeight = (effectiveSize * 1.4) + 'px';
+        return headerH + gap + bodyEl.scrollHeight + (hasImg ? imgGapBetween + maxImgH : 0);
+      };
+      let contentFit = 1;
+      if (measureAt(1) > availableStackHeight) {
+        let low = 0.55, high = 1;
+        for (let iteration = 0; iteration < 9; iteration++) {
+          const candidate = (low + high) / 2;
+          if (measureAt(candidate) <= availableStackHeight) low = candidate;
+          else high = candidate;
+        }
+        contentFit = low;
+      }
+      const fittedHeight = measureAt(contentFit);
+      bodyEl.dataset.contentFitScale = String(contentFit);
+      const card = renderEl.closest('.slide-card');
+      if (card) {
+        card.classList.toggle('content-auto-fitted', contentFit < 0.999);
+        card.classList.toggle('content-overflow', fittedHeight > availableStackHeight + 1);
+      }
+      // Mede altura real do body com o fit efetivo.
       const textBlockH = bodyEl.scrollHeight;
       const totalBlockH = headerH + gap + textBlockH + (hasImg ? imgGapBetween + maxImgH : 0);
       const centeredY = (H - totalBlockH) / 2 + 40;
@@ -2209,24 +2360,43 @@
 
     function downloadSlide(i) {
       // Re-renderiza canvas a partir do DOM atual (paridade garantida via Range API)
+      applyLayout(i);
+      const card = document.querySelectorAll('.slide-card')[i];
+      if (card && card.classList.contains('content-overflow')) {
+        setSendStatus('O slide ' + (i + 1) + ' tem conteúdo demais. Reduza o texto ou remova a imagem.', 'error');
+        return false;
+      }
       const canvas = exportSlideToCanvas(i);
-      if (!canvas) return;
+      if (!canvas) return false;
       const url = canvas.toDataURL('image/png');
       const a = document.createElement('a');
       a.href = url;
       a.download = `slide-${String(i + 1).padStart(2, '0')}.png`;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      return true;
     }
 
     function downloadAll() {
+      if (deliveryBusy) return;
+      for (let i = 0; i < slidesState.length; i++) {
+        applyLayout(i);
+        const card = document.querySelectorAll('.slide-card')[i];
+        if (card && card.classList.contains('content-overflow')) {
+          setSendStatus('O slide ' + (i + 1) + ' tem conteúdo demais. Corrija antes de exportar.', 'error');
+          return;
+        }
+      }
+      setDeliveryBusy(true, 'btn-download-all');
       slidesState.forEach((_, i) => setTimeout(() => downloadSlide(i), i * 250));
+      setTimeout(() => setDeliveryBusy(false, 'btn-download-all'), slidesState.length * 250 + 500);
     }
 
     function resetTexts() {
       if (!confirm('Restaurar todos os textos originais? Imagens permanecem.')) return;
       slidesState.forEach((s, i) => {
-        s.text = ORIGINAL_SLIDES[i].text;
-        s.fontSize = ORIGINAL_SLIDES[i].fontSize || 42;
+        const original = ORIGINAL_SLIDES[i];
+        s.text = original ? original.text : 'adicione aqui a sua copy';
+        s.fontSize = original ? (original.fontSize || 42) : 42;
       });
       saveState(); buildUI();
       slidesState.forEach((_, i) => { loadSlideImage(i); renderSlide(i); });
@@ -2290,6 +2460,7 @@
     }
 
     document.addEventListener('paste', (e) => {
+      if (e.defaultPrevented) return;
       const items = e.clipboardData && e.clipboardData.items;
       if (!items) return;
       let imageItem = null;
@@ -2311,13 +2482,18 @@
     });
 
     slidesState = loadState();
+    const shortcutModifier = /Mac|iPhone|iPad/.test(navigator.platform || '') ? '⌘' : 'Ctrl+';
+    const shortcutHint = document.querySelector('.stage-shortcut');
+    if (shortcutHint) shortcutHint.textContent = shortcutModifier + 'V · imagem';
     configureHubSession();
+    applyUiTheme();
     setupProfileControls();
     document.getElementById('btn-download-all').addEventListener('click', downloadAll);
     document.getElementById('btn-add-slide')?.addEventListener('click', addSlide);
     document.getElementById('btn-delete-slide')?.addEventListener('click', deleteCurrentSlide);
     document.getElementById('btn-reset').addEventListener('click', resetTexts);
     document.getElementById('btn-restart-carousel').addEventListener('click', restartCarousel);
+    document.getElementById('btn-ui-theme').addEventListener('click', toggleUiTheme);
     document.getElementById('btn-theme').addEventListener('click', toggleTheme);
     document.querySelectorAll('[data-ratio]').forEach(btn => {
       btn.addEventListener('click', () => setRatio(btn.dataset.ratio));
@@ -2329,6 +2505,12 @@
     document.getElementById('tg-test')?.addEventListener('click', tgTestConnection);
     document.getElementById('tg-modal')?.addEventListener('click', (e) => {
       if (e.target.id === 'tg-modal') closeTgModal();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && document.getElementById('tg-modal')?.classList.contains('visible')) {
+        event.preventDefault();
+        closeTgModal();
+      }
     });
     loadCaptionFromStorage();
     armEditorUndo();

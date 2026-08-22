@@ -629,7 +629,7 @@ def render_all(parsed: dict, output_dir: Path) -> list[Path]:
         out_path = output_dir / f"slide_{slide['num']:02d}.png"
         img.save(out_path, "PNG", optimize=True)
         paths.append(out_path)
-        print(f"  ✓ slide {slide['num']:02d}/{total} → {out_path.name}")
+        print(f"  OK slide {slide['num']:02d}/{total} -> {out_path.name}")
     return paths
 
 
@@ -639,7 +639,7 @@ def publish(images: list[Path], caption: str, dry_run: bool = False) -> None:
     cmd = [sys.executable, str(publisher), "--images"] + [str(p) for p in images] + ["--caption", caption]
     if dry_run:
         cmd.append("--dry-run")
-    print(f"\n→ Executando publisher...")
+    print("\nExecutando publisher...")
     subprocess.run(cmd, check=True)
 
 
@@ -849,7 +849,7 @@ def start_server_background():
             detail = (result.stderr or result.stdout or "").strip()
             raise RuntimeError(f"Servidor persistente não subiu. {detail}")
         if is_server_running():
-            print(f"   ✓ Servidor persistente rodando")
+            print("   OK Servidor persistente rodando")
             return None
 
     print(f"   Iniciando servidor em background...")
@@ -864,7 +864,7 @@ def start_server_background():
     for _ in range(20):
         time.sleep(0.25)
         if is_server_running():
-            print(f"   ✓ Servidor rodando (PID {proc.pid})")
+            print(f"   OK Servidor rodando (PID {proc.pid})")
             return proc
     raise RuntimeError(f"Servidor não respondeu em 5 segundos. Veja {EDITOR_DIR / 'server.log'}")
 
@@ -953,12 +953,12 @@ def launch_editor(
 
     out_path = EDITOR_DIR / f"{slug}.html"
     out_path.write_text(out_html, encoding="utf-8")
-    print(f"\n📝 HTML do editor: {out_path}")
+    print(f"\nHTML do editor: {out_path}")
 
     url = f"http://localhost:{EDITOR_PORT}/{slug}.html"
 
     if no_launch:
-        print(f"\n🌐 URL: {url}")
+        print(f"\nURL: {url}")
         print(f"   (servidor controlado externamente/persistente)")
         return url
 
@@ -966,17 +966,17 @@ def launch_editor(
     if not is_server_running():
         start_server_background()
     else:
-        print(f"   ✓ Servidor já estava rodando")
+        print("   OK Servidor ja estava rodando")
 
-    print(f"\n🌐 Abrindo: {url}")
+    print(f"\nAbrindo: {url}")
     webbrowser.open(url)
-    print(f"\n💡 No editor, você pode:")
-    print(f"   • Editar texto direto nos slides (clica e digita)")
-    print(f"   • Editar caption acima dos slides")
-    print(f"   • Resetar pro original (botão ↺)")
-    print(f"   • Exportar PNGs (download)")
-    print(f"   • Enviar pro Telegram")
-    print(f"   • Publicar direto no @omatheusdelucca")
+    print("\nNo editor, voce pode:")
+    print("   - Editar texto direto nos slides (clica e digita)")
+    print("   - Editar caption acima dos slides")
+    print("   - Resetar pro original")
+    print("   - Exportar PNGs (download)")
+    print("   - Enviar pro Telegram")
+    print("   - Publicar direto no @omatheusdelucca")
     print(f"\n   Edições salvam automaticamente no localStorage do navegador.")
     return url
 
@@ -1059,7 +1059,7 @@ def main():
         print(f"ERRO: arquivo não encontrado: {md_path}", file=sys.stderr)
         sys.exit(1)
 
-    print(f"\n📖 Lendo roteiro: {md_path.name}")
+    print(f"\nLendo roteiro: {md_path.name}")
     parsed = parse_roteiro(md_path)
     print(f"   Título: {parsed['title']}")
     print(f"   Slides encontrados: {len(parsed['slides'])}")
@@ -1084,23 +1084,23 @@ def main():
     else:
         out_dir = Path(tempfile.mkdtemp(prefix="ig_slides_"))
 
-    print(f"\n🖼️  Renderizando slides em: {out_dir}")
+    print(f"\nRenderizando slides em: {out_dir}")
     images = render_all(parsed, out_dir)
 
     if args.no_publish:
-        print(f"\n✅ {len(images)} slides gerados. Não foi feita publicação.")
+        print(f"\nOK {len(images)} slides gerados. Nao foi feita publicacao.")
         print(f"   Pasta: {out_dir}")
         return
 
     if args.dry_run:
-        print(f"\n🔍 DRY RUN — simulando publicação sem postar de fato.")
+        print("\nDRY RUN - simulando publicacao sem postar de fato.")
         publish(images, parsed["caption"], dry_run=True)
-        print(f"\n📁 PNGs mantidos em: {out_dir}")
+        print(f"\nPNGs mantidos em: {out_dir}")
         print(f"   Abre essa pasta pra revisar visualmente antes de publicar.")
         return
 
     # publicação real
-    print(f"\n📤 Publicando @omatheusdelucca...")
+    print("\nPublicando @omatheusdelucca...")
     publish(images, parsed["caption"], dry_run=False)
 
     if not args.keep_images:
@@ -1108,9 +1108,9 @@ def main():
         if out_dir.parent == Path(tempfile.gettempdir()):
             import shutil
             shutil.rmtree(out_dir)
-            print(f"\n🧹 Slides temporários removidos.")
+            print("\nSlides temporarios removidos.")
     else:
-        print(f"\n💾 Slides salvos em: {out_dir}")
+        print(f"\nSlides salvos em: {out_dir}")
 
 
 if __name__ == "__main__":

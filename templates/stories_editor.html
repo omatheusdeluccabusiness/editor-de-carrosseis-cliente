@@ -2,8 +2,32 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
+<script>
+  (() => {
+    const key = 'carrossel-editor-ui-theme-v1';
+    let theme = 'light';
+    try { theme = localStorage.getItem(key) || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); }
+    catch (_) { theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; }
+    document.documentElement.dataset.uiTheme = theme;
+  })();
+</script>
 <title>Editor Stories — {{TITLE}}</title>
 <style>
+  @font-face {
+    font-family: 'Advercase';
+    src: url('/assets/fonts/Advercase-Regular.otf') format('opentype');
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: 'Advercase';
+    src: url('/assets/fonts/Advercase-Bold.otf') format('opentype');
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+  }
+
   *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { background: #000; color: #f5f2ea; min-height: 100vh; font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif; }
   body { padding: 40px 24px 80px; }
@@ -18,6 +42,11 @@
   }
   .slide-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; }
   .slide-label { font-size: 13px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(245,242,234,0.85); }
+  .slide-wrap.content-overflow .slide-label::after {
+    content: ' · reduza o conteúdo';
+    color: #ff6b6b;
+    letter-spacing: 0.04em;
+  }
   .slide-mood { font-size: 11px; color: rgba(245,242,234,0.45); text-align: center; }
 
   .stage {
@@ -39,7 +68,7 @@
   }
 
   /* ================= BASE SLIDE (STORIES TEMPLATE 04) ================= */
-  .slide { position: relative; overflow: hidden; font-family: var(--stories-content-font, Georgia, 'Times New Roman', serif); color: #FFFFFF; background: #000000; }
+  .slide { position: relative; overflow: hidden; font-family: var(--stories-content-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif); color: #FFFFFF; background: var(--slide-background, #000000); }
   .slide .photo { position: absolute; inset: 0; overflow: hidden; }
   .slide .photo-img {
     position: absolute; left: 0; top: 0;
@@ -65,7 +94,8 @@
   .slide .body-zone {
     position: absolute; top: 180px; bottom: 180px; left: 90px; right: 90px;
     z-index: 4;
-    display: flex; flex-direction: column; gap: var(--block-gap, 36px);
+    display: flex; flex-direction: column;
+    gap: var(--content-fit-gap, var(--block-gap, 36px));
     justify-content: center; align-items: center;
     text-align: center;
     transform-origin: center center;
@@ -111,8 +141,8 @@
   .slide [data-block-id] em, .slide [data-block-id] i { font-style: italic; }
 
   /* Stories: cor de texto (foreground), sem highlight de fundo, sem rotação. */
-  .hot { color: #E04C3C; background: none; padding: 0; display: inline; transform: none; box-shadow: none; }
-  .hot.yellow { color: #EBC14B; background: none; }
+  .hot { color: #d70611; background: none; padding: 0; display: inline; transform: none; box-shadow: none; }
+  .hot.yellow { color: #f8ce07; background: none; }
 
   /* Footer-bar não existe no Stories. Escondido via display:none pra preservar
      o DOM gerado pelo pipeline genérico. */
@@ -137,13 +167,12 @@
   }
 
   /* ============================================
-     EDITOR UI — Block toolbar (FIXA topo) + bubble menu
+     EDITOR UI — Barra contextual em área própria + bubble menu
      ============================================ */
   body { padding-top: 80px; }
 
   #block-toolbar {
-    position: fixed; z-index: 1000;
-    top: 14px; left: 50%; transform: translateX(-50%);
+    position: relative; z-index: 10;
     background: #1a1c1f;
     border: 1px solid #383b40;
     border-radius: 10px;
@@ -151,7 +180,8 @@
     padding: 6px;
     display: flex; gap: 2px; align-items: center;
     font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-    max-width: calc(100vw - 32px);
+    width: 100%; max-width: none;
+    margin: 14px 0 18px;
   }
   #block-toolbar .tb-empty-state {
     color: rgba(245, 242, 234, 0.5);
@@ -164,14 +194,19 @@
   #block-toolbar.empty .tb-controls { display: none; }
   #block-toolbar:not(.empty) .tb-empty-state { display: none; }
   #block-toolbar .tb-controls {
-    display: flex; gap: 6px; align-items: center;
-    flex-wrap: wrap;
-    row-gap: 6px;
-    justify-content: center;
+    display: flex; gap: 0; align-items: stretch;
+    flex-direction: column;
+    justify-content: flex-start;
+    width: 100%;
   }
   #block-toolbar .tb-section {
-    display: flex; align-items: center; gap: 1px;
-    flex-shrink: 0;
+    display: flex; align-items: center; flex-wrap: wrap; gap: 7px;
+    width: 100%; padding: 9px 4px;
+    border-top: 1px solid rgba(255,255,255,.12);
+  }
+  #block-toolbar .tb-section:first-of-type {
+    padding-top: 2px;
+    border-top: 0;
   }
   #block-toolbar .tb-slide-chip {
     font-size: 10px; font-weight: 800;
@@ -185,7 +220,7 @@
     line-height: 1;
   }
   #block-toolbar .sub-sep {
-    width: 6px; height: 1px;
+    display: none;
   }
 
   #bubble-menu {
@@ -225,24 +260,24 @@
   #block-toolbar button.danger { color: #ff6b6b; }
   #block-toolbar button.danger:hover { background: rgba(255, 107, 107, 0.15); }
   #block-toolbar .sep {
-    width: 1px; height: 22px; background: #383b40;
-    flex-shrink: 0;
+    display: none;
   }
-  /* Sliders compactos (LH, LS, FADE) */
+  /* Sliders com rótulos explícitos para uso sem conhecimento técnico. */
   #block-toolbar .tb-slider-group {
     display: flex; align-items: center; gap: 5px;
-    padding: 0 3px;
-    flex-shrink: 0;
+    padding: 0;
+    width: 100%;
   }
   #block-toolbar .tb-slider-label {
-    font-size: 8px; font-weight: 800;
-    color: rgba(245, 242, 234, 0.5);
-    letter-spacing: 0.16em; text-transform: uppercase;
+    font-size: 10px; font-weight: 700;
+    color: rgba(245, 242, 234, 0.76);
+    letter-spacing: 0.01em;
+    white-space: nowrap;
     line-height: 1;
   }
   #block-toolbar input[type="range"] {
     -webkit-appearance: none; appearance: none;
-    width: 72px; height: 3px;
+    flex: 1; min-width: 56px; width: auto; height: 3px;
     background: rgba(245, 242, 234, 0.18);
     border-radius: 2px;
     cursor: pointer; outline: none;
@@ -415,8 +450,8 @@
   }
 
   /* ================= TEMA OSTENTAÇÃO (preto + dourado minimalista) ================= */
-  /* Background único — sobrescreve qualquer .bg-XX */
-  .slide[class*="bg-"] { background: #000000; }
+  /* A classe bg-XX é legada; a cor vem do documento e pode variar por slide. */
+  .slide[class*="bg-"] { background: var(--slide-background, #000000); }
 
   /* Marca decorativa: removida permanentemente do tema Ostentação (Matheus 2026-05-06) */
   .slide .brand-mark { display: none; }
@@ -445,41 +480,36 @@
   }
   .slide .footer-bar.dark .footer-tag { color: rgba(245, 240, 232, 0.4); }
 
-  /* ============ STORIES TEMPLATE OVERRIDES (re-cravado) ============
-     Tema antigo (Direção C / Ostentação editorial) forçava cores douradas,
-     sublinhado nos .hot, fonte New York italic na capa. Tudo isso volta pra
-     match Stories: branco serif local centralizado, .hot só muda foreground color. */
+  /* ============ STORIES TEMPLATE OVERRIDES ============
+     Mantém o Stories limpo: texto branco, alinhamento configurável e destaque
+     somente por cor. */
   .slide .h-display { color: #FFFFFF; }
   .slide .h-display.accent { color: #FFFFFF; }
   .slide .h-display.tiny { color: #FFFFFF; text-transform: none; }
   .slide.cta-final .h-display.smaller { color: #FFFFFF; }
 
-  /* ============ MODO CLARO (toggle via botão "Modo claro") ============
-     Adicionado 2026-05-27. Quando body.light está ativo, fundo branco e texto preto.
-     Hot vermelho continua legível. Hot amarelo vira dourado-escuro pra contrastar com branco. */
-  body.light .slide,
-  body.light .slide[class*="bg-"] { background: #FFFFFF !important; color: #0B0B0B !important; }
-  body.light .slide .h-display,
-  body.light .slide .h-display.accent,
-  body.light .slide .h-display.tiny,
-  body.light .slide.cta-final .h-display.smaller,
-  body.light .slide.capa .h-display { color: #0B0B0B !important; }
-  body.light .slide .body,
-  body.light .slide .body.italic,
-  body.light .slide .body.big,
-  body.light .slide .body.lede,
-  body.light .slide.capa .body,
-  body.light .slide.capa .body.lede,
-  body.light .slide.capa .body.big { color: #0B0B0B !important; }
-  body.light .slide .hot { color: #C9302C !important; }
-  body.light .slide .hot.yellow { color: #B58A00 !important; }
+  /* Cada slide define o próprio contraste a partir da cor escolhida. */
+  .slide.light-background,
+  .slide.light-background[class*="bg-"] { color: #0B0B0B !important; }
+  .slide.light-background .h-display,
+  .slide.light-background .h-display.accent,
+  .slide.light-background .h-display.tiny,
+  .slide.light-background .cta-final .h-display.smaller,
+  .slide.light-background.capa .h-display { color: #0B0B0B !important; }
+  .slide.light-background .body,
+  .slide.light-background .body.italic,
+  .slide.light-background .body.big,
+  .slide.light-background .body.lede,
+  .slide.light-background.capa .body,
+  .slide.light-background.capa .body.lede,
+  .slide.light-background.capa .body.big { color: #0B0B0B !important; }
 
   /* Capa Stories: NÃO sobrescreve fonte. Posicionamento e tamanho coerentes com
      a regra .slide.capa que eu defini lá em cima (image top, text bottom). */
   .slide.capa .body.lede,
   .slide.capa .body.big,
   .slide.capa .body {
-    font-family: var(--stories-content-font, Georgia, 'Times New Roman', serif);
+    font-family: var(--stories-content-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
     font-style: normal;
     font-weight: 400;
     color: #FFFFFF;
@@ -487,11 +517,18 @@
   }
   .slide.capa .h-display { text-align: center; color: #FFFFFF; }
 
+  /* A capa começa centralizada, mas a escolha feita na barra precisa sempre
+     prevalecer. Estas regras vencem as regras padrão de capa para que o
+     alinhamento seja visível também no preview. */
+  .slide.capa [data-block-id].align-left { text-align: left; }
+  .slide.capa [data-block-id].align-center { text-align: center; }
+  .slide.capa [data-block-id].align-right { text-align: right; }
+
   /* Hot: APENAS troca cor do texto. Zero background, zero border, zero underline.
      .hot (sem .yellow) = vermelho. .hot.yellow = amarelo. */
   .slide .hot {
     background: transparent !important;
-    color: #E04C3C !important;
+    color: #d70611 !important;
     padding: 0;
     transform: none;
     box-shadow: none;
@@ -499,14 +536,26 @@
     border: none !important;
     border-bottom: none !important;
     display: inline;
+    /* O destaque deve mudar somente a cor. Fixar as métricas no contexto do
+       bloco impede que um span inserido pelo contenteditable altere a caixa da
+       linha ou provoque uma quebra visual inesperada. */
+    font-family: inherit;
+    font-size: inherit;
+    font-style: inherit;
+    font-weight: inherit;
+    line-height: inherit;
+    letter-spacing: inherit;
+    word-spacing: inherit;
+    white-space: inherit;
+    vertical-align: baseline;
   }
   .slide .hot.yellow {
-    color: #EBC14B !important;
+    color: #f8ce07 !important;
   }
 
   /* Inline photo proporcional — opcional, vai como primeiro filho do body-zone. */
   .slide .inline-photo {
-    width: var(--inline-width, 100%);
+    width: var(--content-fit-inline-width, var(--inline-width, 100%));
     aspect-ratio: var(--inline-aspect, 16 / 9);
     align-self: center;
     flex-shrink: 0;
@@ -518,9 +567,7 @@
     overflow: hidden;
     border-radius: 16px;
     background: #0B0B0B;
-    transform: scale(var(--inline-scale, 1));
-    transform-origin: center;
-    will-change: transform;
+    transform: none;
   }
   .slide .inline-photo-media img {
     width: 100%; height: 100%;
@@ -572,8 +619,24 @@
     --ui-blue-soft: rgba(0, 122, 255, 0.10);
     --ui-danger: #FF3B30;
     --ui-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", Inter, sans-serif;
-    --stories-content-font: Georgia, "Times New Roman", serif;
+    --stories-content-font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif;
   }
+  html[data-ui-theme="dark"] {
+    color-scheme: dark;
+    --ui-canvas: #0f1115; --ui-surface: #171a20; --ui-surface-muted: #20242c;
+    --ui-text: #f4f6f8; --ui-text-secondary: #9aa3b2; --ui-line: #303744;
+    --ui-blue: #5b8cff; --ui-blue-soft: rgba(91,140,255,.16); --ui-danger: #ff6b61;
+  }
+  html[data-ui-theme="dark"] .app-header { background: rgba(23,26,32,.98); border-color: rgba(255,255,255,.10); }
+  html[data-ui-theme="dark"] .production-rail,
+  html[data-ui-theme="dark"] .inspector-panel { background: var(--ui-surface); border-color: rgba(255,255,255,.10); }
+  html[data-ui-theme="dark"] .shell-button,
+  html[data-ui-theme="dark"] .caption-field,
+  html[data-ui-theme="dark"] .typeface-select { border-color: rgba(255,255,255,.14); }
+  html[data-ui-theme="dark"] .shell-button:hover { background: #252a33; border-color: #3a424f; }
+  html[data-ui-theme="dark"] .rail-actions,
+  html[data-ui-theme="dark"] .inspector-section { border-color: rgba(255,255,255,.10); }
+  .ui-theme-toggle { width: 34px; padding: 0; font-size: 17px; line-height: 1; }
   html, body {
     background: var(--ui-canvas); color: var(--ui-text);
     font-family: var(--ui-font); -webkit-font-smoothing: antialiased;
@@ -632,8 +695,9 @@
   .rail-heading { color: var(--ui-text); font-weight: 600; }
   .rail-count { font-size: 11px; color: var(--ui-text-secondary); font-variant-numeric: tabular-nums; }
   #slide-rail-list { display: flex; flex-direction: column; gap: 2px; }
+  .rail-slide-control { display: flex; align-items: center; gap: 6px; min-width: 0; }
   .rail-item {
-    width: 100%; min-height: 40px; padding: 6px 10px 6px 9px;
+    flex: 1; min-width: 0; min-height: 40px; padding: 6px 10px 6px 9px;
     display: grid; grid-template-columns: 28px 1fr; align-items: center; gap: 7px;
     border: 0; border-left: 3px solid transparent; border-radius: 8px;
     background: transparent; color: var(--ui-text); text-align: left; cursor: pointer;
@@ -644,6 +708,19 @@
   .rail-index { font-size: 11px; color: #8E8E93; font-variant-numeric: tabular-nums; }
   .rail-item.is-active .rail-index { color: var(--ui-blue); }
   .rail-role { font-size: 13px; font-weight: 500; letter-spacing: -0.01em; }
+  .rail-color-options { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+  .background-palette { display: flex; align-items: center; gap: 8px; }
+  .background-swatch {
+    width: 20px; height: 20px; padding: 0; border: 1px solid rgba(29,29,31,.2);
+    border-radius: 6px; background: var(--swatch-color); cursor: pointer;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.16);
+    transition: transform 150ms ease, box-shadow 150ms ease, outline-color 150ms ease;
+  }
+  .rail-color-options .background-swatch { width: 15px; height: 15px; border-radius: 5px; }
+  .background-swatch:hover { transform: translateY(-1px); }
+  .background-swatch.is-selected { outline: 2px solid var(--ui-blue); outline-offset: 2px; }
+  .background-swatch.is-inherited { box-shadow: inset 0 0 0 2px rgba(255,255,255,.72), 0 0 0 1px rgba(29,29,31,.5); }
+  .background-help { margin-top: 10px; color: var(--ui-text-secondary); font-size: 11px; line-height: 1.35; }
   .rail-actions { display: grid; gap: 7px; padding-top: 14px; margin-top: 14px; border-top: 1px solid rgba(210,210,215,.72); }
   .rail-actions .shell-button { width: 100%; min-height: 34px; padding: 0 10px; font-size: 12px; }
   .editor-stage { min-width: 0; padding: 24px clamp(24px, 4vw, 64px) 72px; background: var(--ui-canvas); }
@@ -680,7 +757,7 @@
   .maintenance summary { cursor: pointer; color: var(--ui-text-secondary); font-size: 12px; font-weight: 500; }
   .maintenance[open] summary { margin-bottom: 10px; }
   .send-status { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 1200; margin: 0; background: #1D1D1F; color: #fff; }
-  #block-toolbar { top: 76px; background: rgba(29,29,31,.98); border-color: rgba(255,255,255,.13); box-shadow: 0 10px 32px rgba(0,0,0,.22); }
+  #block-toolbar { background: rgba(29,29,31,.98); border-color: rgba(255,255,255,.13); box-shadow: 0 10px 32px rgba(0,0,0,.22); }
   :where(button, textarea, input, summary, label):focus-visible {
     outline: 3px solid rgba(0,122,255,.28); outline-offset: 2px;
   }
@@ -688,6 +765,7 @@
     .production-layout { grid-template-columns: minmax(0, 1fr) 290px; }
     .production-rail { position: static; grid-column: 1 / -1; height: auto; border-right: 0; border-bottom: 1px solid rgba(210,210,215,.72); }
     #slide-rail-list { flex-direction: row; overflow-x: auto; padding-bottom: 2px; }
+    .rail-slide-control { min-width: 164px; }
     .rail-item { min-width: 112px; }
     .rail-actions { grid-template-columns: 1fr 1fr; }
     .inspector-panel { top: 64px; }
@@ -703,7 +781,9 @@
     .editor-stage { padding: 20px 12px 48px; }
     .inspector-panel { border-left: 0; border-top: 1px solid rgba(210,210,215,.72); }
     .stage-shortcut { display: none; }
-    #block-toolbar { top: 10px; max-width: calc(100vw - 20px); }
+    #block-toolbar { max-width: 100%; max-height: none; overflow: visible; margin: 14px 0; }
+    #block-toolbar .tb-controls, #block-toolbar .tb-section { min-width: 0; }
+    #block-toolbar input[type="range"] { min-width: 52px; }
     .stage { width: min(540px, calc(100vw - 36px)); }
   }
   @media (prefers-reduced-motion: reduce) {
@@ -725,6 +805,7 @@
   <div class="app-actions">
     <button id="btn-back-hub" class="shell-button quiet" type="button" hidden>Voltar aos modelos</button>
     <button id="btn-restart-carousel" class="shell-button restart-carousel" type="button">Reiniciar carrossel</button>
+    <button id="btn-ui-theme" class="shell-button ui-theme-toggle" type="button" aria-label="Ativar interface escura" title="Ativar interface escura" aria-pressed="false"><span id="ui-theme-icon" aria-hidden="true">&#9790;</span></button>
     <button id="btn-download-all" class="shell-button">Exportar PNGs</button>
     <button id="btn-publish-ig" class="shell-button publish">Publicar</button>
   </div>
@@ -759,16 +840,25 @@
   </main>
 
   <aside class="inspector-panel" aria-label="Propriedades do carrossel">
+    <div id="block-toolbar-dock" aria-label="Ferramentas do bloco selecionado"></div>
     <section class="inspector-section">
       <span class="inspector-title">Documento</span>
       <div class="inspector-stack">
         <label class="sr-only" for="stories-typography">Tipografia do carrossel</label>
         <select id="stories-typography" class="typeface-select" aria-label="Tipografia do carrossel">
-          <option value="serif">Serifada</option>
           <option value="sans">Sem serifa</option>
+          <option value="advercase">Advercase</option>
         </select>
-        <button id="btn-theme-stories" class="shell-button quiet">☀ Modo claro</button>
       </div>
+    </section>
+    <section class="inspector-section">
+      <span class="inspector-title">Fundo de todos os slides</span>
+      <div id="global-background-palette" class="background-palette" role="group" aria-label="Cor padrão dos slides">
+        <button class="background-swatch" type="button" data-background-color="#000000" style="--swatch-color:#000000" aria-label="Preto"></button>
+        <button class="background-swatch" type="button" data-background-color="#ffffff" style="--swatch-color:#ffffff" aria-label="Branco"></button>
+        <button class="background-swatch" type="button" data-background-color="#cc0001" style="--swatch-color:#cc0001" aria-label="Vermelho"></button>
+      </div>
+      <p class="background-help">Nos slides à esquerda, escolha uma cor para sobrescrever apenas aquele slide. Clique novamente na cor individual ativa para voltar ao padrão.</p>
     </section>
     <section class="inspector-section">
       <label class="inspector-title" for="ig-caption">Legenda</label>
@@ -805,9 +895,9 @@
 <div id="send-status" class="send-status" style="display:none;"></div>
 
 <!-- Modal Telegram -->
-<div id="tg-modal" class="modal">
-  <div class="modal-card">
-    <h2>Configurar Telegram</h2>
+<div id="tg-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="tg-modal-title" aria-hidden="true">
+  <div class="modal-card" tabindex="-1">
+    <h2 id="tg-modal-title">Configurar Telegram</h2>
     <p id="tg-config-status" class="help">Verificando configuração local…</p>
     <div class="help">
       As credenciais ficam somente no servidor local em <code>~/.matheusao-telegram.json</code>.
@@ -820,24 +910,11 @@
   </div>
 </div>
 
-<!-- Block toolbar — fixa no topo, controla o bloco selecionado -->
+<!-- Block toolbar — inserida na área própria do editor após o carregamento. -->
 <div id="block-toolbar" class="empty">
   <span class="tb-empty-state">Clique num bloco de texto pra editar</span>
   <div class="tb-controls">
     <span class="tb-slide-chip" id="tb-slide-tag">slide ?</span>
-
-    <span class="sep"></span>
-
-    <div class="tb-section" title="Tamanho do texto">
-      <button data-variant-key="h-display:default" title="Display Grande (Cmd+1)">H</button>
-      <button data-variant-key="h-display:smaller" title="Display Médio (Cmd+2)">M</button>
-      <button data-variant-key="h-display:tiny"    title="Display Pequeno (Cmd+3)">P</button>
-      <span class="sub-sep"></span>
-      <button data-variant-key="body:default" title="Body (Cmd+4)">B</button>
-      <button data-variant-key="body:big"     title="Body Grande (Cmd+5)">B+</button>
-      <button data-variant-key="body:lede"    title="Lede (Cmd+6)">L</button>
-      <button data-variant-key="body:italic"  title="Itálico (Cmd+7)">I</button>
-    </div>
 
     <span class="sep"></span>
 
@@ -850,38 +927,38 @@
     <span class="sep"></span>
 
     <div class="tb-section">
-      <div class="tb-slider-group" title="Altura entre linhas do bloco (line-height)">
-        <span class="tb-slider-label">LH</span>
-        <input type="range" id="tb-line-height" min="30" max="200" step="1" />
+      <div class="tb-slider-group" title="Altura entre linhas do bloco">
+        <span class="tb-slider-label">Entrelinhas</span>
+        <input type="range" id="tb-line-height" min="30" max="200" step="1" aria-label="Altura entre linhas" />
         <span class="tb-slider-val" id="tb-line-height-val">96px</span>
       </div>
-      <div class="tb-slider-group" title="Distância entre caracteres do bloco (letter-spacing)">
-        <span class="tb-slider-label">LS</span>
-        <input type="range" id="tb-letter-spacing" min="-0.10" max="0.30" step="0.005" />
+      <div class="tb-slider-group" title="Distância entre caracteres do bloco">
+        <span class="tb-slider-label">Espaço entre letras</span>
+        <input type="range" id="tb-letter-spacing" min="-0.10" max="0.30" step="0.005" aria-label="Espaçamento entre letras" />
         <span class="tb-slider-val" id="tb-letter-spacing-val">0.000em</span>
       </div>
-      <div class="tb-slider-group" title="Tamanho da fonte do bloco (font-size)">
-        <span class="tb-slider-label">FS</span>
-        <input type="range" id="tb-font-size" min="20" max="140" step="1" />
+      <div class="tb-slider-group" title="Tamanho do texto">
+        <span class="tb-slider-label">Tamanho do texto</span>
+        <input type="range" id="tb-font-size" min="20" max="140" step="1" aria-label="Tamanho da fonte" />
         <span class="tb-slider-val" id="tb-font-size-val">52px</span>
       </div>
-      <button data-action="spacing-reset" title="Restaurar tamanho e espaçamento do variant">↺</button>
+      <button data-action="spacing-reset" title="Restaurar tamanho e espaçamento do texto">↺</button>
     </div>
 
     <span class="sep"></span>
 
     <div class="tb-section">
-      <div class="tb-slider-group" title="Intensidade do fade do slide (filtro escuro sobre a foto)">
-        <span class="tb-slider-label">FADE</span>
-        <input type="range" id="tb-fade" min="0" max="2" step="0.05" />
+      <div class="tb-slider-group" title="Escurecer a foto de fundo">
+        <span class="tb-slider-label">Escurecer foto</span>
+        <input type="range" id="tb-fade" min="0" max="2" step="0.05" aria-label="Intensidade do filtro" />
         <span class="tb-slider-val" id="tb-fade-val">100%</span>
       </div>
       <button data-action="fade-reset" title="Restaurar fade 100%">↺</button>
       <span class="sub-sep"></span>
       <div class="tb-slider-group" title="Espaço vertical entre blocos do slide">
-        <span class="tb-slider-label">GAP</span>
-        <input type="range" id="tb-gap" min="0" max="80" step="1" />
-        <span class="tb-slider-val" id="tb-gap-val">24px</span>
+        <span class="tb-slider-label">Espaço entre blocos</span>
+        <input type="range" id="tb-gap" min="0" max="80" step="1" aria-label="Espaço entre blocos" />
+        <span class="tb-slider-val" id="tb-gap-val">36px</span>
       </div>
       <button data-action="gap-reset" title="Restaurar gap padrão (36px)">↺</button>
     </div>
@@ -922,21 +999,22 @@
   let selectedBlockId = null;
   let selectedSlideIdx = null;
 
-  // ==== CONFIG ====
-  const VARIANT_LIST = [
-    { kind: 'h-display', variant: 'default' },
-    { kind: 'h-display', variant: 'smaller' },
-    { kind: 'h-display', variant: 'tiny' },
-    { kind: 'body',      variant: 'default' },
-    { kind: 'body',      variant: 'big' },
-    { kind: 'body',      variant: 'lede' },
-    { kind: 'body',      variant: 'italic' },
-  ];
-
   // ==== HELPERS ====
   function uid() { return 'b_' + Math.random().toString(36).slice(2, 8); }
   function safeGet(key) { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { return null; } }
-  function safeSet(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} }
+  let lastStorageError = '';
+  function safeSet(key, val) {
+    try {
+      localStorage.setItem(key, JSON.stringify(val));
+      lastStorageError = '';
+      return true;
+    } catch (error) {
+      lastStorageError = error && error.message ? error.message : 'armazenamento indisponível';
+      const status = document.getElementById('send-status');
+      if (status) setSendStatus('✗ Não foi possível salvar localmente. Exporte antes de fechar.', 'error');
+      return false;
+    }
+  }
   function saveDoc() {
     safeSet(DOC_KEY, doc);
     recordEditorMutation('document');
@@ -1036,9 +1114,8 @@
     const captionEl = document.getElementById('ig-caption');
     return {
       document: snapshotDoc,
-      theme: isLightTheme() ? 'light' : 'dark',
       caption: captionEl ? captionEl.value : '',
-      typography: doc.typography || 'serif'
+      typography: doc.typography || 'sans'
     };
   }
 
@@ -1048,7 +1125,6 @@
     doc = JSON.parse(JSON.stringify(snapshot.document));
     safeSet(DOC_KEY, doc);
     try {
-      localStorage.setItem(STORIES_THEME_KEY, snapshot.theme);
       localStorage.setItem(DOC_KEY + '-caption', snapshot.caption || '');
     } catch (e) {}
 
@@ -1066,8 +1142,7 @@
       typeof activeStageIndex === 'number' ? activeStageIndex : 0,
       Math.max(0, doc.slides.length - 1)
     );
-    applyStoriesTheme(snapshot.theme);
-    setStoriesTypography(snapshot.typography || 'serif', { persist: false, record: false });
+    setStoriesTypography(snapshot.typography || 'sans', { persist: false, record: false });
     const captionEl = document.getElementById('ig-caption');
     if (captionEl) captionEl.value = snapshot.caption || '';
     renderAll();
@@ -1147,6 +1222,14 @@
   }
 
   // ==== SPACING HELPERS (line-height + letter-spacing por bloco) ====
+  const ADVERCASE_DEFAULT_LETTER_SPACING = 0.015;
+
+  function getTypefaceDefaultLetterSpacing(baseLetterSpacing) {
+    return doc && doc.typography === 'advercase'
+      ? ADVERCASE_DEFAULT_LETTER_SPACING
+      : baseLetterSpacing;
+  }
+
   function getVariantBaseSpacing(kind, variant) {
     const key = kind + ':' + variant;
     const base = (typeof VARIANT_STYLES !== 'undefined') ? VARIANT_STYLES[key] : null;
@@ -1155,8 +1238,9 @@
   }
   function getEffectiveSpacing(block) {
     const base = getVariantBaseSpacing(block.kind, block.variant);
-    // Quando fontSize tem override mas lineHeight não, line-height escala proporcional
-    // pra preservar a razão LH/size do variant base (~1.2x).
+    const defaultLetterSpacing = getTypefaceDefaultLetterSpacing(base.letterSpacing);
+    // Ao alterar o tamanho, a entrelinha acompanha proporcionalmente enquanto
+    // o usuário não escolher um valor próprio no seu slider.
     let effLH = base.lineHeight;
     if (block.lineHeight != null) {
       effLH = block.lineHeight;
@@ -1165,31 +1249,30 @@
     }
     return {
       lineHeight: effLH,
-      letterSpacing: (block.letterSpacing != null) ? block.letterSpacing : base.letterSpacing,
+      letterSpacing: (block.letterSpacing != null) ? block.letterSpacing : defaultLetterSpacing,
       fontSize: (block.fontSize != null) ? block.fontSize : base.fontSize,
       lhOverride: block.lineHeight != null,
       lsOverride: block.letterSpacing != null,
       fsOverride: block.fontSize != null,
     };
   }
-  function applySpacingToNode(node, block) {
+  function applySpacingToNode(node, block, contentFit = 1) {
     const eff = getEffectiveSpacing(block);
-    if (block.fontSize != null) {
-      node.style.fontSize = block.fontSize + 'px';
-    } else {
-      node.style.fontSize = '';
-    }
-    // LH segue effective (que considera fontSize override) se LH não foi explicit
-    if (block.lineHeight != null || block.fontSize != null) {
-      node.style.lineHeight = eff.lineHeight + 'px';
-    } else {
-      node.style.lineHeight = '';
-    }
-    if (block.letterSpacing != null) {
-      node.style.letterSpacing = block.letterSpacing + 'em';
-    } else {
-      node.style.letterSpacing = '';
-    }
+    // O ajuste automático reduz apenas tipografia e ritmo vertical. A largura
+    // do bloco continua sempre em 900px, evitando o efeito de coluna estreita
+    // depois que uma imagem é inserida.
+    node.style.fontSize = (eff.fontSize * contentFit) + 'px';
+    node.style.lineHeight = (eff.lineHeight * contentFit) + 'px';
+    node.style.letterSpacing = eff.letterSpacing + 'em';
+  }
+
+  function applyLiveSpacingToNode(node, block) {
+    // Enquanto o slider está sendo arrastado, conserva o fit já calculado
+    // para o slide. Sem isso, um bloco que divide espaço com uma imagem recebe
+    // por alguns frames o tamanho bruto (1×) e só volta a caber ao fim do
+    // debounce — o "pula para gigante e volta" percebido no preview.
+    const bodyZone = node && node.closest('.body-zone');
+    applySpacingToNode(node, block, getContentFitScale(bodyZone));
   }
 
   // ==== FADE PER-SLIDE (intensidade do filtro de legibilidade) ====
@@ -1285,20 +1368,22 @@
       slides.push(slideData);
     });
 
-    return { version: 8, typography: 'serif', slides };
+    return { version: 10, typography: 'sans', backgroundColor: '#000000', slides };
   }
 
   function createBlankStoriesDocument() {
     const source = initialStoriesDocument || buildDocFromDOM({ useLegacy: false });
     const blank = JSON.parse(JSON.stringify(source));
-    blank.version = 8;
-    blank.typography = doc && doc.typography === 'sans' ? 'sans' : 'serif';
+    blank.version = 10;
+    blank.typography = doc && doc.typography === 'advercase' ? 'advercase' : 'sans';
+    blank.backgroundColor = getGlobalBackgroundColor();
     blank.slides.forEach((slide, slideIndex) => {
       slide.id = 's' + (slideIndex + 1);
       slide.blocks = slide.blocks.map(block => ({ ...block, id: uid(), html: 'adicione aqui a sua copy' }));
       slide.bzTransform = { tx: 0, ty: 0, scale: 1 };
       slide.image = null;
       slide.inlineImage = null;
+      delete slide.backgroundColor;
     });
     return blank;
   }
@@ -1341,7 +1426,7 @@
       d.version = 6;
     }
     if (d.version < 7) {
-      d.typography = d.typography === 'sans' ? 'sans' : 'serif';
+      d.typography = d.typography === 'advercase' ? 'advercase' : 'sans';
       d.version = 7;
     }
     if (d.version < 8) {
@@ -1354,6 +1439,17 @@
       });
       d.version = 8;
     }
+    if (d.version < 9) d.version = 9;
+    if (d.version < 10) {
+      d.backgroundColor = '#000000';
+      d.slides.forEach(s => { delete s.backgroundColor; });
+      d.version = 10;
+    }
+    d.backgroundColor = normalizeBackgroundColor(d.backgroundColor);
+    d.slides.forEach(s => {
+      if (s.backgroundColor != null) s.backgroundColor = normalizeBackgroundColor(s.backgroundColor);
+    });
+    d.typography = d.typography === 'advercase' ? 'advercase' : 'sans';
     return d;
   }
 
@@ -1372,7 +1468,7 @@
         }
       });
       doc = migrateDoc(saved);
-      setStoriesTypography(doc.typography || 'serif', { persist: false, record: false });
+      setStoriesTypography(doc.typography || 'sans', { persist: false, record: false });
       // Se doc-state tem número de slides diferente do DOM (usuário adicionou ou removeu),
       // reconstrói o DOM a partir do doc.
       if (doc.slides.length !== N_SLIDES_DOM) {
@@ -1382,8 +1478,8 @@
       return;
     }
     doc = buildDocFromDOM();
-    doc.version = 8;
-    setStoriesTypography('serif', { persist: false, record: false });
+    doc.version = 10;
+    setStoriesTypography('sans', { persist: false, record: false });
     saveDoc();
   }
 
@@ -1420,6 +1516,7 @@
     const newSlide = {
       id: 's_' + Date.now().toString(36),
       bgClass: 'bg-01',
+      backgroundColor: null,
       isCapa: false,
       footerVariant: 'default',
       blocks: [
@@ -1453,23 +1550,29 @@
     location.reload();
   }
 
-  // ==== TEMA LIGHT/DARK (Stories) ====
-  const STORIES_THEME_KEY = 'osnl-stories-theme';
+  // ==== TIPOGRAFIA E FUNDOS (Stories) ====
+  const SLIDE_BACKGROUND_COLORS = [
+    { value: '#000000', label: 'Preto' },
+    { value: '#ffffff', label: 'Branco' },
+    { value: '#cc0001', label: 'Vermelho' },
+  ];
+  const DEFAULT_SLIDE_BACKGROUND = '#000000';
   const STORIES_TYPEFACES = {
-    serif: {
-      cssFamily: 'Georgia, "Times New Roman", serif',
-      canvasFamily: 'Georgia, "Times New Roman", serif',
-    },
     sans: {
       cssFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif',
       canvasFamily: '"SF Pro Display", "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif',
     },
+    advercase: {
+      cssFamily: 'Advercase, Georgia, "Times New Roman", serif',
+      canvasFamily: 'Advercase, Georgia, "Times New Roman", serif',
+    },
   };
   function getStoriesTypeface() {
-    return STORIES_TYPEFACES[doc && doc.typography === 'sans' ? 'sans' : 'serif'];
+    const typography = doc && STORIES_TYPEFACES[doc.typography] ? doc.typography : 'sans';
+    return STORIES_TYPEFACES[typography];
   }
   function setStoriesTypography(nextTypography, options = {}) {
-    const typography = nextTypography === 'sans' ? 'sans' : 'serif';
+    const typography = STORIES_TYPEFACES[nextTypography] ? nextTypography : 'sans';
     const { persist = true, record = true } = options;
     if (!doc) return;
     doc.typography = typography;
@@ -1480,25 +1583,57 @@
     if (record) recordEditorMutation('typography');
     if (typeof renderAll === 'function') renderAll();
   }
-  function isLightTheme() { return document.body.classList.contains('light'); }
-  function applyStoriesTheme(theme) {
-    if (theme === 'light') document.body.classList.add('light');
-    else document.body.classList.remove('light');
-    const btn = document.getElementById('btn-theme-stories');
-    if (btn) btn.textContent = isLightTheme() ? '🌙 Modo escuro' : '☀ Modo claro';
+  function normalizeBackgroundColor(color) {
+    const candidate = String(color || '').toLowerCase();
+    return SLIDE_BACKGROUND_COLORS.some(item => item.value === candidate)
+      ? candidate
+      : DEFAULT_SLIDE_BACKGROUND;
   }
-  function toggleStoriesTheme() {
-    const next = isLightTheme() ? 'dark' : 'light';
-    try { localStorage.setItem(STORIES_THEME_KEY, next); } catch (e) {}
-    applyStoriesTheme(next);
-    if (typeof renderAll === 'function') renderAll();
-    recordEditorMutation('theme');
+  function getGlobalBackgroundColor() {
+    return normalizeBackgroundColor(doc && doc.backgroundColor);
   }
-  (function bootStoriesTheme() {
-    let saved = null;
-    try { saved = localStorage.getItem(STORIES_THEME_KEY); } catch (e) {}
-    if (saved === 'light') applyStoriesTheme('light');
-  })();
+  function getSlideBackgroundColor(slideData) {
+    return slideData && slideData.backgroundColor != null
+      ? normalizeBackgroundColor(slideData.backgroundColor)
+      : getGlobalBackgroundColor();
+  }
+  function isLightSlideBackground(slideData) {
+    return getSlideBackgroundColor(slideData) === '#ffffff';
+  }
+  function getSlideTextColor(slideData) {
+    return isLightSlideBackground(slideData) ? '#0B0B0B' : '#FFFFFF';
+  }
+  function applySlideBackground(slideEl, slideData) {
+    if (!slideEl) return;
+    slideEl.style.setProperty('--slide-background', getSlideBackgroundColor(slideData));
+    slideEl.classList.toggle('light-background', isLightSlideBackground(slideData));
+  }
+  function updateGlobalBackgroundPalette() {
+    const active = getGlobalBackgroundColor();
+    document.querySelectorAll('#global-background-palette [data-background-color]').forEach(button => {
+      const selected = button.dataset.backgroundColor === active;
+      button.classList.toggle('is-selected', selected);
+      button.setAttribute('aria-pressed', String(selected));
+    });
+  }
+  function setGlobalBackgroundColor(color) {
+    doc.backgroundColor = normalizeBackgroundColor(color);
+    saveDoc();
+    renderAll();
+    buildSlideRail();
+    updateGlobalBackgroundPalette();
+  }
+  function setSlideBackgroundColor(index, color) {
+    const slideData = doc.slides[index];
+    if (!slideData) return;
+    const normalized = normalizeBackgroundColor(color);
+    // Repetir o clique na cor individual ativa devolve o slide ao fundo global.
+    if (slideData.backgroundColor === normalized) delete slideData.backgroundColor;
+    else slideData.backgroundColor = normalized;
+    saveDoc();
+    renderSlide(index);
+    buildSlideRail();
+  }
 
   // ==== TRANSFORM HELPERS ====
   function applyTransformToImg(img, tx, ty, scale) {
@@ -1506,6 +1641,8 @@
     img.dataset.tx = tx; img.dataset.ty = ty; img.dataset.scale = scale;
   }
   function applyTransformToBz(bz, tx, ty, scale) {
+    // Somente o zoom manual transforma a zona inteira. O fit automático atua
+    // em fontes, gaps e imagem, preservando a largura útil do texto.
     bz.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
     bz.dataset.tx = tx; bz.dataset.ty = ty; bz.dataset.scale = scale;
   }
@@ -1522,6 +1659,93 @@
       ty: parseFloat(bz.dataset.ty || 0),
       scale: parseFloat(bz.dataset.scale || 1)
     };
+  }
+
+  function getContentFitScale(bodyZone) {
+    const saved = Number(bodyZone && bodyZone.dataset.contentFitScale);
+    return Number.isFinite(saved) && saved > 0 && saved <= 1 ? saved : 1;
+  }
+
+  function fitBodyZoneContent(bodyZone) {
+    if (!bodyZone) return 1;
+    const items = Array.from(bodyZone.children).filter(node =>
+      node.matches && (node.matches('[data-block-id]') || node.matches('.inline-photo'))
+    );
+    if (!items.length || !bodyZone.clientHeight) {
+      applyBodyZoneContentFit(bodyZone, 1);
+      return 1;
+    }
+
+    // Começa nas métricas editoriais originais e encontra o maior fit que cabe.
+    // A busca considera novas quebras de linha causadas pela mudança de fonte.
+    applyBodyZoneContentFit(bodyZone, 1);
+    if (measureBodyZoneContentHeight(bodyZone, items) <= bodyZone.clientHeight) {
+      setBodyZoneOverflow(bodyZone, false);
+      return 1;
+    }
+
+    let low = 0.35;
+    let high = 1;
+    for (let iteration = 0; iteration < 9; iteration++) {
+      const candidate = (low + high) / 2;
+      applyBodyZoneContentFit(bodyZone, candidate);
+      if (measureBodyZoneContentHeight(bodyZone, items) <= bodyZone.clientHeight) low = candidate;
+      else high = candidate;
+    }
+    applyBodyZoneContentFit(bodyZone, low);
+    setBodyZoneOverflow(bodyZone, measureBodyZoneContentHeight(bodyZone, items) > bodyZone.clientHeight + 1);
+    return low;
+  }
+
+  function setBodyZoneOverflow(bodyZone, overflow) {
+    bodyZone.classList.toggle('content-overflow', overflow);
+    const wrap = bodyZone.closest('.slide-wrap');
+    if (wrap) wrap.classList.toggle('content-overflow', overflow);
+  }
+
+  function measureBodyZoneContentHeight(bodyZone, items) {
+    const gap = Number.parseFloat(getComputedStyle(bodyZone).gap) || 0;
+    return items.reduce((total, node) => total + node.offsetHeight, 0) +
+      Math.max(0, items.length - 1) * gap;
+  }
+
+  function applyBodyZoneContentFit(bodyZone, fit) {
+    const stageIndex = getStageIndex(bodyZone);
+    const slideData = stageIndex >= 0 ? doc.slides[stageIndex] : null;
+    const baseGap = getEffectiveGap(slideData);
+    bodyZone.dataset.contentFitScale = String(fit);
+    bodyZone.style.setProperty('--content-fit-scale', String(fit));
+    bodyZone.style.setProperty('--content-fit-gap', (baseGap * fit) + 'px');
+    if (slideData && slideData.inlineImage && slideData.inlineImage.dataURL) {
+      const baseImageWidth = getInlineImageLayout(900, 990, slideData.inlineImage).width;
+      bodyZone.style.setProperty('--content-fit-inline-width', ((baseImageWidth / 900) * fit * 100) + '%');
+    } else {
+      bodyZone.style.removeProperty('--content-fit-inline-width');
+    }
+    bodyZone.querySelectorAll('[data-block-id]').forEach(node => {
+      const context = getBlockContext(node);
+      if (context) applySpacingToNode(node, context.block, fit);
+    });
+    bodyZone.classList.toggle('content-auto-fitted', fit < 0.999);
+  }
+
+  function refreshSlideContentFit(stageIndex) {
+    const stage = document.querySelectorAll('.stage')[stageIndex];
+    const bodyZone = stage && stage.querySelector('.body-zone');
+    if (!bodyZone) return;
+    fitBodyZoneContent(bodyZone);
+    const state = getBzState(bodyZone);
+    applyTransformToBz(bodyZone, state.tx, state.ty, state.scale);
+  }
+
+  const pendingContentFitFrames = new Map();
+  function scheduleSlideContentFit(stageIndex) {
+    if (pendingContentFitFrames.has(stageIndex)) return;
+    const frame = requestAnimationFrame(() => {
+      pendingContentFitFrames.delete(stageIndex);
+      refreshSlideContentFit(stageIndex);
+    });
+    pendingContentFitFrames.set(stageIndex, frame);
   }
 
   // ==== IMAGE HELPERS ====
@@ -1583,16 +1807,18 @@
     const maxHeight = zoneH * 0.68;
     const fittedWidth = Math.min(zoneW, maxHeight * aspectRatio);
     const scale = getInlineImageSize(inlineImage) / 100;
-    const width = fittedWidth;
+    // O controle de tamanho altera a caixa real da imagem. Antes ele escalava
+    // só o conteúdo visual, mas continuava reservando o espaço de 100%.
+    const width = fittedWidth * scale;
     const height = width / aspectRatio;
-    return { aspectRatio, width, height, x: (zoneW - width) / 2, size: scale * 100, scale };
+    return { aspectRatio, width, height, x: (zoneW - width) / 2, size: scale * 100, scale: 1 };
   }
 
   function applyInlinePhotoLayout(node, inlineImage) {
     const layout = getInlineImageLayout(900, 990, inlineImage);
     node.style.setProperty('--inline-aspect', String(layout.aspectRatio));
     node.style.setProperty('--inline-width', (layout.width / 900 * 100) + '%');
-    node.style.setProperty('--inline-scale', String(layout.scale));
+    node.style.removeProperty('--inline-scale');
     const resizeInput = node.querySelector('.inline-photo-controls input');
     if (resizeInput) resizeInput.value = String(layout.size);
   }
@@ -1638,6 +1864,7 @@
       if (!current) return;
       current.size = getInlineImageSize({ size: resizeInput.value });
       applyInlinePhotoLayout(node, current);
+      refreshSlideContentFit(stageIndex);
       if (persist) saveDoc();
     };
     resizeInput.oninput = () => {
@@ -1667,6 +1894,7 @@
           safeSet(DOC_KEY, doc);
         }
         applyInlinePhotoLayout(node, current);
+        refreshSlideContentFit(stageIndex);
       };
       im.src = inlineImage.dataURL;
     }
@@ -1675,12 +1903,90 @@
   }
 
   // ==== RENDER ====
+  function sanitizeBlockHtml(html) {
+    const source = document.createElement('template');
+    source.innerHTML = html || '';
+    const output = document.createElement('div');
+
+    function appendChildren(from, to) {
+      Array.from(from.childNodes).forEach(child => appendNode(child, to));
+    }
+
+    function appendNode(node, parent) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        parent.appendChild(document.createTextNode(node.textContent || ''));
+        return;
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) return;
+      const tag = node.tagName.toLowerCase();
+      if (tag === 'br') {
+        parent.appendChild(document.createElement('br'));
+        return;
+      }
+      if (tag === 'div' || tag === 'p') {
+        if (parent.lastChild && parent.lastChild.nodeName !== 'BR') parent.appendChild(document.createElement('br'));
+        appendChildren(node, parent);
+        return;
+      }
+
+      const isHot = tag === 'span' && node.classList.contains('hot');
+      const isBold = tag === 'b' || tag === 'strong' ||
+        (/^(bold|[6-9]00)$/i).test((node.style && node.style.fontWeight) || '');
+      const isItalic = tag === 'i' || tag === 'em' ||
+        ((node.style && node.style.fontStyle) || '').toLowerCase() === 'italic';
+      let target = parent;
+      if (isHot) {
+        const marker = document.createElement('span');
+        marker.className = node.classList.contains('yellow') ? 'hot yellow' : 'hot';
+        target.appendChild(marker);
+        target = marker;
+      }
+      if (isBold) {
+        const strong = document.createElement('strong');
+        target.appendChild(strong);
+        target = strong;
+      }
+      if (isItalic) {
+        const em = document.createElement('em');
+        target.appendChild(em);
+        target = em;
+      }
+      appendChildren(node, target);
+    }
+
+    appendChildren(source.content, output);
+    while (output.firstChild && output.firstChild.nodeName === 'BR') output.firstChild.remove();
+    while (output.lastChild && output.lastChild.nodeName === 'BR') output.lastChild.remove();
+    return output.innerHTML;
+  }
+
+  function insertPlainTextAtSelection(text) {
+    const selection = window.getSelection();
+    if (!selection || !selection.rangeCount) return;
+    const range = selection.getRangeAt(0);
+    range.deleteContents();
+    const fragment = document.createDocumentFragment();
+    String(text || '').replace(/\r\n?/g, '\n').split('\n').forEach((line, index, lines) => {
+      if (line) fragment.appendChild(document.createTextNode(line));
+      if (index < lines.length - 1) fragment.appendChild(document.createElement('br'));
+    });
+    const tail = fragment.lastChild;
+    range.insertNode(fragment);
+    if (tail) {
+      range.setStartAfter(tail);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+  }
+
   function buildBlockNode(block) {
     const node = document.createElement('div');
     node.dataset.blockId = block.id;
     node.className = blockToClassName(block);
     node.contentEditable = 'true';
     node.spellcheck = false;
+    block.html = sanitizeBlockHtml(block.html);
     node.innerHTML = block.html;
     applySpacingToNode(node, block);
     attachBlockHandlers(node);
@@ -1691,6 +1997,16 @@
     node.addEventListener('input', onBlockInput);
     node.addEventListener('mousedown', onBlockMousedown);
     node.addEventListener('focus', onBlockFocus);
+    node.addEventListener('paste', onBlockTextPaste);
+  }
+
+  function onBlockTextPaste(event) {
+    const clipboard = event.clipboardData;
+    if (!clipboard) return;
+    if (Array.from(clipboard.items || []).some(item => item.type && item.type.startsWith('image/'))) return;
+    event.preventDefault();
+    insertPlainTextAtSelection(clipboard.getData('text/plain'));
+    onBlockInput({ currentTarget: event.currentTarget });
   }
 
   function onBlockMousedown(e) {
@@ -1710,6 +2026,7 @@
     const stage = document.querySelectorAll('.stage')[sIdx];
     const slideEl = stage.querySelector('.slide');
     const bodyZone = slideEl.querySelector('.body-zone');
+    applySlideBackground(slideEl, slideData);
 
     // Save focus
     const activeId = (document.activeElement && document.activeElement.dataset)
@@ -1746,8 +2063,10 @@
           node.className = newClass;
           if (wasSelected) node.classList.add('selected');
         }
-        if (node.innerHTML !== block.html && document.activeElement !== node) {
-          node.innerHTML = block.html;
+        const safeBlockHtml = sanitizeBlockHtml(block.html);
+        block.html = safeBlockHtml;
+        if (node.innerHTML !== safeBlockHtml && document.activeElement !== node) {
+          node.innerHTML = safeBlockHtml;
         }
         applySpacingToNode(node, block);
       }
@@ -1779,6 +2098,8 @@
       }
     }
 
+    applyGapToSlide(slideEl, getEffectiveGap(slideData));
+    fitBodyZoneContent(bodyZone);
     applyTransformToBz(bodyZone, slideData.bzTransform.tx || 0, slideData.bzTransform.ty || 0, slideData.bzTransform.scale || 1);
 
     if (slideData.image && slideData.image.dataURL) {
@@ -1792,7 +2113,6 @@
       footerEl.classList.toggle('dark', slideData.footerVariant === 'dark');
     }
     applyFadeToSlide(slideEl, getEffectiveFade(slideData));
-    applyGapToSlide(slideEl, getEffectiveGap(slideData));
   }
 
   function renderAll() {
@@ -1814,6 +2134,8 @@
     list.innerHTML = '';
     doc.slides.forEach((slide, index) => {
       const role = slide.isCapa ? 'Capa' : (index === doc.slides.length - 1 ? 'CTA' : 'Slide');
+      const control = document.createElement('div');
+      control.className = 'rail-slide-control';
       const item = document.createElement('button');
       item.type = 'button';
       item.className = 'rail-item';
@@ -1831,17 +2153,60 @@
         activeStageIndex = index;
         setRailActive(index);
         const wrap = document.querySelectorAll('.slide-wrap')[index];
-        if (wrap) wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (wrap) wrap.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
       });
-      list.appendChild(item);
+      control.appendChild(item);
+
+      const colors = document.createElement('div');
+      colors.className = 'rail-color-options';
+      colors.setAttribute('role', 'group');
+      colors.setAttribute('aria-label', 'Cor do slide ' + (index + 1));
+      const effective = getSlideBackgroundColor(slide);
+      const hasOverride = slide.backgroundColor != null;
+      SLIDE_BACKGROUND_COLORS.forEach(({ value, label }) => {
+        const swatch = document.createElement('button');
+        swatch.type = 'button';
+        swatch.className = 'background-swatch';
+        swatch.dataset.backgroundColor = value;
+        swatch.style.setProperty('--swatch-color', value);
+        const selected = value === effective;
+        swatch.classList.toggle('is-selected', selected);
+        swatch.classList.toggle('is-inherited', selected && !hasOverride);
+        swatch.setAttribute('aria-pressed', String(selected));
+        swatch.setAttribute('aria-label', label + ' no slide ' + (index + 1));
+        swatch.title = selected && hasOverride
+          ? 'Clique novamente para usar o fundo global'
+          : 'Usar ' + label + ' neste slide';
+        swatch.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setSlideBackgroundColor(index, value);
+        });
+        colors.appendChild(swatch);
+      });
+      control.append(item, colors);
+      list.appendChild(control);
     });
     setRailActive(typeof activeStageIndex === 'number' ? activeStageIndex : 0);
+    updateSlideCountUI();
+  }
+
+  function updateSlideCountUI() {
+    const count = doc && Array.isArray(doc.slides) ? doc.slides.length : 0;
+    document.querySelectorAll('.rail-count').forEach(node => { node.textContent = count + ' telas'; });
+    document.querySelectorAll('.doc-meta').forEach(node => {
+      node.textContent = count + ' slides · 1080×1350 · @omatheusdelucca';
+    });
   }
 
   function flushDOMToDoc() {
     document.querySelectorAll('[data-block-id]').forEach(blockEl => {
       const ctx = getBlockContext(blockEl);
-      if (ctx) ctx.block.html = blockEl.innerHTML;
+      if (ctx) {
+        const safeHtml = sanitizeBlockHtml(blockEl.innerHTML);
+        ctx.block.html = safeHtml;
+        if (blockEl.innerHTML !== safeHtml) blockEl.innerHTML = safeHtml;
+      }
     });
     saveDoc();
   }
@@ -1851,8 +2216,9 @@
     const blockEl = e.currentTarget;
     const ctx = getBlockContext(blockEl);
     if (!ctx) return;
-    ctx.block.html = blockEl.innerHTML;
+    ctx.block.html = sanitizeBlockHtml(blockEl.innerHTML);
     saveDoc();
+    refreshSlideContentFit(ctx.sIdx);
   }
 
   // ==== SELECTION MODEL ====
@@ -1888,17 +2254,14 @@
     if (!ctx) return;
     // Slide tag
     document.getElementById('tb-slide-tag').textContent = 'slide ' + String(ctx.sIdx + 1).padStart(2, '0');
-    // Variant active
-    const activeKey = ctx.block.kind + ':' + ctx.block.variant;
-    blockToolbar.querySelectorAll('[data-variant-key]').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.variantKey === activeKey);
-    });
     // Align active
     const align = ctx.block.align || 'left';
     blockToolbar.querySelectorAll('[data-align]').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.align === align);
+      const active = btn.dataset.align === align;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-pressed', String(active));
     });
-    // Spacing sliders (font-size + line-height + letter-spacing)
+    // Ajuste fino: tamanho, altura entre linhas e espaçamento entre caracteres.
     const eff = getEffectiveSpacing(ctx.block);
     const fsInput = document.getElementById('tb-font-size');
     const fsVal   = document.getElementById('tb-font-size-val');
@@ -1943,18 +2306,8 @@
   }
 
   // ==== TOOLBAR BUTTON HANDLERS ====
-  blockToolbar.querySelectorAll('[data-variant-key]').forEach(btn => {
-    btn.addEventListener('mousedown', (e) => {
-      e.preventDefault();
-      const blockEl = getSelectedBlockEl();
-      if (!blockEl) return;
-      const [kind, variant] = btn.dataset.variantKey.split(':');
-      setBlockVariant(blockEl, kind, variant);
-    });
-  });
-
   blockToolbar.querySelectorAll('[data-align]').forEach(btn => {
-    btn.addEventListener('mousedown', (e) => {
+    btn.addEventListener('click', (e) => {
       e.preventDefault();
       const blockEl = getSelectedBlockEl();
       if (!blockEl) return;
@@ -1979,25 +2332,52 @@
     stopPropEvts(lhInput);
     stopPropEvts(lsInput);
 
+    // O cálculo de encaixe mede o conteúdo diversas vezes. Durante o arraste
+    // ele é desnecessário e deixava a pré-visualização engasgada; o DOM recebe
+    // a alteração imediatamente e o encaixe/salvamento é feito na pausa ou ao
+    // soltar o controle.
+    let pendingTextLayoutCommit = null;
+    let pendingTextLayoutStage = null;
+    function commitTextLayout() {
+      if (pendingTextLayoutCommit !== null) {
+        clearTimeout(pendingTextLayoutCommit);
+        pendingTextLayoutCommit = null;
+      }
+      if (pendingTextLayoutStage === null) return;
+      const stageIndex = pendingTextLayoutStage;
+      pendingTextLayoutStage = null;
+      saveDoc();
+      scheduleSlideContentFit(stageIndex);
+    }
+    function queueTextLayoutCommit(stageIndex) {
+      pendingTextLayoutStage = stageIndex;
+      if (pendingTextLayoutCommit !== null) clearTimeout(pendingTextLayoutCommit);
+      pendingTextLayoutCommit = window.setTimeout(commitTextLayout, 180);
+    }
+    [fsInput, lhInput, lsInput].filter(Boolean).forEach(input => {
+      input.addEventListener('change', commitTextLayout);
+    });
+
     if (fsInput) {
       fsInput.addEventListener('input', (e) => {
         const blockEl = getSelectedBlockEl();
         if (!blockEl) return;
         const ctx = getBlockContext(blockEl);
         if (!ctx) return;
-        const v = parseFloat(e.target.value);
-        ctx.block.fontSize = v;
-        fsVal.textContent = Math.round(v) + 'px';
+        const value = parseFloat(e.target.value);
+        ctx.block.fontSize = value;
+        // Alterar o tamanho volta a usar o ritmo proporcional da variante.
+        // Isso também elimina valores de entrelinha manuais que ficaram salvos
+        // de ajustes anteriores e impediam a compensação automática.
+        delete ctx.block.lineHeight;
+        fsVal.textContent = Math.round(value) + 'px';
         fsVal.classList.add('is-override');
-        applySpacingToNode(blockEl, ctx.block);
-        // LH slider segue o auto-scale quando user não overrode LH explicitamente
-        if (ctx.block.lineHeight == null) {
-          const newEff = getEffectiveSpacing(ctx.block);
-          lhInput.value = newEff.lineHeight;
-          lhVal.textContent = Math.round(newEff.lineHeight) + 'px';
-          lhVal.classList.remove('is-override');
-        }
-        saveDoc();
+        applyLiveSpacingToNode(blockEl, ctx.block);
+        const next = getEffectiveSpacing(ctx.block);
+        lhInput.value = next.lineHeight;
+        lhVal.textContent = Math.round(next.lineHeight) + 'px';
+        lhVal.classList.remove('is-override');
+        queueTextLayoutCommit(ctx.sIdx);
       });
     }
 
@@ -2010,8 +2390,8 @@
       ctx.block.lineHeight = v;
       lhVal.textContent = Math.round(v) + 'px';
       lhVal.classList.add('is-override');
-      applySpacingToNode(blockEl, ctx.block);
-      saveDoc();
+      applyLiveSpacingToNode(blockEl, ctx.block);
+      queueTextLayoutCommit(ctx.sIdx);
     });
 
     lsInput.addEventListener('input', (e) => {
@@ -2024,13 +2404,13 @@
       const sign = v >= 0 ? '+' : '';
       lsVal.textContent = sign + v.toFixed(3) + 'em';
       lsVal.classList.add('is-override');
-      applySpacingToNode(blockEl, ctx.block);
-      saveDoc();
+      applyLiveSpacingToNode(blockEl, ctx.block);
+      queueTextLayoutCommit(ctx.sIdx);
     });
 
     const resetBtn = blockToolbar.querySelector('[data-action="spacing-reset"]');
     if (resetBtn) {
-      resetBtn.addEventListener('mousedown', (e) => {
+      resetBtn.addEventListener('click', (e) => {
         e.preventDefault();
         const blockEl = getSelectedBlockEl();
         if (!blockEl) return;
@@ -2041,6 +2421,7 @@
         delete ctx.block.letterSpacing;
         applySpacingToNode(blockEl, ctx.block);
         saveDoc();
+        scheduleSlideContentFit(ctx.sIdx);
         updateToolbarState();
       });
     }
@@ -2065,7 +2446,7 @@
       });
       const fadeReset = blockToolbar.querySelector('[data-action="fade-reset"]');
       if (fadeReset) {
-        fadeReset.addEventListener('mousedown', (e) => {
+        fadeReset.addEventListener('click', (e) => {
           e.preventDefault();
           const blockEl = getSelectedBlockEl();
           if (!blockEl) return;
@@ -2093,14 +2474,15 @@
         const v = parseInt(e.target.value, 10);
         ctx.slideData.gap = v;
         gapVal.textContent = v + 'px';
-        gapVal.classList.toggle('is-override', v !== 24);
+        gapVal.classList.toggle('is-override', v !== 36);
         const slideEl = document.querySelectorAll('.stage')[ctx.sIdx].querySelector('.slide');
         applyGapToSlide(slideEl, v);
         saveDoc();
+        scheduleSlideContentFit(ctx.sIdx);
       });
       const gapReset = blockToolbar.querySelector('[data-action="gap-reset"]');
       if (gapReset) {
-        gapReset.addEventListener('mousedown', (e) => {
+        gapReset.addEventListener('click', (e) => {
           e.preventDefault();
           const blockEl = getSelectedBlockEl();
           if (!blockEl) return;
@@ -2108,44 +2490,33 @@
           if (!ctx) return;
           delete ctx.slideData.gap;
           const slideEl = document.querySelectorAll('.stage')[ctx.sIdx].querySelector('.slide');
-          applyGapToSlide(slideEl, 24);
+          applyGapToSlide(slideEl, 36);
           saveDoc();
+          scheduleSlideContentFit(ctx.sIdx);
           updateToolbarState();
         });
       }
     }
   })();
 
-  blockToolbar.querySelector('[data-action="up"]').addEventListener('mousedown', (e) => {
+  blockToolbar.querySelector('[data-action="up"]').addEventListener('click', (e) => {
     e.preventDefault();
     const b = getSelectedBlockEl(); if (b) moveBlock(b, -1);
   });
-  blockToolbar.querySelector('[data-action="down"]').addEventListener('mousedown', (e) => {
+  blockToolbar.querySelector('[data-action="down"]').addEventListener('click', (e) => {
     e.preventDefault();
     const b = getSelectedBlockEl(); if (b) moveBlock(b, +1);
   });
-  blockToolbar.querySelector('[data-action="add"]').addEventListener('mousedown', (e) => {
+  blockToolbar.querySelector('[data-action="add"]').addEventListener('click', (e) => {
     e.preventDefault();
     const b = getSelectedBlockEl(); if (b) insertBlockAfter(b);
   });
-  blockToolbar.querySelector('[data-action="delete"]').addEventListener('mousedown', (e) => {
+  blockToolbar.querySelector('[data-action="delete"]').addEventListener('click', (e) => {
     e.preventDefault();
     const b = getSelectedBlockEl(); if (b) deleteBlock(b);
   });
 
   // ==== MUTATORS ====
-  function setBlockVariant(blockEl, kind, variant) {
-    const ctx = getBlockContext(blockEl);
-    if (!ctx) return;
-    ctx.block.kind = kind;
-    ctx.block.variant = variant;
-    saveDoc();
-    renderSlide(ctx.sIdx);
-    // Re-seleciona o mesmo bloco (re-render pode ter recriado o elemento)
-    const newEl = document.querySelector(`[data-block-id="${ctx.block.id}"]`);
-    if (newEl) selectBlock(newEl);
-  }
-
   function setBlockAlign(blockEl, align) {
     const ctx = getBlockContext(blockEl);
     if (!ctx) return;
@@ -2156,23 +2527,32 @@
     if (newEl) selectBlock(newEl);
   }
 
+  function getVisualItems(slideData) {
+    const items = slideData.blocks.map(block => ({ type: 'block', block }));
+    if (slideData.inlineImage && slideData.inlineImage.dataURL) {
+      items.splice(getInlineImagePosition(slideData.inlineImage, slideData.blocks.length), 0, { type: 'image' });
+    }
+    return items;
+  }
+
+  function commitVisualItems(slideData, items) {
+    slideData.blocks = items.filter(item => item.type === 'block').map(item => item.block);
+    const imageIndex = items.findIndex(item => item.type === 'image');
+    if (imageIndex >= 0 && slideData.inlineImage) slideData.inlineImage.position = imageIndex;
+  }
+
   function moveBlock(blockEl, direction) {
     const ctx = getBlockContext(blockEl);
     if (!ctx) return;
     const { slideData, block } = ctx;
-    const items = slideData.blocks.map(item => ({ type: 'block', item }));
-    if (slideData.inlineImage && slideData.inlineImage.dataURL) {
-      items.splice(getInlineImagePosition(slideData.inlineImage, slideData.blocks.length), 0, { type: 'image' });
-    }
-    const currentIdx = items.findIndex(item => item.type === 'block' && item.item.id === block.id);
+    const items = getVisualItems(slideData);
+    const currentIdx = items.findIndex(item => item.type === 'block' && item.block.id === block.id);
     const nextIdx = currentIdx + direction;
     if (currentIdx < 0 || nextIdx < 0 || nextIdx >= items.length) return;
 
     const [moved] = items.splice(currentIdx, 1);
     items.splice(nextIdx, 0, moved);
-    slideData.blocks = items.filter(item => item.type === 'block').map(item => item.item);
-    const imageIdx = items.findIndex(item => item.type === 'image');
-    if (imageIdx >= 0) slideData.inlineImage.position = imageIdx;
+    commitVisualItems(slideData, items);
     saveDoc();
     renderSlide(ctx.sIdx);
     const newEl = document.querySelector(`[data-block-id="${block.id}"]`);
@@ -2184,12 +2564,20 @@
     if (!ctx) return;
     const newBlock = {
       id: uid(),
-      kind: ctx.block.kind,
-      variant: ctx.block.variant,
-      align: ctx.block.align || 'left',
+      kind: ctx.block.kind === 'h-display' ? 'body' : ctx.block.kind,
+      variant: ctx.block.kind === 'h-display' ? 'default' : ctx.block.variant,
+      align: ctx.block.align || 'center',
       html: 'Novo bloco',
     };
-    ctx.slideData.blocks.splice(ctx.blockIdx + 1, 0, newBlock);
+    if (ctx.block.kind !== 'h-display') {
+      ['fontSize', 'lineHeight', 'letterSpacing'].forEach(property => {
+        if (ctx.block[property] != null) newBlock[property] = ctx.block[property];
+      });
+    }
+    const items = getVisualItems(ctx.slideData);
+    const sourceIndex = items.findIndex(item => item.type === 'block' && item.block.id === ctx.block.id);
+    items.splice(sourceIndex + 1, 0, { type: 'block', block: newBlock });
+    commitVisualItems(ctx.slideData, items);
     saveDoc();
     renderSlide(ctx.sIdx);
     // Auto-seleciona o novo bloco e foca pra editar
@@ -2217,7 +2605,10 @@
     const plain = ctx.block.html.replace(/<[^>]*>/g, '').trim();
     if (plain.length > 30 && !confirm('Apagar este bloco?\n\n"' + plain.slice(0, 100) + (plain.length > 100 ? '…' : '') + '"')) return;
     const removedIdx = ctx.blockIdx;
-    ctx.slideData.blocks.splice(removedIdx, 1);
+    const items = getVisualItems(ctx.slideData).filter(item =>
+      item.type !== 'block' || item.block.id !== ctx.block.id
+    );
+    commitVisualItems(ctx.slideData, items);
     saveDoc();
     renderSlide(ctx.sIdx);
     // Seleciona o bloco vizinho (acima de preferência)
@@ -2273,6 +2664,30 @@
 
   document.addEventListener('selectionchange', updateBubbleMenu);
 
+  function selectedRangeMatchesHotMarker(range) {
+    let node = range.commonAncestorContainer;
+    if (node.nodeType !== 1) node = node.parentNode;
+    const marker = node && node.closest ? node.closest('.hot') : null;
+    if (!marker) return null;
+    const markerRange = document.createRange();
+    markerRange.selectNodeContents(marker);
+    const isExactStart = range.compareBoundaryPoints(Range.START_TO_START, markerRange) === 0;
+    const isExactEnd = range.compareBoundaryPoints(Range.END_TO_END, markerRange) === 0;
+    return isExactStart && isExactEnd ? marker : null;
+  }
+
+  function normalizeHotMarker(marker) {
+    // A seleção pode cruzar um destaque existente. O extractContents preserva
+    // esse span interno; removê-lo aqui evita marcadores aninhados, que podem
+    // fragmentar a linha no contenteditable e deixar preview/PNG divergentes.
+    marker.querySelectorAll('.hot').forEach(nested => {
+      while (nested.firstChild) nested.parentNode.insertBefore(nested.firstChild, nested);
+      nested.remove();
+    });
+    marker.normalize();
+    if (marker.parentNode) marker.parentNode.normalize();
+  }
+
   function applyHotToSavedSelection(yellow) {
     if (!lastSelection) {
       const sel = window.getSelection();
@@ -2283,15 +2698,22 @@
     sel.removeAllRanges();
     sel.addRange(lastSelection);
     if (lastSelection.collapsed) return;
-    // Extrai o fragmento real do DOM (e não somente textContent): assim <strong>,
-    // <em> e seus equivalentes criados pelo navegador continuam intactos dentro
-    // do marcador de cor.
     const range = lastSelection;
-    const contents = range.extractContents();
-    const marker = document.createElement('span');
-    marker.className = yellow ? 'hot yellow' : 'hot';
-    marker.appendChild(contents);
-    range.insertNode(marker);
+    // Se a seleção já é um destaque inteiro, troca sua cor sem criar spans
+    // aninhados. Isso mantém DOM, preview e PNG com a mesma cor.
+    let marker = selectedRangeMatchesHotMarker(range);
+    if (marker) {
+      marker.className = yellow ? 'hot yellow' : 'hot';
+    } else {
+      // Extrai o fragmento real do DOM (e não somente textContent): assim
+      // <strong>, <em> e seus equivalentes continuam intactos no destaque.
+      const contents = range.extractContents();
+      marker = document.createElement('span');
+      marker.className = yellow ? 'hot yellow' : 'hot';
+      marker.appendChild(contents);
+      range.insertNode(marker);
+      normalizeHotMarker(marker);
+    }
     const blockEl = marker.closest('[data-block-id]');
     if (blockEl) {
       onBlockInput({ currentTarget: blockEl });
@@ -2370,13 +2792,6 @@
     }
     if (!(e.metaKey || e.ctrlKey)) return;
     const blockEl = getSelectedBlockEl();
-    if (blockEl && /^[1-7]$/.test(e.key)) {
-      e.preventDefault();
-      const idx = parseInt(e.key) - 1;
-      const v = VARIANT_LIST[idx];
-      if (v) setBlockVariant(blockEl, v.kind, v.variant);
-      return;
-    }
     if (e.key === 'h' || e.key === 'H') {
       e.preventDefault();
       wrapSelectionInHot(e.shiftKey);
@@ -2416,10 +2831,15 @@
     applyImageToSlide(slideEl, slideData.image);
     flash(slideEl);
   }
+  const inlineImageCommitRevisions = new Map();
   async function commitInlineImage(stageIndex, dataURL) {
+    const revision = (inlineImageCommitRevisions.get(stageIndex) || 0) + 1;
+    inlineImageCommitRevisions.set(stageIndex, revision);
     const image = await loadImage(dataURL);
+    if (inlineImageCommitRevisions.get(stageIndex) !== revision) return;
     const normalized = normalizeInlineImageDataURL(dataURL, image);
     const slideData = doc.slides[stageIndex];
+    if (!slideData) return;
     const previousImage = slideData.inlineImage;
     slideData.inlineImage = {
       dataURL: normalized.dataURL,
@@ -2436,12 +2856,11 @@
     flash(slideEl);
   }
   function clearInlineImage(stageIndex) {
+    inlineImageCommitRevisions.set(stageIndex, (inlineImageCommitRevisions.get(stageIndex) || 0) + 1);
     const slideData = doc.slides[stageIndex];
     slideData.inlineImage = null;
     saveDoc();
-    const stage = document.querySelectorAll('.stage')[stageIndex];
-    const slideEl = stage.querySelector('.slide');
-    applyInlinePhotoToSlide(slideEl, null);
+    renderSlide(stageIndex);
   }
   // Stories: TUDO vira inline-image proporcional.
   // Full-bleed photo (slideData.image) foi descontinuado pra Stories
@@ -2481,6 +2900,18 @@
   document.addEventListener('DOMContentLoaded', () => {
     const STAGE_SCALE = 0.5;
     const SCALE_INV = 1 / STAGE_SCALE;
+    const shortcutModifier = /Mac|iPhone|iPad/.test(navigator.platform || '') ? '⌘' : 'Ctrl+';
+    const shortcutHint = document.querySelector('.stage-shortcut');
+    if (shortcutHint) shortcutHint.textContent = 'Shift + arrastar conjunto · ' + shortcutModifier + 'V imagem';
+    document.querySelectorAll('[title*="Cmd+"]').forEach(node => {
+      node.title = node.title.replaceAll('Cmd+', shortcutModifier);
+    });
+
+    // A barra ocupa espaço no fluxo da coluna central, sem nunca cobrir o canvas.
+    const toolbarDock = document.getElementById('block-toolbar-dock');
+    if (toolbarDock && blockToolbar.parentElement !== toolbarDock) {
+      toolbarDock.append(blockToolbar);
+    }
 
     initialStoriesDocument = buildDocFromDOM({ useLegacy: false });
     loadOrInitDoc();
@@ -2490,6 +2921,10 @@
         setStoriesTypography(event.target.value);
       });
     }
+    document.querySelectorAll('#global-background-palette [data-background-color]').forEach(button => {
+      button.addEventListener('click', () => setGlobalBackgroundColor(button.dataset.backgroundColor));
+    });
+    updateGlobalBackgroundPalette();
     updateSlideScale();
     buildSlideRail();
 
@@ -2627,6 +3062,19 @@
       }, { passive: false });
     });
 
+    // O rail e o slide precisam concordar desde o primeiro frame: sem isso o
+    // primeiro slide parecia selecionado, mas colar/adicionar imagem não fazia nada.
+    if (stages.length) {
+      activeStageIndex = Math.min(activeStageIndex ?? 0, stages.length - 1);
+      stages.forEach((stage, index) => {
+        const active = index === activeStageIndex;
+        stage.classList.toggle('active', active);
+        const slideEl = stage.querySelector('.slide');
+        if (slideEl) slideEl.classList.toggle('active', active);
+      });
+      setRailActive(activeStageIndex);
+    }
+
     // Click fora de qualquer bloco/toolbar/bubble deseleciona
     document.body.addEventListener('mousedown', (e) => {
       if (e.target.closest('[data-block-id]')) return;
@@ -2639,7 +3087,6 @@
     // Botões da toolbar superior
     document.getElementById('btn-add-slide')?.addEventListener('click', addSlide);
     document.getElementById('btn-delete-slide')?.addEventListener('click', deleteCurrentSlide);
-    document.getElementById('btn-theme-stories')?.addEventListener('click', toggleStoriesTheme);
     document.getElementById('btn-reset').addEventListener('click', () => {
       if (!confirm('Apagar todas as imagens coladas (fullbleed e 16:9)?')) return;
       doc.slides.forEach(s => { s.image = null; s.inlineImage = null; });
@@ -2721,7 +3168,7 @@
   const SLIDE_H = 1350;
   const FOOTER_H = 84;
 
-  // Stories: serif local; não depende de fonte ou rede externa.
+  // Base local usada pelo Canvas; a família selecionada substitui esta base.
   const PTS_BOLD = 'Georgia, "Times New Roman", serif';
   const PTS_REG  = 'Georgia, "Times New Roman", serif';
   const HCN = PTS_BOLD;
@@ -2753,6 +3200,8 @@
   // explícito de cada fontSpec via document.fonts.load antes de qualquer render Canvas.
   const FONT_PRELOAD_SPECS = Object.values(VARIANT_STYLES).map(s => s.fontSpec).concat([
     '900 28px ' + HCN, // footer-tag
+    '400 52px Advercase',
+    '700 88px Advercase',
   ]);
   let _fontsPreloaded = false;
   async function preloadCanvasFonts() {
@@ -2770,32 +3219,19 @@
   if (typeof window !== 'undefined') {
     if (document.readyState === 'complete') preloadCanvasFonts();
     else window.addEventListener('load', () => preloadCanvasFonts());
+    if (document.fonts && document.fonts.addEventListener) {
+      document.fonts.addEventListener('loadingdone', () => {
+        if (!doc || !Array.isArray(doc.slides)) return;
+        doc.slides.forEach((_, index) => scheduleSlideContentFit(index));
+      });
+    }
   }
 
-  // Match com CSS .slide.capa .h-display { font-size: 88px; line-height: 80px; text-align: center; }
-  // Esse override do .capa tem mesma especificidade que .h-display.smaller/.tiny mas vem depois
-  // no stylesheet, então prevalece. O Canvas precisa replicar pra paridade com o DOM.
-  const CAPA_HDISPLAY_OVERRIDE = {
-    fontSpec: '900 88px ' + HCN, size: 88, lineHeight: 80,
-  };
-  // Match com CSS da capa: lede compacto e italic, na tipografia global escolhida.
-  const CAPA_LEDE_OVERRIDE = {
-    fontSpec: 'italic 400 38px ' + PTS_REG,
-    size: 38, lineHeight: 50, color: '#F0C638', letterSpacing: 0,
-  };
-  function resolveBlockStyle(block, isCapa) {
+  function resolveBlockStyle(block, isCapa, contentFit = 1, textColor = null) {
     const styleKey = block.kind + ':' + block.variant;
     let baseStyle = VARIANT_STYLES[styleKey];
     if (!baseStyle) return null;
-    if (isCapa && block.kind === 'h-display') {
-      baseStyle = Object.assign({}, baseStyle, CAPA_HDISPLAY_OVERRIDE);
-    }
-    if (isCapa && block.kind === 'body' && block.variant === 'lede') {
-      baseStyle = Object.assign({}, baseStyle, CAPA_LEDE_OVERRIDE);
-    }
-    // Aplicação de overrides per-block do font-size (regenera fontSpec com
-    // novo tamanho) e do line-height (auto-scale proporcional ao tamanho
-    // quando lineHeight não foi explicitamente fixado).
+    // Mantém no Canvas a mesma compensação proporcional usada no preview.
     let size = baseStyle.size;
     let fontSpec = withStoriesTypeface(baseStyle.fontSpec);
     let lineHeight = baseStyle.lineHeight;
@@ -2809,11 +3245,17 @@
     if (block.lineHeight != null) {
       lineHeight = block.lineHeight;
     }
+    size *= contentFit;
+    lineHeight *= contentFit;
+    fontSpec = fontSpec.replace(/(\b\d+(?:\.\d+)?)px\b/, size + 'px');
     return Object.assign({}, baseStyle, {
       size,
       fontSpec,
       lineHeight,
-      letterSpacing: (block.letterSpacing != null) ? block.letterSpacing : baseStyle.letterSpacing,
+      color: textColor || baseStyle.color,
+      letterSpacing: (block.letterSpacing != null)
+        ? block.letterSpacing
+        : getTypefaceDefaultLetterSpacing(baseStyle.letterSpacing),
     });
   }
   function resolveBlockAlign(block, isCapa) {
@@ -2897,7 +3339,10 @@
       if (isBlock) pushBreak('block');
       let next = ctx;
       if (tag === 'span' && node.classList.contains('hot')) {
-        next = Object.assign({}, ctx, { hot: true, hotYellow: ctx.hotYellow || node.classList.contains('yellow') });
+        // O destaque mais interno é o que o CSS efetivamente mostra. Não
+        // herdar o amarelo evita que um vermelho dentro de um antigo amarelo
+        // seja exportado com a cor errada.
+        next = Object.assign({}, ctx, { hot: true, hotYellow: node.classList.contains('yellow') });
       }
       const isItalic = tag === 'i' || tag === 'em' ||
         nodeHasInlineStyle(node, 'fontStyle', value => value.toLowerCase() === 'italic');
@@ -2982,7 +3427,7 @@
     return uppercase ? text.toLocaleUpperCase('pt-BR') : text;
   }
 
-  function wrapSegmentsIntoLines(ctx, segments, maxW, style) {
+  function tokenizeSegments(segments, style) {
     // Tokenize honrando: \n forçado (forceBreak), NBSP preservado dentro da palavra,
     // italic/bold por segment. Split usa só espaços comuns (' ', '\t') — NBSP fica colado.
     const tokens = [];
@@ -3005,12 +3450,86 @@
       });
     }
 
+    return tokens;
+  }
+
+  function trimTrailingWhitespace(tokens) {
+    while (tokens.length && tokens[tokens.length - 1].isWS) tokens.pop();
+  }
+
+  function wrapTokensWithNativeLayout(tokens, maxW, style) {
+    // Canvas e navegador têm compositores tipográficos diferentes. Em fontes
+    // OpenType, diferenças subpixel podem quebrar uma palavra apenas no PNG.
+    // Este nó invisível reproduz a largura e a fonte do preview e fornece as
+    // mesmas linhas que a pessoa vê antes da exportação.
+    if (!document.body) return null;
+    const probe = document.createElement('div');
+    probe.setAttribute('aria-hidden', 'true');
+    probe.style.cssText = [
+      'position:fixed', 'left:-100000px', 'top:0', 'visibility:hidden',
+      'pointer-events:none', 'width:' + maxW + 'px', 'margin:0', 'padding:0',
+      'border:0', 'white-space:normal', 'overflow-wrap:normal', 'word-break:normal',
+      'font:' + style.fontSpec, 'line-height:' + style.lineHeight + 'px',
+      'letter-spacing:' + ((style.letterSpacing || 0) * style.size) + 'px',
+      'font-kerning:auto', 'font-variant-ligatures:normal'
+    ].join(';');
+    document.body.appendChild(probe);
+
+    try {
+      const lines = [];
+      let current = [];
+      let currentTop = null;
+      for (const tok of tokens) {
+        if (tok.forceBreak) {
+          trimTrailingWhitespace(current);
+          lines.push(current);
+          current = [];
+          currentTop = null;
+          probe.appendChild(document.createElement('br'));
+          continue;
+        }
+        const span = document.createElement('span');
+        span.textContent = tok.text;
+        span.style.font = withSegmentStyle(style, tok).fontSpec;
+        span.style.letterSpacing = ((style.letterSpacing || 0) * style.size) + 'px';
+        probe.appendChild(span);
+
+        // Espaço pendente pertence à linha anterior; o próximo termo visível
+        // revela se o navegador iniciou uma nova linha.
+        if (tok.isWS) {
+          if (current.length) current.push(tok);
+          continue;
+        }
+        const top = span.getBoundingClientRect().top;
+        if (currentTop !== null && Math.abs(top - currentTop) > 0.5) {
+          trimTrailingWhitespace(current);
+          lines.push(current);
+          current = [tok];
+        } else {
+          current.push(tok);
+        }
+        currentTop = top;
+      }
+      trimTrailingWhitespace(current);
+      if (current.length) lines.push(current);
+      return lines;
+    } finally {
+      probe.remove();
+    }
+  }
+
+  function wrapSegmentsIntoLines(ctx, segments, maxW, style) {
+    const tokens = tokenizeSegments(segments, style);
+    const nativeLines = wrapTokensWithNativeLayout(tokens, maxW, style);
+    if (nativeLines) return nativeLines;
+
+    // Fallback para um ambiente sem DOM: medição determinística pelo Canvas.
     const out = [];
     let cur = [];
     let curW = 0;
     for (const tok of tokens) {
       if (tok.forceBreak) {
-        while (cur.length && cur[cur.length - 1].isWS) cur.pop();
+        trimTrailingWhitespace(cur);
         out.push(cur);
         cur = [];
         curW = 0;
@@ -3024,7 +3543,7 @@
         curW += tokW;
       } else {
         if (curW + tokW > maxW && cur.length > 0) {
-          while (cur.length && cur[cur.length - 1].isWS) cur.pop();
+          trimTrailingWhitespace(cur);
           out.push(cur);
           cur = [tok];
           curW = tokW;
@@ -3035,7 +3554,7 @@
       }
     }
     if (cur.length) {
-      while (cur.length && cur[cur.length - 1].isWS) cur.pop();
+      trimTrailingWhitespace(cur);
       if (cur.length) out.push(cur);
     }
     return out;
@@ -3056,16 +3575,11 @@
       applyStyleToCtx(ctx, withSegmentStyle(style, word));
       const wW = ctx.measureText(word.text).width;
       if (word.hot && word.text.trim()) {
-        // Stories: apenas troca cor do texto, sem pill nem rotação nem sombra.
-        // Modo claro escurece o amarelo (some no branco) e levemente o vermelho.
-        if (isLightTheme()) {
-          ctx.fillStyle = word.hotYellow ? '#B58A00' : '#C9302C';
-        } else {
-          ctx.fillStyle = word.hotYellow ? '#EBC14B' : '#E04C3C';
-        }
+        // Os destaques mantêm as cores editoriais aprovadas em qualquer fundo.
+        ctx.fillStyle = word.hotYellow ? '#f8ce07' : '#d70611';
         ctx.fillText(word.text, cursorX, baselineY);
       } else {
-        ctx.fillStyle = isLightTheme() ? '#0B0B0B' : style.color;
+        ctx.fillStyle = style.color;
         ctx.fillText(word.text, cursorX, baselineY);
       }
       cursorX += wW;
@@ -3088,7 +3602,7 @@
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
     ctx.fillRect(rectX + 6, rectY + 6, rectW, rectH);
     // Bloco
-    ctx.fillStyle = word.hotYellow ? '#F4C430' : '#E1342B';
+    ctx.fillStyle = word.hotYellow ? '#f8ce07' : '#d70611';
     ctx.fillRect(rectX, rectY, rectW, rectH);
     // Texto (cor invertida quando amarelo)
     ctx.fillStyle = word.hotYellow ? '#0B0B0B' : '#F5F2EA';
@@ -3096,21 +3610,43 @@
     ctx.restore();
   }
 
-  // Pré-mede o stack completo (inline-image + blocks com lines + gaps) pra centralização.
-  function measureStackHeight(ctx, blocks, zoneW, isCapa, gap, inlineImageH) {
-    let total = 0;
-    let visibleItems = 0;
-    if (inlineImageH > 0) { total += inlineImageH; visibleItems++; }
-    blocks.forEach(block => {
-      const style = resolveBlockStyle(block, isCapa);
-      if (!style) return;
+  function buildBlockLayouts(ctx, blocks, zoneW, isCapa, contentFit = 1, textColor = null) {
+    return blocks.map(block => {
+      const style = resolveBlockStyle(block, isCapa, contentFit, textColor);
+      if (!style) return null;
       const segments = parseHtmlSegments(block.html);
       const lines = wrapSegmentsIntoLines(ctx, segments, zoneW, style);
-      total += lines.length * style.lineHeight;
-      visibleItems++;
-    });
-    if (visibleItems > 1) total += gap * (visibleItems - 1);
-    return total;
+      return {
+        block,
+        style,
+        lines,
+        align: resolveBlockAlign(block, isCapa),
+        height: lines.length * style.lineHeight,
+      };
+    }).filter(Boolean);
+  }
+
+  function getStackHeight(blockLayouts, gap, inlineImageH) {
+    const itemCount = blockLayouts.length + (inlineImageH > 0 ? 1 : 0);
+    const textHeight = blockLayouts.reduce((total, layout) => total + layout.height, 0);
+    return textHeight + inlineImageH + Math.max(0, itemCount - 1) * gap;
+  }
+
+  function getFallbackContentFitScale(ctx, slideData, zoneW, zoneH, isCapa, gap) {
+    const baseImageHeight = getInlineImageLayout(zoneW, zoneH, slideData.inlineImage).height;
+    const stackHeightAt = (fit) => {
+      const layouts = buildBlockLayouts(ctx, slideData.blocks, zoneW, isCapa, fit);
+      return getStackHeight(layouts, gap * fit, baseImageHeight * fit);
+    };
+    if (stackHeightAt(1) <= zoneH) return 1;
+    let low = 0.35;
+    let high = 1;
+    for (let iteration = 0; iteration < 9; iteration++) {
+      const candidate = (low + high) / 2;
+      if (stackHeightAt(candidate) <= zoneH) low = candidate;
+      else high = candidate;
+    }
+    return low;
   }
 
   async function drawInlinePhoto(ctx, inlineImage, x, y, w, h, scale = 1) {
@@ -3148,54 +3684,42 @@
     ctx.restore();
   }
 
-  async function drawBlocks(ctx, blocks, zoneX, zoneY, zoneW, zoneH, isCapa, gap, inlineImage) {
+  async function drawBlocks(ctx, blocks, zoneX, zoneY, zoneW, zoneH, isCapa, gap, inlineImage, contentFit = 1, textColor = null) {
     if (gap == null) gap = 36;
-    const inlineLayout = getInlineImageLayout(zoneW, zoneH, inlineImage);
+    gap *= contentFit;
+    // Cada bloco é medido uma única vez. Assim, a altura reservada e a altura
+    // desenhada são idênticas mesmo quando há blocos com fontes/tamanhos distintos.
+    const blockLayouts = buildBlockLayouts(ctx, blocks, zoneW, isCapa, contentFit, textColor);
+    const baseInlineLayout = getInlineImageLayout(zoneW, zoneH, inlineImage);
+    const inlineLayout = Object.assign({}, baseInlineLayout, {
+      width: baseInlineLayout.width * contentFit,
+      height: baseInlineLayout.height * contentFit,
+      x: (zoneW - baseInlineLayout.width * contentFit) / 2,
+    });
     const inlineImageH = inlineLayout.height;
 
-    // Mede o stack só de TEXTO (sem inline image)
-    function measureTextOnlyStack() {
-      let total = 0;
-      let visibleBlocks = 0;
-      blocks.forEach(block => {
-        const style = resolveBlockStyle(block, isCapa);
-        if (!style) return;
-        const segments = parseHtmlSegments(block.html);
-        const lines = wrapSegmentsIntoLines(ctx, segments, zoneW, style);
-        total += lines.length * style.lineHeight;
-        visibleBlocks++;
-      });
-      if (visibleBlocks > 1) total += gap * (visibleBlocks - 1);
-      return total;
-    }
-
-    function drawBlockAt(block, cursorY) {
-      const style = resolveBlockStyle(block, isCapa);
-      if (!style) return cursorY;
-      const segments = parseHtmlSegments(block.html);
-      const lines = wrapSegmentsIntoLines(ctx, segments, zoneW, style);
-      const align = resolveBlockAlign(block, isCapa);
-      for (const line of lines) {
-        const baselineY = cursorY + style.size * 0.85;
-        drawTextLine(ctx, line, zoneX, baselineY, zoneW, style, align);
-        cursorY += style.lineHeight;
+    function drawBlockAt(layout, cursorY) {
+      for (const line of layout.lines) {
+        const baselineY = cursorY + layout.style.size * 0.85;
+        drawTextLine(ctx, line, zoneX, baselineY, zoneW, layout.style, layout.align);
+        cursorY += layout.style.lineHeight;
       }
       return cursorY;
     }
 
     function drawBlocksFlow(startY) {
       let cursorY = startY;
-      blocks.forEach((block, bIdx) => {
-        cursorY = drawBlockAt(block, cursorY);
-        if (bIdx < blocks.length - 1) cursorY += gap;
+      blockLayouts.forEach((layout, index) => {
+        cursorY = drawBlockAt(layout, cursorY);
+        if (index < blockLayouts.length - 1) cursorY += gap;
       });
     }
 
     if (inlineImageH > 0) {
       // A imagem participa da mesma pilha visual do preview. Isso permite que
       // os controles de cima/baixo levem a copy para ambos os lados dela.
-      const items = blocks.map(block => ({ type: 'block', block }));
-      items.splice(getInlineImagePosition(inlineImage, blocks.length), 0, { type: 'image' });
+      const items = blockLayouts.map(layout => ({ type: 'block', layout }));
+      items.splice(getInlineImagePosition(inlineImage, blockLayouts.length), 0, { type: 'image' });
       let cursorY = zoneY;
       for (let index = 0; index < items.length; index++) {
         const item = items[index];
@@ -3203,7 +3727,7 @@
           await drawInlinePhoto(ctx, inlineImage, zoneX + inlineLayout.x, cursorY, inlineLayout.width, inlineLayout.height, inlineLayout.scale);
           cursorY += inlineImageH;
         } else {
-          cursorY = drawBlockAt(item.block, cursorY);
+          cursorY = drawBlockAt(item.layout, cursorY);
         }
         if (index < items.length - 1) cursorY += gap;
       }
@@ -3211,8 +3735,8 @@
     }
 
     // Sem inline-image: centraliza stack inteiro como antes
-    const stackH = measureStackHeight(ctx, blocks, zoneW, isCapa, gap, 0);
-    const cursorY = zoneY + Math.max(0, (zoneH - stackH) / 2);
+    const stackH = getStackHeight(blockLayouts, gap, 0);
+    const cursorY = zoneY + (zoneH - stackH) / 2;
     drawBlocksFlow(cursorY);
   }
 
@@ -3233,20 +3757,18 @@
   function drawLegibilityFilter_storiesNoop() { return; }
 
   async function renderSlideToCanvas(canvas, slideData) {
-    // A entrega do carrossel usa pixels nativos: 1080×1350.
-    const dpr = 1;
+    // A composição usa uma grade de 1080×1350, mas o PNG sai em 2× para
+    // preservar nitidez de tipografia e imagens em Telegram e Instagram.
+    const dpr = 2;
     canvas.width = SLIDE_W * dpr;
     canvas.height = SLIDE_H * dpr;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: false });
     ctx.scale(dpr, dpr);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
 
-    // 1. Background (modo claro = branco; modo escuro = gradient definido em BG_GRADIENTS)
-    if (isLightTheme()) {
-      ctx.fillStyle = '#FFFFFF';
-    } else {
-      const bgDef = BG_GRADIENTS[slideData.bgClass] || BG_GRADIENTS['bg-01'];
-      ctx.fillStyle = makeLinearGradient(ctx, bgDef, SLIDE_W, SLIDE_H);
-    }
+    // 1. Background compartilhado pelo preview e pelo PNG.
+    ctx.fillStyle = getSlideBackgroundColor(slideData);
     ctx.fillRect(0, 0, SLIDE_W, SLIDE_H);
 
     // 2. Photo
@@ -3266,6 +3788,10 @@
     const zoneW = SLIDE_W - zoneX * 2;
     const zoneH = SLIDE_H - zoneTop - zoneBottom;
     const bz = slideData.bzTransform || { tx: 0, ty: 0, scale: 1 };
+    const gap = getEffectiveGap(slideData);
+    // O exportador recalcula o layout a partir do documento atual; não depende
+    // de dataset transitório do preview.
+    const contentFit = getFallbackContentFitScale(ctx, slideData, zoneW, zoneH, !!isCapa, gap);
 
     ctx.save();
     const cx = SLIDE_W / 2;
@@ -3273,7 +3799,7 @@
     ctx.translate(cx + bz.tx, cy + bz.ty);
     ctx.scale(bz.scale, bz.scale);
     ctx.translate(-cx, -cy);
-    await drawBlocks(ctx, slideData.blocks, zoneX, zoneTop, zoneW, zoneH, !!isCapa, getEffectiveGap(slideData), slideData.inlineImage);
+    await drawBlocks(ctx, slideData.blocks, zoneX, zoneTop, zoneW, zoneH, !!isCapa, gap, slideData.inlineImage, contentFit, getSlideTextColor(slideData));
     ctx.restore();
 
     // 5. Brand mark (linha dourada top-left)
@@ -3294,6 +3820,12 @@
     // Sem isso, a 1ª captura mede com face de fallback (estreita) e desenha com face real (larga).
     await preloadCanvasFonts();
     if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    flushDOMToDoc();
+    refreshSlideContentFit(stageIndex);
+    const previewStage = document.querySelectorAll('.stage')[stageIndex];
+    if (previewStage && previewStage.querySelector('.body-zone.content-overflow')) {
+      throw new Error('o slide ' + (stageIndex + 1) + ' tem conteúdo demais; reduza o texto, a imagem ou o espaçamento');
+    }
     const canvas = document.createElement('canvas');
     await renderSlideToCanvas(canvas, slideData);
     return new Promise((resolve, reject) => {
@@ -3302,14 +3834,27 @@
   }
 
   // ==== DOWNLOAD ALL PNGs ====
+  let deliveryBusy = false;
+  function setDeliveryBusy(active, ownerId) {
+    deliveryBusy = active;
+    ['btn-download-all', 'btn-send-tg', 'btn-publish-ig'].forEach(id => {
+      const button = document.getElementById(id);
+      if (!button) return;
+      button.disabled = active;
+      button.setAttribute('aria-busy', String(active && id === ownerId));
+    });
+  }
+
   async function downloadAllPNGs() {
+    if (deliveryBusy) return;
+    setDeliveryBusy(true, 'btn-download-all');
     setSendStatus('Capturando ' + doc.slides.length + ' slides…');
     // Limpa seleção visual
     const wasSelected = getSelectedBlockEl();
     deselectBlock();
     try {
       for (let i = 0; i < doc.slides.length; i++) {
-        setSendStatus(`Baixando slide ${i + 1}/8…`);
+        setSendStatus(`Baixando slide ${i + 1}/${doc.slides.length}…`);
         const blob = await captureSlideAsBlob(i);
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -3326,11 +3871,14 @@
       setSendStatus('✗ Erro ao gerar PNGs: ' + e.message, 'error');
     } finally {
       if (wasSelected) selectBlock(wasSelected);
+      setDeliveryBusy(false, 'btn-download-all');
     }
   }
 
   // ==== SEND TO TELEGRAM ====
   async function sendToTelegram() {
+    if (deliveryBusy) return;
+    setDeliveryBusy(true, 'btn-send-tg');
     setSendStatus('Capturando ' + doc.slides.length + ' slides…');
     const wasSelected = getSelectedBlockEl();
     deselectBlock();
@@ -3364,12 +3912,18 @@
       setSendStatus('✗ ' + msg, 'error');
     } finally {
       if (wasSelected) selectBlock(wasSelected);
+      setDeliveryBusy(false, 'btn-send-tg');
     }
   }
 
   // ==== TELEGRAM MODAL ====
+  let telegramModalReturnFocus = null;
   async function openTgModal() {
-    document.getElementById('tg-modal').classList.add('visible');
+    telegramModalReturnFocus = document.activeElement;
+    const modal = document.getElementById('tg-modal');
+    modal.classList.add('visible');
+    modal.setAttribute('aria-hidden', 'false');
+    document.getElementById('tg-cancel').focus();
     const status = document.getElementById('tg-config-status');
     try {
       const response = await fetch('/api/telegram/status', { cache: 'no-store' });
@@ -3380,7 +3934,10 @@
     }
   }
   function closeTgModal() {
-    document.getElementById('tg-modal').classList.remove('visible');
+    const modal = document.getElementById('tg-modal');
+    modal.classList.remove('visible');
+    modal.setAttribute('aria-hidden', 'true');
+    if (telegramModalReturnFocus && telegramModalReturnFocus.focus) telegramModalReturnFocus.focus();
   }
   async function tgTestConnection() {
     try {
@@ -3404,6 +3961,7 @@
   }
 
   async function publishInstagram() {
+    if (deliveryBusy) return;
     const captionEl = document.getElementById('ig-caption');
     const caption = captionEl ? captionEl.value.trim() : '';
     if (!caption) {
@@ -3418,6 +3976,8 @@
 
     const confirmMsg = `Publicar AGORA no @omatheusdelucca?\n\n${total} slides + caption (${caption.length} chars).\n\nIrreversível. Continuar?`;
     if (!confirm(confirmMsg)) return;
+
+    setDeliveryBusy(true, 'btn-publish-ig');
 
     setSendStatus(`Capturando ${total} slides…`);
     const wasSelected = getSelectedBlockEl();
@@ -3456,6 +4016,7 @@
       setSendStatus('✗ ' + (e.message || e), 'error');
     } finally {
       if (wasSelected) selectBlock(wasSelected);
+      setDeliveryBusy(false, 'btn-publish-ig');
     }
   }
 
@@ -3473,6 +4034,28 @@
 
   const HUB_SESSION = {{HUB_SESSION}};
   const HUB_SESSION_ID = '{{HUB_SESSION_ID}}';
+  const UI_THEME_STORAGE_KEY = 'carrossel-editor-ui-theme-v1';
+  let currentUiTheme = document.documentElement.dataset.uiTheme === 'dark' ? 'dark' : 'light';
+
+  function applyUiTheme() {
+    const dark = currentUiTheme === 'dark';
+    document.documentElement.dataset.uiTheme = currentUiTheme;
+    const button = document.getElementById('btn-ui-theme');
+    if (button) {
+      const action = dark ? 'Ativar interface clara' : 'Ativar interface escura';
+      button.setAttribute('aria-label', action);
+      button.setAttribute('title', action);
+      button.setAttribute('aria-pressed', String(dark));
+    }
+    const icon = document.getElementById('ui-theme-icon');
+    if (icon) icon.textContent = dark ? '☀' : '☾';
+  }
+
+  function toggleUiTheme() {
+    currentUiTheme = currentUiTheme === 'dark' ? 'light' : 'dark';
+    try { localStorage.setItem(UI_THEME_STORAGE_KEY, currentUiTheme); } catch (_) {}
+    applyUiTheme();
+  }
 
   function configureHubSession() {
     if (!HUB_SESSION) return;
@@ -3506,10 +4089,12 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     configureHubSession();
+    applyUiTheme();
     loadCaptionFromStorage();
     armEditorUndo();
     const btnPub = document.getElementById('btn-publish-ig');
     if (btnPub) btnPub.addEventListener('click', publishInstagram);
+    document.getElementById('btn-ui-theme').addEventListener('click', toggleUiTheme);
     document.getElementById('btn-download-all').addEventListener('click', downloadAllPNGs);
     document.getElementById('btn-send-tg').addEventListener('click', sendToTelegram);
     document.getElementById('btn-config-tg').addEventListener('click', openTgModal);
@@ -3517,6 +4102,12 @@
     document.getElementById('tg-test').addEventListener('click', tgTestConnection);
     document.getElementById('tg-modal').addEventListener('click', (e) => {
       if (e.target.id === 'tg-modal') closeTgModal();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && document.getElementById('tg-modal').classList.contains('visible')) {
+        event.preventDefault();
+        closeTgModal();
+      }
     });
   });
 

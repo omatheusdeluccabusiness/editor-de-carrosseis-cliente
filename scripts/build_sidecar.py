@@ -29,6 +29,7 @@ def build(target_dir: Path) -> Path:
     datas = [
         (PROJECT_ROOT / "templates", "templates"),
         (PROJECT_ROOT / "assets", "assets"),
+        (PROJECT_ROOT / "HorshamSerial.otf", "."),
     ]
     add_data = [f"{source}{os.pathsep}{destination}" for source, destination in datas]
 

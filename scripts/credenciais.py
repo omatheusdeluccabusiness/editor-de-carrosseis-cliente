@@ -8,6 +8,7 @@ import base64
 import getpass
 import json
 import os
+import re
 import secrets
 import sys
 import tempfile
@@ -326,6 +327,41 @@ def credentials_ready(project_env_path: Path, telegram_path: Path) -> bool:
         return False
 
 
+def import_telegram_text_source(source_path: Path, telegram_path: Path) -> None:
+    """Importa uma migração local de Telegram sem registrar os valores.
+
+    É destinado somente à transferência pontual entre computadores. O arquivo
+    de origem deve ser removido após uma conexão bem-sucedida.
+    """
+
+    try:
+        text = source_path.read_text(encoding="utf-8-sig")
+    except OSError as error:
+        raise CredentialsError("O arquivo local do Telegram não pôde ser lido.") from error
+    if len(text.encode("utf-8")) > 16_384:
+        raise CredentialsError("O arquivo local do Telegram é inválido.")
+
+    token_match = re.search(r"\b\d{6,12}:[A-Za-z0-9_-]{20,}\b", text)
+    labeled_chat = re.search(
+        r"(?im)^\s*(?:chat[ _-]*id|id[ _-]*chat|chat)\s*[:=-]\s*(-?\d{5,})\s*$",
+        text,
+    )
+    chat_id = labeled_chat.group(1) if labeled_chat else ""
+    if not chat_id:
+        candidates = re.findall(r"(?<![\w:-])-?\d{5,}(?![\w:-])", text)
+        chat_id = candidates[-1] if candidates else ""
+    if not token_match or not chat_id:
+        raise CredentialsError("O arquivo local do Telegram está incompleto.")
+
+    telegram_content = json.dumps(
+        {"botToken": token_match.group(0), "chatId": chat_id},
+        ensure_ascii=False,
+        indent=2,
+        sort_keys=True,
+    ) + "\n"
+    _atomic_write(telegram_path, telegram_content, mode=0o600)
+
+
 def _path(value: str) -> Path:
     return Path(value).expanduser().resolve()
 
@@ -355,6 +391,15 @@ def _build_parser() -> argparse.ArgumentParser:
     status.add_argument("--key-file", type=_path, default=DEFAULT_KEY_PATH)
     status.add_argument("--project-env", type=_path, default=DEFAULT_PROJECT_ENV_PATH)
     status.add_argument("--telegram-dest", type=_path, default=DEFAULT_TELEGRAM_PATH)
+
+    telegram_import = subparsers.add_parser(
+        "import-telegram",
+        help="Importa uma transferência local de Telegram sem exibir as credenciais.",
+    )
+    telegram_import.add_argument("--source", required=True, type=_path)
+    telegram_import.add_argument(
+        "--telegram-dest", type=_path, default=DEFAULT_TELEGRAM_PATH
+    )
     return parser
 
 
@@ -405,6 +450,10 @@ def main(argv: list[str] | None = None) -> int:
                 "credenciais locais: "
                 f"{'ok' if credentials_ready(args.project_env, args.telegram_dest) else 'ausentes'}"
             )
+            return 0
+        if args.command == "import-telegram":
+            import_telegram_text_source(args.source, args.telegram_dest)
+            print("Credenciais locais do Telegram importadas.")
             return 0
     except CredentialsError as error:
         print(f"Erro: {error}", file=sys.stderr)

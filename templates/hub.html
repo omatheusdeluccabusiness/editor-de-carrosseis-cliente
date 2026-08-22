@@ -4,6 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Editor de Carrosséis</title>
+  <script>
+    (() => {
+      const key = 'carrossel-editor-ui-theme-v1';
+      let theme = 'light';
+      try { theme = localStorage.getItem(key) || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); }
+      catch (_) { theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; }
+      document.documentElement.dataset.uiTheme = theme;
+    })();
+  </script>
   <style>
     :root {
       color-scheme: light;
@@ -16,6 +25,17 @@
       --borda: #d8d8dc;
       --display: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       --text: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+    }
+
+    :root[data-ui-theme="dark"] {
+      color-scheme: dark;
+      --mesa: #0f1012;
+      --papel: #181a1e;
+      --papel-secundario: #131519;
+      --tinta: #f4f4f5;
+      --texto-secundario: #a1a1a8;
+      --acao: #4c8dff;
+      --borda: #34363c;
     }
 
     * {
@@ -47,8 +67,22 @@
     }
 
     .hub-header {
+      position: relative;
       max-width: 620px;
       margin-bottom: 28px;
+    }
+
+    .theme-toggle {
+      position: absolute;
+      top: 0;
+      right: -330px;
+      width: 40px;
+      height: 40px;
+      border: 1px solid var(--borda);
+      border-radius: 10px;
+      color: var(--tinta);
+      background: var(--papel);
+      cursor: pointer;
     }
 
     .eyebrow {
@@ -95,7 +129,7 @@
       display: grid;
       min-height: 286px;
       place-items: center;
-      border-bottom: 1px solid #e7e7ea;
+      border-bottom: 1px solid var(--borda);
       background: var(--papel-secundario);
       padding: 22px;
     }
@@ -379,6 +413,8 @@
         margin-bottom: 22px;
       }
 
+      .theme-toggle { right: 0; }
+
       .template-grid {
         grid-template-columns: 1fr;
       }
@@ -420,6 +456,7 @@
       <p class="eyebrow">Editor de Carrosséis</p>
       <h1>O que vamos criar?</h1>
       <p>Escolha um modelo para começar uma criação nova.</p>
+      <button id="hub-theme-toggle" class="theme-toggle" type="button" aria-label="Ativar interface escura" aria-pressed="false">☾</button>
     </header>
 
     <section id="template-grid" class="template-grid" aria-label="Templates disponíveis"></section>
@@ -453,6 +490,22 @@
     const recoveryKeyInput = document.getElementById('recovery-key');
     const importButton = document.getElementById('import-credentials');
     const integrationResult = document.getElementById('integration-result');
+    const themeButton = document.getElementById('hub-theme-toggle');
+
+    function syncThemeButton() {
+      const dark = document.documentElement.dataset.uiTheme === 'dark';
+      themeButton.textContent = dark ? '☀' : '☾';
+      themeButton.setAttribute('aria-pressed', String(dark));
+      themeButton.setAttribute('aria-label', dark ? 'Ativar interface clara' : 'Ativar interface escura');
+    }
+
+    themeButton.addEventListener('click', () => {
+      const next = document.documentElement.dataset.uiTheme === 'dark' ? 'light' : 'dark';
+      document.documentElement.dataset.uiTheme = next;
+      try { localStorage.setItem('carrossel-editor-ui-theme-v1', next); } catch (_) {}
+      syncThemeButton();
+    });
+    syncThemeButton();
 
     function buildPreview(kind) {
       const stage = document.createElement('div');

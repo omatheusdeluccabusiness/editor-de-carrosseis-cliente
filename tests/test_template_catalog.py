@@ -40,7 +40,7 @@ class TemplateCatalogTest(unittest.TestCase):
         )
         self.assertIn("const SLIDE_W = 1080;", stories)
         self.assertIn("const SLIDE_H = 1350;", stories)
-        self.assertIn("const dpr = 1;", stories)
+        self.assertIn("const dpr = 2;", stories)
         self.assertIn("const W = 1080;", tweet)
         self.assertIn("'4:5': 1350", tweet)
 

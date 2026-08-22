@@ -31,6 +31,10 @@ def _is_pid_running(pid: int) -> bool:
         return False
     except PermissionError:
         return True
+    except OSError:
+        # No Windows, os.kill(pid, 0) pode lançar WinError 87 para um PID
+        # órfão/stale. Ele não representa um processo que possamos supervisionar.
+        return False
 
 
 def _read_pid(path: Path) -> int | None:
@@ -43,6 +47,17 @@ def _read_pid(path: Path) -> int | None:
 def _write_pid(path: Path, pid: int) -> None:
     EDITOR_DIR.mkdir(parents=True, exist_ok=True)
     path.write_text(str(pid))
+
+
+def _terminate_process(pid: int) -> None:
+    """Terminate a supervised process on either POSIX or Windows."""
+    try:
+        if os.name != "nt" and hasattr(os, "killpg"):
+            os.killpg(pid, signal.SIGTERM)
+        else:
+            os.kill(pid, signal.SIGTERM)
+    except (ProcessLookupError, PermissionError, OSError):
+        pass
 
 
 def _remove_pid(path: Path) -> None:
@@ -108,25 +123,13 @@ def stop() -> int:
 
     supervisor_pid = _read_pid(SUPERVISOR_PID_FILE)
     if supervisor_pid and _is_pid_running(supervisor_pid):
-        try:
-            os.killpg(supervisor_pid, signal.SIGTERM)
-        except (ProcessLookupError, PermissionError):
-            try:
-                os.kill(supervisor_pid, signal.SIGTERM)
-            except (ProcessLookupError, PermissionError):
-                pass
+        _terminate_process(supervisor_pid)
         stopped = True
     _remove_pid(SUPERVISOR_PID_FILE)
 
     server_pid = _read_pid(SERVER_PID_FILE)
     if server_pid and _is_pid_running(server_pid):
-        try:
-            os.killpg(server_pid, signal.SIGTERM)
-        except (ProcessLookupError, PermissionError):
-            try:
-                os.kill(server_pid, signal.SIGTERM)
-            except (ProcessLookupError, PermissionError):
-                pass
+        _terminate_process(server_pid)
         stopped = True
     _remove_pid(SERVER_PID_FILE)
 
@@ -154,13 +157,7 @@ def supervise() -> int:
 
     def shutdown(signum, frame):
         if child and child.poll() is None:
-            try:
-                os.killpg(child.pid, signal.SIGTERM)
-            except (ProcessLookupError, PermissionError):
-                try:
-                    os.kill(child.pid, signal.SIGTERM)
-                except (ProcessLookupError, PermissionError):
-                    pass
+            _terminate_process(child.pid)
         _remove_pid(SERVER_PID_FILE)
         _remove_pid(SUPERVISOR_PID_FILE)
         raise SystemExit(0)

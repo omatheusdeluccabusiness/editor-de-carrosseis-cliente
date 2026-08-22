@@ -13,6 +13,21 @@ TEMPLATES = (
 
 
 class EditorShellTest(unittest.TestCase):
+    def test_templates_have_a_persistent_interface_theme(self) -> None:
+        required = (
+            "carrossel-editor-ui-theme-v1",
+            'data-ui-theme',
+            'id="btn-ui-theme"',
+            "function applyUiTheme()",
+            "function toggleUiTheme()",
+            'html[data-ui-theme="dark"]',
+        )
+        for template_path in TEMPLATES:
+            html = template_path.read_text(encoding="utf-8")
+            with self.subTest(template=template_path.name):
+                for marker in required:
+                    self.assertIn(marker, html)
+
     def test_templates_have_production_workspace_structure(self) -> None:
         required = (
             'class="app-header"',
@@ -110,19 +125,92 @@ class EditorShellTest(unittest.TestCase):
                 for marker in required:
                     self.assertIn(marker, html)
 
-    def test_stories_exposes_a_global_typography_selector_that_matches_canvas(self) -> None:
+    def test_stories_exposes_only_the_two_supported_typefaces(self) -> None:
         html = (PROJECT_ROOT / "templates" / "stories_editor.html").read_text(
             encoding="utf-8"
         )
         required = (
             'id="stories-typography"',
             'aria-label="Tipografia do carrossel"',
-            '<option value="serif">Serifada</option>',
             '<option value="sans">Sem serifa</option>',
+            '<option value="advercase">Advercase</option>',
+            "font-family: 'Advercase'",
+            "src: url('/assets/fonts/Advercase-Regular.otf')",
+            "src: url('/assets/fonts/Advercase-Bold.otf')",
+            "advercase: {",
             "function getStoriesTypeface()",
             "getStoriesTypeface().canvasFamily",
             "document.documentElement.style.setProperty('--stories-content-font'",
             "function setStoriesTypography(nextTypography, options = {})",
+        )
+        for marker in required:
+            self.assertIn(marker, html)
+
+    def test_stories_uses_the_font_size_slider_as_its_only_size_control(self) -> None:
+        html = (PROJECT_ROOT / "templates" / "stories_editor.html").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn('data-size-preset=', html)
+        self.assertNotIn('SIZE_PRESETS', html)
+        self.assertNotIn('setBlockSizePreset', html)
+        self.assertIn('id="tb-font-size"', html)
+
+    def test_stories_toolbar_uses_explicit_slider_labels(self) -> None:
+        html = (PROJECT_ROOT / "templates" / "stories_editor.html").read_text(
+            encoding="utf-8"
+        )
+        for label in (
+            "Entrelinhas",
+            "Espaço entre letras",
+            "Tamanho do texto",
+            "Escurecer foto",
+            "Espaço entre blocos",
+        ):
+            self.assertIn(f'<span class="tb-slider-label">{label}</span>', html)
+
+    def test_advercase_uses_its_editorial_letter_spacing_by_default(self) -> None:
+        html = (PROJECT_ROOT / "templates" / "stories_editor.html").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("const ADVERCASE_DEFAULT_LETTER_SPACING = 0.015;", html)
+        self.assertIn("function getTypefaceDefaultLetterSpacing", html)
+        self.assertIn("getTypefaceDefaultLetterSpacing(base.letterSpacing)", html)
+        self.assertIn("getTypefaceDefaultLetterSpacing(baseStyle.letterSpacing)", html)
+
+    def test_stories_alignment_overrides_the_cover_default_in_preview(self) -> None:
+        html = (PROJECT_ROOT / "templates" / "stories_editor.html").read_text(
+            encoding="utf-8"
+        )
+        required = (
+            ".slide.capa [data-block-id].align-left { text-align: left; }",
+            ".slide.capa [data-block-id].align-center { text-align: center; }",
+            ".slide.capa [data-block-id].align-right { text-align: right; }",
+            "function setBlockAlign(blockEl, align)",
+            "function resolveBlockAlign(block, isCapa)",
+        )
+        for marker in required:
+            self.assertIn(marker, html)
+        for removed_option in (
+            '<option value="serif">Serifada</option>',
+            '<option value="horsham">Horsham Serial</option>',
+            '<option value="garamond-modern">Garamond Modern</option>',
+        ):
+            self.assertNotIn(removed_option, html)
+
+    def test_stories_offers_global_and_individual_slide_backgrounds(self) -> None:
+        html = (PROJECT_ROOT / "templates" / "stories_editor.html").read_text(
+            encoding="utf-8"
+        )
+        required = (
+            'id="global-background-palette"',
+            'data-background-color="#000000"',
+            'data-background-color="#ffffff"',
+            'data-background-color="#cc0001"',
+            "function setGlobalBackgroundColor(color)",
+            "function setSlideBackgroundColor(index, color)",
+            "function getSlideTextColor(slideData)",
+            "applySlideBackground(slideEl, slideData);",
+            "getSlideBackgroundColor(slideData)",
         )
         for marker in required:
             self.assertIn(marker, html)
@@ -209,8 +297,9 @@ class EditorShellTest(unittest.TestCase):
         # Preview and PNG must keep one gap between visual items and support
         # moving a text block through the inline image.
         self.assertIn("function getInlineImagePosition(inlineImage, blockCount)", html)
-        self.assertIn("items.splice(getInlineImagePosition(inlineImage, blocks.length), 0, { type: 'image' });", html)
-        self.assertIn("slideData.inlineImage.position = imageIdx;", html)
+        self.assertIn("items.splice(getInlineImagePosition(inlineImage, blockLayouts.length), 0, { type: 'image' });", html)
+        self.assertIn("function commitVisualItems(slideData, items)", html)
+        self.assertIn("slideData.inlineImage.position = imageIndex;", html)
         self.assertIn("const inlineImagePosition = getInlineImagePosition(slideData.inlineImage, slideData.blocks.length);", html)
         self.assertNotIn("margin-bottom: var(--block-gap, 36px);", html)
         self.assertNotIn("margin-top: auto;", html)
@@ -342,6 +431,17 @@ class EditorShellTest(unittest.TestCase):
         )
         self.assertIn("#block-toolbar.empty { display: none; }", html)
 
+    def test_stories_toolbar_uses_the_inspector_instead_of_covering_the_canvas(self) -> None:
+        html = (PROJECT_ROOT / "templates" / "stories_editor.html").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('id="block-toolbar-dock"', html)
+        self.assertIn('toolbarDock.append(blockToolbar);', html)
+        self.assertIn("#block-toolbar {\n    position: relative;", html)
+        self.assertIn('<aside class="inspector-panel" aria-label="Propriedades do carrossel">\n    <div id="block-toolbar-dock"', html)
+        self.assertNotIn("#block-toolbar { top: 76px;", html)
+        self.assertIn("block: 'center', inline: 'nearest'", html)
+
     def test_stories_inline_images_keep_their_source_ratio_and_offer_manual_resize(self) -> None:
         html = (PROJECT_ROOT / "templates" / "stories_editor.html").read_text(
             encoding="utf-8"
@@ -358,9 +458,10 @@ class EditorShellTest(unittest.TestCase):
             "requestAnimationFrame(() =>",
             "resizeInput.onchange = () => commitResize();",
             "className = 'inline-photo-media'",
-            "--inline-scale",
-            "transform: scale(var(--inline-scale, 1));",
             "const scale = getInlineImageSize(inlineImage) / 100;",
+            "const width = fittedWidth * scale;",
+            "node.style.removeProperty('--inline-scale');",
+            "refreshSlideContentFit(stageIndex);",
             "await drawInlinePhoto(ctx, inlineImage, zoneX + inlineLayout.x, cursorY, inlineLayout.width, inlineLayout.height, inlineLayout.scale);",
             "object-fit: contain",
             "await loadImage(dataURL)",
@@ -370,6 +471,7 @@ class EditorShellTest(unittest.TestCase):
         )
         for marker in required:
             self.assertIn(marker, html)
+        self.assertNotIn("transform: scale(var(--inline-scale, 1));", html)
         self.assertNotIn(".slide.capa .inline-photo { aspect-ratio: 4 / 3; }", html)
         self.assertNotIn("else safeSet(DOC_KEY, doc);", html)
 
