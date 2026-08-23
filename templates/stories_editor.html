@@ -52,7 +52,7 @@
   .stage {
     /* Responsivo: usa toda largura disponível até 540px (50% de 1080) */
     width: min(540px, calc(100vw - 64px));
-    aspect-ratio: 1080 / 1350;
+    aspect-ratio: var(--stories-aspect, 1080 / 1350);
     height: auto;
     overflow: hidden; border-radius: 8px;
     box-shadow: 0 14px 50px rgba(0, 0, 0, 0.6);
@@ -64,7 +64,7 @@
     /* Escala dinâmica: stageWidth / 1080. Aplicada via CSS calc usando --stage-w */
     transform: scale(var(--slide-scale, 0.5));
     transform-origin: top left;
-    width: 1080px; height: 1350px;
+    width: var(--stories-w, 1080px); height: var(--stories-h, 1350px);
   }
 
   /* ================= BASE SLIDE (STORIES TEMPLATE 04) ================= */
@@ -620,6 +620,9 @@
     --ui-danger: #FF3B30;
     --ui-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", Inter, sans-serif;
     --stories-content-font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif;
+    --stories-w: 1080px;
+    --stories-h: 1350px;
+    --stories-aspect: 1080 / 1350;
   }
   html[data-ui-theme="dark"] {
     color-scheme: dark;
@@ -678,6 +681,19 @@
   .shell-button.danger { color: var(--ui-danger); border-color: rgba(255, 59, 48, 0.26); }
   .shell-button.danger:hover { background: rgba(255, 59, 48, 0.08); }
   .shell-button.restart-carousel { color: var(--ui-danger); border-color: rgba(255, 59, 48, 0.34); }
+
+  .ratio-segmented {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px;
+  }
+  .ratio-segmented button {
+    min-height: 40px; padding: 7px 8px; border-radius: 8px;
+    border: 1px solid rgba(210, 210, 215, 0.9); background: var(--ui-surface);
+    color: var(--ui-text); cursor: pointer; font: inherit; font-size: 12px; font-weight: 650;
+    font-variant-numeric: tabular-nums;
+  }
+  .ratio-segmented button small { display: block; margin-top: 2px; color: var(--ui-text-secondary); font-size: 10px; font-weight: 500; }
+  .ratio-segmented button.is-active { background: var(--ui-text); border-color: var(--ui-text); color: var(--ui-surface); }
+  .ratio-segmented button.is-active small { color: inherit; opacity: .76; }
   .shell-button.restart-carousel:hover { background: rgba(255, 59, 48, 0.08); border-color: rgba(255, 59, 48, 0.52); }
   .shell-button.quiet { background: transparent; }
   .production-layout {
@@ -704,6 +720,11 @@
     transition: background-color 150ms ease, color 150ms ease;
   }
   .rail-item:hover { background: var(--ui-surface-muted); }
+  .rail-item[draggable="true"] { cursor: grab; }
+  .rail-item[draggable="true"]:active { cursor: grabbing; }
+  .rail-slide-control.is-dragging { opacity: .42; }
+  .rail-slide-control.drop-before { box-shadow: inset 0 2px 0 var(--ui-blue); }
+  .rail-slide-control.drop-after { box-shadow: inset 0 -2px 0 var(--ui-blue); }
   .rail-item.is-active { background: var(--ui-blue-soft); color: var(--ui-blue); border-left: 3px solid var(--ui-blue); }
   .rail-index { font-size: 11px; color: #8E8E93; font-variant-numeric: tabular-nums; }
   .rail-item.is-active .rail-index { color: var(--ui-blue); }
@@ -806,7 +827,7 @@
     <button id="btn-back-hub" class="shell-button quiet" type="button" hidden>Voltar aos modelos</button>
     <button id="btn-restart-carousel" class="shell-button restart-carousel" type="button">Reiniciar carrossel</button>
     <button id="btn-ui-theme" class="shell-button ui-theme-toggle" type="button" aria-label="Ativar interface escura" title="Ativar interface escura" aria-pressed="false"><span id="ui-theme-icon" aria-hidden="true">&#9790;</span></button>
-    <button id="btn-download-all" class="shell-button">Exportar PNGs</button>
+    <button id="btn-download-all" class="shell-button" title="Baixa todos os slides em um arquivo ZIP">Exportar PNGs (.zip)</button>
     <button id="btn-publish-ig" class="shell-button publish">Publicar</button>
   </div>
 </header>
@@ -849,6 +870,10 @@
           <option value="sans">Sem serifa</option>
           <option value="advercase">Advercase</option>
         </select>
+        <div class="ratio-segmented" role="group" aria-label="Proporção da edição e exportação">
+          <button type="button" data-stories-ratio="4:5" title="1080 × 1350 pixels">4:5 <small>1080 × 1350</small></button>
+          <button type="button" data-stories-ratio="3:4" title="1080 × 1440 pixels">3:4 <small>1080 × 1440</small></button>
+        </div>
       </div>
     </section>
     <section class="inspector-section">
@@ -998,6 +1023,7 @@
   let activeStageIndex = null;
   let selectedBlockId = null;
   let selectedSlideIdx = null;
+  const STORIES_RATIO_HEIGHTS = { '4:5': 1350, '3:4': 1440 };
 
   // ==== HELPERS ====
   function uid() { return 'b_' + Math.random().toString(36).slice(2, 8); }
@@ -1267,12 +1293,12 @@
   }
 
   function applyLiveSpacingToNode(node, block) {
-    // Enquanto o slider está sendo arrastado, conserva o fit já calculado
-    // para o slide. Sem isso, um bloco que divide espaço com uma imagem recebe
-    // por alguns frames o tamanho bruto (1×) e só volta a caber ao fim do
-    // debounce — o "pula para gigante e volta" percebido no preview.
-    const bodyZone = node && node.closest('.body-zone');
-    applySpacingToNode(node, block, getContentFitScale(bodyZone));
+    // O slider precisa representar exatamente o valor escolhido. Um antigo
+    // auto-fit reduzia silenciosamente toda a tipografia depois do arraste,
+    // causando o efeito de crescer e voltar ou de não responder ao aumento.
+    // Quando não houver espaço, o slide é marcado como excesso — nunca
+    // reescalado por trás do controle.
+    applySpacingToNode(node, block, 1);
   }
 
   // ==== FADE PER-SLIDE (intensidade do filtro de legibilidade) ====
@@ -1326,6 +1352,7 @@
       const slideEl = wrap.querySelector('.slide');
       const bgClass = Array.from(slideEl.classList).find(c => c.startsWith('bg-')) || 'bg-01';
       const isCapa = slideEl.classList.contains('capa');
+      const isCTA = slideEl.classList.contains('cta-final');
       const footerEl = slideEl.querySelector('.footer-bar');
       const footerVariant = (footerEl && footerEl.classList.contains('dark')) ? 'dark' : 'default';
 
@@ -1355,6 +1382,7 @@
         id: 's' + (sIdx + 1),
         bgClass,
         isCapa,
+        isCTA,
         footerVariant,
         blocks,
         bzTransform: legacyBz[sIdx] || { tx: 0, ty: 0, scale: 1 },
@@ -1368,14 +1396,15 @@
       slides.push(slideData);
     });
 
-    return { version: 10, typography: 'sans', backgroundColor: '#000000', slides };
+    return { version: 13, typography: 'sans', ratio: '4:5', backgroundColor: '#000000', slides };
   }
 
   function createBlankStoriesDocument() {
     const source = initialStoriesDocument || buildDocFromDOM({ useLegacy: false });
     const blank = JSON.parse(JSON.stringify(source));
-    blank.version = 10;
+    blank.version = 13;
     blank.typography = doc && doc.typography === 'advercase' ? 'advercase' : 'sans';
+    blank.ratio = normalizeStoriesRatio(doc && doc.ratio);
     blank.backgroundColor = getGlobalBackgroundColor();
     blank.slides.forEach((slide, slideIndex) => {
       slide.id = 's' + (slideIndex + 1);
@@ -1445,7 +1474,36 @@
       d.slides.forEach(s => { delete s.backgroundColor; });
       d.version = 10;
     }
+    if (d.version < 11) {
+      // Versões antigas não gravavam a identidade do CTA. O template gerado
+      // usa bg-10 nele; recuperar essa marca impede que um slide novo seja
+      // anexado depois do CTA (e pareça ter entrado no meio do carrossel).
+      d.slides.forEach(s => { s.isCTA = s.isCTA === true || s.bgClass === 'bg-10'; });
+      d.version = 11;
+    }
+    if (d.version < 12) {
+      // A primeira implementação desta função inseria slides novos antes do
+      // CTA. O comportamento correto do botão é anexar no fim; IDs "s_"
+      // identificam os slides criados no editor e permitem corrigir sessões
+      // já abertas sem alterar o conteúdo original.
+      const addedSlides = d.slides.filter(s => /^s_/.test(String(s.id || '')));
+      const ctaIndex = d.slides.findIndex(s => s.isCTA);
+      if (addedSlides.length && ctaIndex >= 0) {
+        const stableSlides = d.slides.filter(s => !/^s_/.test(String(s.id || '')));
+        const stableCtaIndex = stableSlides.findIndex(s => s.isCTA);
+        if (stableCtaIndex >= 0) {
+          d.slides = stableSlides.slice(0, stableCtaIndex + 1)
+            .concat(addedSlides, stableSlides.slice(stableCtaIndex + 1));
+        }
+      }
+      d.version = 12;
+    }
+    if (d.version < 13) {
+      d.ratio = '4:5';
+      d.version = 13;
+    }
     d.backgroundColor = normalizeBackgroundColor(d.backgroundColor);
+    d.ratio = normalizeStoriesRatio(d.ratio);
     d.slides.forEach(s => {
       if (s.backgroundColor != null) s.backgroundColor = normalizeBackgroundColor(s.backgroundColor);
     });
@@ -1455,7 +1513,6 @@
 
   function loadOrInitDoc() {
     const saved = safeGet(DOC_KEY);
-    const N_SLIDES_DOM = document.querySelectorAll('.slide-wrap').length;
     if (saved && saved.slides && saved.slides.length > 0) {
       // Garante campo align em blocos antigos
       saved.slides.forEach(s => {
@@ -1468,26 +1525,36 @@
         }
       });
       doc = migrateDoc(saved);
+      // A ordem visual é derivada exclusivamente do documento. Reconstruir
+      // mesmo quando a contagem coincide evita associar o conteúdo de um
+      // índice ao stage antigo após uma migração/reordenação de CTA.
+      rebuildDOMFromDoc();
+      // Só renderiza após todos os stages do documento existirem. Antes, um
+      // slide recém-criado podia elevar doc.slides para 11 enquanto o DOM
+      // ainda tinha os 10 estágios do HTML de origem.
       setStoriesTypography(doc.typography || 'sans', { persist: false, record: false });
-      // Se doc-state tem número de slides diferente do DOM (usuário adicionou ou removeu),
-      // reconstrói o DOM a partir do doc.
-      if (doc.slides.length !== N_SLIDES_DOM) {
-        rebuildDOMFromDoc();
-      }
+      try {
+        const pending = Number(sessionStorage.getItem(DOC_KEY + '-pending-active-slide'));
+        sessionStorage.removeItem(DOC_KEY + '-pending-active-slide');
+        if (Number.isInteger(pending) && pending >= 0 && pending < doc.slides.length) {
+          activeStageIndex = pending;
+        }
+      } catch (e) {}
       saveDoc();
       return;
     }
     doc = buildDocFromDOM();
-    doc.version = 10;
+    doc.version = 13;
     setStoriesTypography('sans', { persist: false, record: false });
     saveDoc();
   }
 
   // ==== SLIDE-LEVEL ADD / DELETE (DOM sincronizado com doc.slides) ====
-  function buildSlideWrapHTML(label, bgClass, isCapa) {
+  function buildSlideWrapHTML(label, bgClass, isCapa, isCTA) {
     const slideClasses = ['slide'];
     if (bgClass) slideClasses.push(bgClass);
     if (isCapa) slideClasses.push('capa');
+    if (isCTA) slideClasses.push('cta-final');
     return '<div class="slide-wrap">' +
              '<div class="slide-label">' + label + '</div>' +
              '<div class="stage">' +
@@ -1499,14 +1566,19 @@
            '</div>';
   }
 
+  function getSlideLabel(slide, index) {
+    const role = slide.isCapa ? 'CAPA' : (slide.isCTA ? 'CTA' : 'SLIDE');
+    return String(index + 1).padStart(2, '0') + ' — ' + role;
+  }
+
   function rebuildDOMFromDoc() {
     const grid = document.querySelector('.grid');
     if (!grid) return;
     grid.querySelectorAll('.slide-wrap').forEach(w => w.remove());
     doc.slides.forEach((s, i) => {
-      const label = String(i + 1).padStart(2, '0') + (s.isCapa ? ' — CAPA' : ' — SLIDE');
+      const label = getSlideLabel(s, i);
       const tmpl = document.createElement('template');
-      tmpl.innerHTML = buildSlideWrapHTML(label, s.bgClass || 'bg-01', !!s.isCapa);
+      tmpl.innerHTML = buildSlideWrapHTML(label, s.bgClass || 'bg-01', !!s.isCapa, !!s.isCTA);
       grid.appendChild(tmpl.content.firstChild);
     });
   }
@@ -1518,6 +1590,7 @@
       bgClass: 'bg-01',
       backgroundColor: null,
       isCapa: false,
+      isCTA: false,
       footerVariant: 'default',
       blocks: [
         { id: uid(), kind: 'body', variant: 'lede', html: 'adicione aqui a sua copy', align: 'center' }
@@ -1526,7 +1599,11 @@
       image: null,
       inlineImage: null,
     };
+    // O botão sempre acrescenta no fim, depois do CTA quando ele existir.
+    // É a leitura natural da lista vertical e evita reposicionar conteúdo.
+    const insertAt = doc.slides.length;
     doc.slides.push(newSlide);
+    try { sessionStorage.setItem(DOC_KEY + '-pending-active-slide', String(insertAt)); } catch (e) {}
     saveDoc();
     // Reload pra re-wire listeners do novo stage (mais robusto que replicar 110 linhas de wire-up).
     location.reload();
@@ -1570,6 +1647,37 @@
   function getStoriesTypeface() {
     const typography = doc && STORIES_TYPEFACES[doc.typography] ? doc.typography : 'sans';
     return STORIES_TYPEFACES[typography];
+  }
+  function normalizeStoriesRatio(ratio) {
+    return STORIES_RATIO_HEIGHTS[ratio] ? ratio : '4:5';
+  }
+  function getStoriesHeight() {
+    return STORIES_RATIO_HEIGHTS[normalizeStoriesRatio(doc && doc.ratio)];
+  }
+  function applyStoriesRatio(options = {}) {
+    const { render = true } = options;
+    const ratio = normalizeStoriesRatio(doc && doc.ratio);
+    const height = STORIES_RATIO_HEIGHTS[ratio];
+    SLIDE_H = height;
+    document.documentElement.style.setProperty('--stories-w', SLIDE_W + 'px');
+    document.documentElement.style.setProperty('--stories-h', height + 'px');
+    document.documentElement.style.setProperty('--stories-aspect', SLIDE_W + ' / ' + height);
+    document.querySelectorAll('[data-stories-ratio]').forEach(button => {
+      const active = button.dataset.storiesRatio === ratio;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-pressed', String(active));
+    });
+    updateSlideCountUI();
+    updateSlideScale();
+    if (render && typeof renderAll === 'function') renderAll();
+  }
+  function setStoriesRatio(nextRatio) {
+    const ratio = normalizeStoriesRatio(nextRatio);
+    if (!doc || ratio === normalizeStoriesRatio(doc.ratio)) return;
+    doc.ratio = ratio;
+    safeSet(DOC_KEY, doc);
+    applyStoriesRatio();
+    recordEditorMutation('ratio');
   }
   function setStoriesTypography(nextTypography, options = {}) {
     const typography = STORIES_TYPEFACES[nextTypography] ? nextTypography : 'sans';
@@ -1676,25 +1784,14 @@
       return 1;
     }
 
-    // Começa nas métricas editoriais originais e encontra o maior fit que cabe.
-    // A busca considera novas quebras de linha causadas pela mudança de fonte.
+    // O tamanho dos controles é a fonte da verdade. Não reduzimos a fonte para
+    // fazer o conteúdo caber: isso mascarava o resultado real do slider e
+    // produzia saltos visuais após o debounce. Mantemos 1× e sinalizamos o
+    // excesso, que já impede uma exportação ilegível.
     applyBodyZoneContentFit(bodyZone, 1);
-    if (measureBodyZoneContentHeight(bodyZone, items) <= bodyZone.clientHeight) {
-      setBodyZoneOverflow(bodyZone, false);
-      return 1;
-    }
-
-    let low = 0.35;
-    let high = 1;
-    for (let iteration = 0; iteration < 9; iteration++) {
-      const candidate = (low + high) / 2;
-      applyBodyZoneContentFit(bodyZone, candidate);
-      if (measureBodyZoneContentHeight(bodyZone, items) <= bodyZone.clientHeight) low = candidate;
-      else high = candidate;
-    }
-    applyBodyZoneContentFit(bodyZone, low);
-    setBodyZoneOverflow(bodyZone, measureBodyZoneContentHeight(bodyZone, items) > bodyZone.clientHeight + 1);
-    return low;
+    const overflow = measureBodyZoneContentHeight(bodyZone, items) > bodyZone.clientHeight + 1;
+    setBodyZoneOverflow(bodyZone, overflow);
+    return 1;
   }
 
   function setBodyZoneOverflow(bodyZone, overflow) {
@@ -1726,7 +1823,7 @@
       const context = getBlockContext(node);
       if (context) applySpacingToNode(node, context.block, fit);
     });
-    bodyZone.classList.toggle('content-auto-fitted', fit < 0.999);
+    bodyZone.classList.remove('content-auto-fitted');
   }
 
   function refreshSlideContentFit(stageIndex) {
@@ -2128,19 +2225,43 @@
     });
   }
 
+  let storiesRailDragIndex = null;
+
+  function moveStoriesSlide(fromIndex, targetIndex, placeAfter) {
+    flushDOMToDoc();
+    if (!Number.isInteger(fromIndex) || !Number.isInteger(targetIndex)) return;
+    let insertAt = targetIndex + (placeAfter ? 1 : 0);
+    const [moved] = doc.slides.splice(fromIndex, 1);
+    if (!moved) return;
+    if (fromIndex < insertAt) insertAt -= 1;
+    insertAt = Math.max(0, Math.min(insertAt, doc.slides.length));
+    if (insertAt === fromIndex) {
+      doc.slides.splice(fromIndex, 0, moved);
+      return;
+    }
+    doc.slides.splice(insertAt, 0, moved);
+    activeStageIndex = insertAt;
+    selectedSlideIdx = insertAt;
+    try { sessionStorage.setItem(DOC_KEY + '-pending-active-slide', String(insertAt)); } catch (e) {}
+    saveDoc();
+    location.reload();
+  }
+
   function buildSlideRail() {
     const list = document.getElementById('slide-rail-list');
     if (!list || !doc) return;
     list.innerHTML = '';
     doc.slides.forEach((slide, index) => {
-      const role = slide.isCapa ? 'Capa' : (index === doc.slides.length - 1 ? 'CTA' : 'Slide');
+      const role = slide.isCapa ? 'Capa' : (slide.isCTA ? 'CTA' : 'Slide');
       const control = document.createElement('div');
       control.className = 'rail-slide-control';
       const item = document.createElement('button');
       item.type = 'button';
       item.className = 'rail-item';
+      item.draggable = true;
       item.setAttribute('data-rail-index', String(index));
       item.setAttribute('aria-label', 'Ir para slide ' + (index + 1) + ', ' + role);
+      item.title = 'Arraste para reposicionar este slide';
       item.innerHTML = '<span class="rail-index">' + String(index + 1).padStart(2, '0') + '</span>' +
         '<span class="rail-role">' + role + '</span>';
       item.addEventListener('click', () => {
@@ -2154,6 +2275,36 @@
         setRailActive(index);
         const wrap = document.querySelectorAll('.slide-wrap')[index];
         if (wrap) wrap.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+      });
+      item.addEventListener('dragstart', (event) => {
+        storiesRailDragIndex = index;
+        control.classList.add('is-dragging');
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', String(index));
+      });
+      item.addEventListener('dragend', () => {
+        storiesRailDragIndex = null;
+        document.querySelectorAll('.rail-slide-control').forEach(node => {
+          node.classList.remove('is-dragging', 'drop-before', 'drop-after');
+        });
+      });
+      control.addEventListener('dragover', (event) => {
+        if (storiesRailDragIndex === null || storiesRailDragIndex === index) return;
+        event.preventDefault();
+        const rect = control.getBoundingClientRect();
+        const placeAfter = event.clientY > rect.top + rect.height / 2;
+        control.classList.toggle('drop-before', !placeAfter);
+        control.classList.toggle('drop-after', placeAfter);
+        event.dataTransfer.dropEffect = 'move';
+      });
+      control.addEventListener('dragleave', (event) => {
+        if (!control.contains(event.relatedTarget)) control.classList.remove('drop-before', 'drop-after');
+      });
+      control.addEventListener('drop', (event) => {
+        if (storiesRailDragIndex === null) return;
+        event.preventDefault();
+        const rect = control.getBoundingClientRect();
+        moveStoriesSlide(storiesRailDragIndex, index, event.clientY > rect.top + rect.height / 2);
       });
       control.appendChild(item);
 
@@ -2195,7 +2346,7 @@
     const count = doc && Array.isArray(doc.slides) ? doc.slides.length : 0;
     document.querySelectorAll('.rail-count').forEach(node => { node.textContent = count + ' telas'; });
     document.querySelectorAll('.doc-meta').forEach(node => {
-      node.textContent = count + ' slides · 1080×1350 · @omatheusdelucca';
+      node.textContent = count + ' slides · 1080×' + getStoriesHeight() + ' · @omatheusdelucca';
     });
   }
 
@@ -2915,12 +3066,16 @@
 
     initialStoriesDocument = buildDocFromDOM({ useLegacy: false });
     loadOrInitDoc();
+    applyStoriesRatio({ render: false });
     const typographySelector = document.getElementById('stories-typography');
     if (typographySelector) {
       typographySelector.addEventListener('change', (event) => {
         setStoriesTypography(event.target.value);
       });
     }
+    document.querySelectorAll('[data-stories-ratio]').forEach(button => {
+      button.addEventListener('click', () => setStoriesRatio(button.dataset.storiesRatio));
+    });
     document.querySelectorAll('#global-background-palette [data-background-color]').forEach(button => {
       button.addEventListener('click', () => setGlobalBackgroundColor(button.dataset.backgroundColor));
     });
@@ -3163,9 +3318,9 @@
     }
   }
 
-  // ==== CANVAS RENDERER (1080×1350, igual em qualidade ao modelo tweet) ====
+  // ==== CANVAS RENDERER (1080×1350 ou 1080×1440, igual ao preview) ====
   const SLIDE_W = 1080;
-  const SLIDE_H = 1350;
+  let SLIDE_H = 1350;
   const FOOTER_H = 84;
 
   // Base local usada pelo Canvas; a família selecionada substitui esta base.
@@ -3633,20 +3788,10 @@
   }
 
   function getFallbackContentFitScale(ctx, slideData, zoneW, zoneH, isCapa, gap) {
-    const baseImageHeight = getInlineImageLayout(zoneW, zoneH, slideData.inlineImage).height;
-    const stackHeightAt = (fit) => {
-      const layouts = buildBlockLayouts(ctx, slideData.blocks, zoneW, isCapa, fit);
-      return getStackHeight(layouts, gap * fit, baseImageHeight * fit);
-    };
-    if (stackHeightAt(1) <= zoneH) return 1;
-    let low = 0.35;
-    let high = 1;
-    for (let iteration = 0; iteration < 9; iteration++) {
-      const candidate = (low + high) / 2;
-      if (stackHeightAt(candidate) <= zoneH) low = candidate;
-      else high = candidate;
-    }
-    return low;
+    // O exportador deve respeitar o mesmo tamanho explícito do preview. Se o
+    // conteúdo exceder a zona, captureSlideAsBlob bloqueia a entrega usando a
+    // flag .content-overflow do preview, em vez de miniaturizar o texto.
+    return 1;
   }
 
   async function drawInlinePhoto(ctx, inlineImage, x, y, w, h, scale = 1) {
@@ -3757,7 +3902,7 @@
   function drawLegibilityFilter_storiesNoop() { return; }
 
   async function renderSlideToCanvas(canvas, slideData) {
-    // A composição usa uma grade de 1080×1350, mas o PNG sai em 2× para
+    // A composição usa a grade selecionada (1080×1350 ou 1080×1440), mas o PNG sai em 2× para
     // preservar nitidez de tipografia e imagens em Telegram e Instagram.
     const dpr = 2;
     canvas.width = SLIDE_W * dpr;
@@ -3847,26 +3992,37 @@
 
   async function downloadAllPNGs() {
     if (deliveryBusy) return;
+    const total = doc.slides.length;
     setDeliveryBusy(true, 'btn-download-all');
-    setSendStatus('Capturando ' + doc.slides.length + ' slides…');
+    setSendStatus('Capturando ' + total + ' slides…');
     // Limpa seleção visual
     const wasSelected = getSelectedBlockEl();
     deselectBlock();
     try {
-      for (let i = 0; i < doc.slides.length; i++) {
-        setSendStatus(`Baixando slide ${i + 1}/${doc.slides.length}…`);
-        const blob = await captureSlideAsBlob(i);
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'slide-' + String(i + 1).padStart(2, '0') + '.png';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        await new Promise(r => setTimeout(r, 250));
+      const blobs = [];
+      for (let i = 0; i < total; i++) {
+        setSendStatus(`Capturando slide ${i + 1}/${total}…`);
+        blobs.push(await captureSlideAsBlob(i));
       }
-      setSendStatus('✓ ' + doc.slides.length + ' PNGs baixados.', 'success');
+      setSendStatus('Preparando ZIP com ' + total + ' PNGs…');
+      const res = await localApiFetch('/api/export/pngs', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ images_b64: await Promise.all(blobs.map(blobToB64NoPrefix)) }),
+      });
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        throw new Error(error.error || 'Falha ao preparar o ZIP');
+      }
+      const zip = await res.blob();
+      const url = URL.createObjectURL(zip);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'carrossel-pngs.zip';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setSendStatus('✓ ' + total + ' PNGs baixados em um ZIP.', 'success');
     } catch (e) {
       setSendStatus('✗ Erro ao gerar PNGs: ' + e.message, 'error');
     } finally {

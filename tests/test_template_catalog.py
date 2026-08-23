@@ -28,7 +28,7 @@ class TemplateCatalogTest(unittest.TestCase):
         self.assertEqual([item["initial_slides"] for item in items], [10, 10])
         self.assertEqual([item["aspect_ratio"] for item in items], ["4:5", "4:5"])
 
-    def test_stories_catalog_and_preview_match_native_export_ratio(self) -> None:
+    def test_stories_catalog_keeps_4_5_default_and_offers_matching_3_4_export(self) -> None:
         hub = (PROJECT_ROOT / "templates" / "hub.html").read_text(encoding="utf-8")
         tweet = (PROJECT_ROOT / "templates" / "tweet_editor.html").read_text(encoding="utf-8")
         stories = (PROJECT_ROOT / "templates" / "stories_editor.html").read_text(encoding="utf-8")
@@ -39,7 +39,9 @@ class TemplateCatalogTest(unittest.TestCase):
             r"\.preview-sheet--stories\s*\{[^}]*aspect-ratio:\s*4\s*/\s*5;",
         )
         self.assertIn("const SLIDE_W = 1080;", stories)
-        self.assertIn("const SLIDE_H = 1350;", stories)
+        self.assertIn("let SLIDE_H = 1350;", stories)
+        self.assertIn("const STORIES_RATIO_HEIGHTS = { '4:5': 1350, '3:4': 1440 };", stories)
+        self.assertIn('data-stories-ratio="3:4"', stories)
         self.assertIn("const dpr = 2;", stories)
         self.assertIn("const W = 1080;", tweet)
         self.assertIn("'4:5': 1350", tweet)

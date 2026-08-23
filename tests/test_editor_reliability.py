@@ -10,16 +10,37 @@ TWEET = (PROJECT_ROOT / "templates" / "tweet_editor.html").read_text(encoding="u
 
 
 class StoriesLayoutReliabilityTest(unittest.TestCase):
-    def test_auto_fit_preserves_the_text_column_width(self) -> None:
+    def test_slide_rail_supports_drag_reordering(self) -> None:
+        required = (
+            'item.draggable = true;',
+            'function moveStoriesSlide(fromIndex, targetIndex, placeAfter)',
+            "item.addEventListener('dragstart'",
+            "control.addEventListener('drop'",
+            "event.clientY > rect.top + rect.height / 2",
+            "location.reload();",
+        )
+        for marker in required:
+            self.assertIn(marker, STORIES)
+
+    def test_new_slide_is_appended_after_the_cta(self) -> None:
+        self.assertIn("const isCTA = slideEl.classList.contains('cta-final');", STORIES)
+        self.assertIn("function getSlideLabel(slide, index)", STORIES)
+        self.assertIn("const insertAt = doc.slides.length;", STORIES)
+        self.assertIn("doc.slides.push(newSlide);", STORIES)
+        self.assertIn("d.version = 12;", STORIES)
+        self.assertIn("rebuildDOMFromDoc();", STORIES)
+
+    def test_text_size_is_never_silently_auto_fitted(self) -> None:
         self.assertIn("function applySpacingToNode(node, block, contentFit = 1)", STORIES)
         self.assertIn("node.style.fontSize = (eff.fontSize * contentFit) + 'px';", STORIES)
         self.assertIn("node.style.lineHeight = (eff.lineHeight * contentFit) + 'px';", STORIES)
-        self.assertIn("bz.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;", STORIES)
-        self.assertNotIn("scale(${scale * contentFit})", STORIES)
+        self.assertIn("applySpacingToNode(node, block, 1);", STORIES)
+        self.assertIn("const overflow = measureBodyZoneContentHeight(bodyZone, items) > bodyZone.clientHeight + 1;", STORIES)
+        self.assertIn("return 1;", STORIES)
 
-    def test_every_layout_mutation_invalidates_the_fit(self) -> None:
-        # Os sliders de tipografia agrupam o encaixe ao fim do arraste para
-        # manter a interação fluida, mas ainda encaminham cada mutação ao fit.
+    def test_every_layout_mutation_rechecks_overflow_without_rescaling_text(self) -> None:
+        # Os sliders agrupam a persistência e verificam excesso ao fim do
+        # arraste, mas nunca substituem o valor escolhido por um auto-fit.
         self.assertGreaterEqual(STORIES.count("scheduleSlideContentFit(ctx.sIdx);"), 3)
         self.assertIn("queueTextLayoutCommit(ctx.sIdx);", STORIES)
         self.assertIn("refreshSlideContentFit(stageIndex);", STORIES)
@@ -40,9 +61,10 @@ class StoriesLayoutReliabilityTest(unittest.TestCase):
         self.assertIn("function queueTextLayoutCommit(stageIndex)", STORIES)
         self.assertIn("queueTextLayoutCommit(ctx.sIdx);", STORIES)
 
-    def test_live_slider_preview_keeps_the_current_content_fit(self) -> None:
+    def test_live_slider_preview_uses_the_exact_selected_size(self) -> None:
         self.assertIn("function applyLiveSpacingToNode(node, block)", STORIES)
-        self.assertIn("getContentFitScale(bodyZone)", STORIES)
+        self.assertIn("applySpacingToNode(node, block, 1);", STORIES)
+        self.assertIn("O slider precisa representar exatamente o valor escolhido.", STORIES)
         self.assertGreaterEqual(STORIES.count("applyLiveSpacingToNode(blockEl, ctx.block);"), 3)
 
     def test_export_recomputes_layout_and_rejects_unreadable_overflow(self) -> None:
@@ -50,6 +72,23 @@ class StoriesLayoutReliabilityTest(unittest.TestCase):
         self.assertIn("refreshSlideContentFit(stageIndex);", STORIES)
         self.assertIn("body-zone.content-overflow", STORIES)
         self.assertNotIn("getPreviewContentFitScale", STORIES)
+
+    def test_stories_png_export_captures_the_full_document_in_one_archive(self) -> None:
+        self.assertIn("const total = doc.slides.length;", STORIES)
+        self.assertIn("localApiFetch('/api/export/pngs'", STORIES)
+        self.assertIn("carrossel-pngs.zip", STORIES)
+
+    def test_stories_ratio_controls_update_preview_and_canvas_export_together(self) -> None:
+        required = (
+            "const STORIES_RATIO_HEIGHTS = { '4:5': 1350, '3:4': 1440 };",
+            'data-stories-ratio="3:4"',
+            'function applyStoriesRatio(options = {})',
+            "document.documentElement.style.setProperty('--stories-h', height + 'px');",
+            "canvas.height = SLIDE_H * dpr;",
+            "d.ratio = normalizeStoriesRatio(d.ratio);",
+        )
+        for marker in required:
+            self.assertIn(marker, STORIES)
 
     def test_image_commits_are_ordered_and_rich_paste_is_sanitized(self) -> None:
         self.assertIn("const inlineImageCommitRevisions = new Map();", STORIES)
@@ -59,6 +98,23 @@ class StoriesLayoutReliabilityTest(unittest.TestCase):
 
 
 class TweetReliabilityTest(unittest.TestCase):
+    def test_tweet_slide_rail_supports_drag_reordering_without_image_mixup(self) -> None:
+        required = (
+            'item.draggable = true;',
+            'function moveTweetSlide(fromIndex, targetIndex, placeAfter)',
+            'slideImageCache.clear();',
+            'imageCommitRevisions.clear();',
+            "item.addEventListener('drop'",
+        )
+        for marker in required:
+            self.assertIn(marker, TWEET)
+
+    def test_new_tweet_slide_is_appended_without_reload(self) -> None:
+        self.assertIn("function normalizeTweetSlides(slides)", TWEET)
+        self.assertIn("const insertAt = slidesState.length;", TWEET)
+        self.assertIn("slidesState.push({", TWEET)
+        self.assertIn("refreshTweetAfterStructureChange(insertAt);", TWEET)
+
     def test_images_are_normalized_and_stale_async_commits_are_discarded(self) -> None:
         self.assertIn("function normalizeSlideImage(dataURL)", TWEET)
         self.assertIn("canvas.toDataURL('image/webp', 0.88)", TWEET)
@@ -75,6 +131,11 @@ class TweetReliabilityTest(unittest.TestCase):
         self.assertIn("bodyEl.dataset.contentFitScale = String(contentFit);", TWEET)
         self.assertIn("card.classList.toggle('content-overflow'", TWEET)
         self.assertIn("card.classList.contains('content-overflow')", TWEET)
+
+    def test_tweet_png_export_captures_the_full_document_in_one_archive(self) -> None:
+        self.assertIn("const total = slidesState.length;", TWEET)
+        self.assertIn("localApiFetch('/api/export/pngs'", TWEET)
+        self.assertIn("carrossel-pngs.zip", TWEET)
 
 
 if __name__ == "__main__":

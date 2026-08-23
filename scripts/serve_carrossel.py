@@ -13,6 +13,7 @@ from __future__ import annotations
 import os
 import sys
 import json
+import io
 import shutil
 import base64
 import subprocess
@@ -27,6 +28,7 @@ import re
 import secrets
 import html
 import urllib.parse
+import zipfile
 from pathlib import Path
 
 try:
@@ -403,6 +405,8 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
                 return self._handle_telegram_test()
             if self.path == '/api/telegram/send':
                 return self._handle_telegram_send()
+            if self.path == '/api/export/pngs':
+                return self._handle_export_pngs()
             if self.path == '/api/desktop-credentials/import':
                 return self._handle_desktop_credentials_import()
             self._send_json(404, {'error': f'rota POST {self.path} não existe'})
@@ -524,6 +528,36 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
             'ok': all(bool(result.get('ok')) for result in results),
             'sent': len(images),
         })
+
+    def _handle_export_pngs(self):
+        """Empacota todos os PNGs em um ZIP, sem limite de downloads do browser."""
+        body = self._read_json_body()
+        images_b64 = body.get('images_b64') or []
+        if not isinstance(images_b64, list) or not images_b64:
+            self._send_json(400, {'error': 'images_b64 deve conter ao menos um PNG'})
+            return
+
+        try:
+            images = [
+                base64.b64decode(str(item).split(',')[-1], validate=True)
+                for item in images_b64
+            ]
+        except (ValueError, TypeError) as exc:
+            self._send_json(400, {'error': 'png_invalido'})
+            return
+
+        output = io.BytesIO()
+        with zipfile.ZipFile(output, mode='w', compression=zipfile.ZIP_DEFLATED) as archive:
+            for index, image in enumerate(images, start=1):
+                archive.writestr(f'slide-{index:02d}.png', image)
+        payload = output.getvalue()
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/zip')
+        self.send_header('Content-Disposition', 'attachment; filename="carrossel-pngs.zip"')
+        self.send_header('Content-Length', str(len(payload)))
+        self.send_header('X-Carrossel-Slides', str(len(images)))
+        self.end_headers()
+        self.wfile.write(payload)
 
     def _handle_gerar(self):
         body = self._read_json_body()

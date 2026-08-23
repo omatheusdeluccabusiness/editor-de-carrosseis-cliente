@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import json
 import base64
+import io
 import tempfile
 import threading
 import unittest
 import urllib.error
 import urllib.request
+import zipfile
 from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
@@ -288,6 +290,31 @@ class HubServerTest(unittest.TestCase):
                         self.assertTrue(all("caption" not in item for item in json.loads(fields["media"])))
                 self.assertNotIn("server-token", json.dumps(result))
                 self.assertNotIn("server-chat", json.dumps(result))
+
+    def test_png_export_archive_contains_every_received_slide(self) -> None:
+        expected = [f"png-{index}".encode() for index in range(12)]
+        encoded = [base64.b64encode(image).decode() for image in expected]
+        with running_test_server() as base_url:
+            request = urllib.request.Request(
+                base_url + "/api/export/pngs",
+                data=json.dumps({"images_b64": encoded}).encode(),
+                headers=mutation_headers(base_url),
+                method="POST",
+            )
+            with urllib.request.urlopen(request) as response:
+                self.assertEqual(response.headers.get_content_type(), "application/zip")
+                self.assertEqual(response.headers["X-Carrossel-Slides"], "12")
+                payload = response.read()
+
+        with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+            self.assertEqual(
+                archive.namelist(),
+                [f"slide-{index:02d}.png" for index in range(1, 13)],
+            )
+            self.assertEqual(
+                [archive.read(name) for name in archive.namelist()],
+                expected,
+            )
 
     def test_delete_removes_only_valid_hub_session(self) -> None:
         session_id = "hub-tweet-0123456789ab"

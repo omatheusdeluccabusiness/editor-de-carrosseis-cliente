@@ -419,6 +419,11 @@
     transition: background-color 150ms ease, color 150ms ease;
   }
   .rail-item:hover { background: var(--ui-surface-muted); }
+  .rail-item[draggable="true"] { cursor: grab; }
+  .rail-item[draggable="true"]:active { cursor: grabbing; }
+  .rail-item.is-dragging { opacity: .42; }
+  .rail-item.drop-before { box-shadow: inset 0 2px 0 var(--ui-blue); }
+  .rail-item.drop-after { box-shadow: inset 0 -2px 0 var(--ui-blue); }
   .rail-item.is-active { background: var(--ui-blue-soft); color: var(--ui-blue); border-left: 3px solid var(--ui-blue); }
   .rail-index { font-size: 11px; color: #8E8E93; font-variant-numeric: tabular-nums; }
   .rail-item.is-active .rail-index { color: var(--ui-blue); }
@@ -527,7 +532,7 @@
       <button id="btn-back-hub" class="shell-button quiet" type="button" hidden>Voltar aos modelos</button>
       <button id="btn-restart-carousel" class="shell-button restart-carousel" type="button">Reiniciar carrossel</button>
       <button id="btn-ui-theme" class="shell-button ui-theme-toggle" type="button" aria-label="Ativar interface escura" title="Ativar interface escura" aria-pressed="false"><span id="ui-theme-icon" aria-hidden="true">&#9790;</span></button>
-      <button id="btn-download-all" class="shell-button">Exportar PNGs</button>
+      <button id="btn-download-all" class="shell-button" title="Baixa todos os slides em um arquivo ZIP">Exportar PNGs (.zip)</button>
       <button id="btn-publish-ig" class="shell-button publish">Publicar</button>
     </div>
   </header>
@@ -1033,18 +1038,26 @@
       e.stopImmediatePropagation();
     }, true);
 
+    function normalizeTweetSlides(slides) {
+      return slides.map((slide, index) => ({
+        ...slide,
+        isCTA: slide.isCTA === true || /\bcta\b/i.test(String(slide.label || '')),
+        isCapa: slide.isCapa === true || /\bcapa\b/i.test(String(slide.label || ''))
+      }));
+    }
+
     function loadState() {
       try {
         const raw = safeStorageGet(STORAGE_KEY);
         if (raw) {
           const parsed = JSON.parse(raw);
           // Aceita qualquer length (>= 1): permite add/delete de slides.
-          if (Array.isArray(parsed) && parsed.length >= 1) return parsed;
+          if (Array.isArray(parsed) && parsed.length >= 1) return normalizeTweetSlides(parsed);
         }
       } catch (e) {}
-      return ORIGINAL_SLIDES.map(s => ({
+      return normalizeTweetSlides(ORIGINAL_SLIDES.map(s => ({
         label: s.label, text: s.text, fontSize: s.fontSize || 42, imageDataURL: null
-      }));
+      })));
     }
 
     function flushDOMToState() {
@@ -1058,17 +1071,30 @@
       saveState();
     }
 
-    // Add/Delete slide inteiro (sincroniza slidesState + reload pra re-wirar UI)
+    function refreshTweetAfterStructureChange(activeIndex) {
+      buildUI();
+      slidesState.forEach((_, index) => loadSlideImage(index));
+      requestAnimationFrame(() => {
+        setActiveSlide(activeIndex);
+        const card = document.querySelectorAll('.slide-card')[activeIndex];
+        if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    }
+
+    // Add/Delete slide inteiro, preservando a posição sem recarregar a página.
     function addSlide() {
       flushDOMToState();
+      const insertAt = slidesState.length;
       slidesState.push({
-        label: 'Slide ' + (slidesState.length + 1),
+        label: 'Slide',
         text: 'adicione aqui a sua copy',
         fontSize: 42,
-        imageDataURL: null
+        imageDataURL: null,
+        isCTA: false,
+        isCapa: false
       });
       saveState();
-      location.reload();
+      refreshTweetAfterStructureChange(insertAt);
     }
     function deleteCurrentSlide() {
       flushDOMToState();
@@ -2063,26 +2089,81 @@
       });
     }
 
+    let tweetRailDragIndex = null;
+
+    function moveTweetSlide(fromIndex, targetIndex, placeAfter) {
+      flushDOMToState();
+      if (!Number.isInteger(fromIndex) || !Number.isInteger(targetIndex)) return;
+      let insertAt = targetIndex + (placeAfter ? 1 : 0);
+      const [moved] = slidesState.splice(fromIndex, 1);
+      if (!moved) return;
+      if (fromIndex < insertAt) insertAt -= 1;
+      insertAt = Math.max(0, Math.min(insertAt, slidesState.length));
+      if (insertAt === fromIndex) {
+        slidesState.splice(fromIndex, 0, moved);
+        return;
+      }
+      slidesState.splice(insertAt, 0, moved);
+      // Cache e operações assíncronas usam índices; invalidá-los evita que a
+      // imagem de outro slide apareça após a mudança de ordem.
+      slideImageCache.clear();
+      imageCommitRevisions.clear();
+      saveState();
+      refreshTweetAfterStructureChange(insertAt);
+    }
+
     function buildSlideRail() {
       const list = document.getElementById('slide-rail-list');
       if (!list) return;
       list.innerHTML = '';
       slidesState.forEach((slide, index) => {
         const rawLabel = String(slide.label || '');
-        const role = rawLabel.toLowerCase().includes('capa')
+        const role = slide.isCapa || rawLabel.toLowerCase().includes('capa')
           ? 'Capa'
-          : rawLabel.toLowerCase().includes('cta') ? 'CTA' : 'Slide';
+          : slide.isCTA || rawLabel.toLowerCase().includes('cta') ? 'CTA' : 'Slide';
         const item = document.createElement('button');
         item.type = 'button';
         item.className = 'rail-item';
+        item.draggable = true;
         item.setAttribute('data-rail-index', String(index));
         item.setAttribute('aria-label', 'Ir para slide ' + (index + 1) + ', ' + role);
+        item.title = 'Arraste para reposicionar este slide';
         item.innerHTML = '<span class="rail-index">' + String(index + 1).padStart(2, '0') + '</span>' +
           '<span class="rail-role">' + role + '</span>';
         item.addEventListener('click', () => {
           setActiveSlide(index);
           const card = document.querySelectorAll('.slide-card')[index];
           if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+        item.addEventListener('dragstart', (event) => {
+          tweetRailDragIndex = index;
+          item.classList.add('is-dragging');
+          event.dataTransfer.effectAllowed = 'move';
+          event.dataTransfer.setData('text/plain', String(index));
+        });
+        item.addEventListener('dragend', () => {
+          tweetRailDragIndex = null;
+          document.querySelectorAll('.rail-item').forEach(node => {
+            node.classList.remove('is-dragging', 'drop-before', 'drop-after');
+          });
+        });
+        item.addEventListener('dragover', (event) => {
+          if (tweetRailDragIndex === null || tweetRailDragIndex === index) return;
+          event.preventDefault();
+          const rect = item.getBoundingClientRect();
+          const placeAfter = event.clientY > rect.top + rect.height / 2;
+          item.classList.toggle('drop-before', !placeAfter);
+          item.classList.toggle('drop-after', placeAfter);
+          event.dataTransfer.dropEffect = 'move';
+        });
+        item.addEventListener('dragleave', (event) => {
+          if (!item.contains(event.relatedTarget)) item.classList.remove('drop-before', 'drop-after');
+        });
+        item.addEventListener('drop', (event) => {
+          if (tweetRailDragIndex === null) return;
+          event.preventDefault();
+          const rect = item.getBoundingClientRect();
+          moveTweetSlide(tweetRailDragIndex, index, event.clientY > rect.top + rect.height / 2);
         });
         list.appendChild(item);
       });
@@ -2376,8 +2457,9 @@
       return true;
     }
 
-    function downloadAll() {
+    async function downloadAll() {
       if (deliveryBusy) return;
+      const total = slidesState.length;
       for (let i = 0; i < slidesState.length; i++) {
         applyLayout(i);
         const card = document.querySelectorAll('.slide-card')[i];
@@ -2387,8 +2469,35 @@
         }
       }
       setDeliveryBusy(true, 'btn-download-all');
-      slidesState.forEach((_, i) => setTimeout(() => downloadSlide(i), i * 250));
-      setTimeout(() => setDeliveryBusy(false, 'btn-download-all'), slidesState.length * 250 + 500);
+      try {
+        const blobs = [];
+        for (let i = 0; i < total; i++) {
+          setSendStatus('Capturando slide ' + (i + 1) + '/' + total + '…');
+          blobs.push(await captureSlideAsBlob(i));
+        }
+        setSendStatus('Preparando ZIP com ' + total + ' PNGs…');
+        const res = await localApiFetch('/api/export/pngs', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ images_b64: await Promise.all(blobs.map(blobToB64NoPrefix)) }),
+        });
+        if (!res.ok) {
+          const error = await res.json().catch(() => ({}));
+          throw new Error(error.error || 'Falha ao preparar o ZIP');
+        }
+        const zip = await res.blob();
+        const url = URL.createObjectURL(zip);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'carrossel-pngs.zip';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        setSendStatus('✓ ' + total + ' PNGs baixados em um ZIP.', 'success');
+      } catch (e) {
+        console.error('[downloadAll]', e);
+        setSendStatus('✗ ' + (e.message || e), 'error');
+      } finally {
+        setDeliveryBusy(false, 'btn-download-all');
+      }
     }
 
     function resetTexts() {
@@ -2407,7 +2516,9 @@
         label: slide.label || (index === 0 ? 'Capa' : 'Slide ' + (index + 1)),
         text: 'adicione aqui a sua copy',
         fontSize: slide.fontSize || 42,
-        imageDataURL: null
+        imageDataURL: null,
+        isCTA: /\bcta\b/i.test(String(slide.label || '')),
+        isCapa: index === 0 || /\bcapa\b/i.test(String(slide.label || ''))
       }));
     }
 
