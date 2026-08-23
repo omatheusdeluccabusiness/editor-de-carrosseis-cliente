@@ -391,18 +391,26 @@ class EditorShellTest(unittest.TestCase):
         for marker in required:
             self.assertIn(marker, html)
 
-    def test_tweet_profile_avatar_is_cropped_and_compressed(self) -> None:
+    def test_tweet_profile_avatar_supports_persistent_manual_cropping(self) -> None:
         html = (PROJECT_ROOT / "templates" / "tweet_editor.html").read_text(
             encoding="utf-8"
         )
         required = (
             "function normalizeAvatarFile(file)",
-            "URL.createObjectURL(file)",
-            "Math.min(img.naturalWidth, img.naturalHeight)",
-            "canvas.width = 512",
-            "canvas.height = 512",
+            "const hasKnownImageExtension",
+            "const reader = new FileReader()",
+            "reader.readAsDataURL(file)",
+            "const maxSide = 1600",
             "canvas.toDataURL('image/jpeg', 0.88)",
-            "URL.revokeObjectURL(objectUrl)",
+            "function normalizeAvatarCrop(value)",
+            "avatarCrop: { scale: 1, x: 0, y: 0 }",
+            "id=\"avatar-crop-modal\"",
+            "function openAvatarCropper(dataUrl",
+            "function wireAvatarCropper()",
+            "pointerdown",
+            "pendingAvatarCrop = { ...pendingAvatarCrop, ...normalizeAvatarCrop(pendingAvatarCrop) };",
+            "profileState.avatarCrop = normalizeAvatarCrop(crop)",
+            "const crop = normalizeAvatarCrop(profileState.avatarCrop)",
             "profileState.avatar = dataUrl",
             "setSendStatus('Não foi possível carregar esta foto.', 'error')",
         )
@@ -468,6 +476,25 @@ class EditorShellTest(unittest.TestCase):
             "function normalizeInlineImageDataURL(dataURL, image)",
             "canvas.toDataURL('image/jpeg', 0.9)",
             "dataURL: normalized.dataURL",
+        )
+        for marker in required:
+            self.assertIn(marker, html)
+
+    def test_tweet_has_a_global_font_size_control_for_every_slide(self) -> None:
+        html = (PROJECT_ROOT / "templates" / "tweet_editor.html").read_text(
+            encoding="utf-8"
+        )
+        required = (
+            'id="tweet-global-font-size"',
+            'Tamanho do texto',
+            'Aplica o mesmo tamanho a todos os slides deste carrossel.',
+            "const TWEET_FONT_SIZE_STORAGE_KEY",
+            "if (raw === null) return 42;",
+            "function setGlobalTweetFontSize(value, options = {})",
+            "slidesState.forEach((slide) => { slide.fontSize = size; });",
+            "function setupGlobalTweetFontSizeControl()",
+            "setupGlobalTweetFontSizeControl();",
+            "fontSize: currentTweetFontSize",
         )
         for marker in required:
             self.assertIn(marker, html)
