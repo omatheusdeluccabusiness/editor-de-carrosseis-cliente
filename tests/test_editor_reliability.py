@@ -35,7 +35,10 @@ class StoriesLayoutReliabilityTest(unittest.TestCase):
         self.assertIn("node.style.fontSize = (eff.fontSize * contentFit) + 'px';", STORIES)
         self.assertIn("node.style.lineHeight = (eff.lineHeight * contentFit) + 'px';", STORIES)
         self.assertIn("applySpacingToNode(node, block, 1);", STORIES)
-        self.assertIn("const overflow = measureBodyZoneContentHeight(bodyZone, items) > bodyZone.clientHeight + 1;", STORIES)
+        self.assertIn("const overflow = hasSlideCanvasOverflow(bodyZone, items);", STORIES)
+        self.assertIn("function hasSlideCanvasOverflow(bodyZone, items)", STORIES)
+        self.assertIn("const canvasBounds = slideEl.getBoundingClientRect();", STORIES)
+        self.assertIn("bounds.bottom > canvasBounds.bottom + tolerance", STORIES)
         self.assertIn("return 1;", STORIES)
 
     def test_every_layout_mutation_rechecks_overflow_without_rescaling_text(self) -> None:
@@ -92,7 +95,8 @@ class StoriesLayoutReliabilityTest(unittest.TestCase):
 
     def test_image_commits_are_ordered_and_rich_paste_is_sanitized(self) -> None:
         self.assertIn("const inlineImageCommitRevisions = new Map();", STORIES)
-        self.assertIn("inlineImageCommitRevisions.get(stageIndex) !== revision", STORIES)
+        self.assertIn("inlineImageCommitRevisions.get(targetSlide) !== revision", STORIES)
+        self.assertIn("const currentIndex = doc.slides.indexOf(targetSlide);", STORIES)
         self.assertIn("function sanitizeBlockHtml(html)", STORIES)
         self.assertIn("clipboard.getData('text/plain')", STORIES)
 
@@ -119,7 +123,8 @@ class TweetReliabilityTest(unittest.TestCase):
         self.assertIn("function normalizeSlideImage(dataURL)", TWEET)
         self.assertIn("canvas.toDataURL('image/webp', 0.88)", TWEET)
         self.assertIn("const imageCommitRevisions = new Map();", TWEET)
-        self.assertIn("imageCommitRevisions.get(i) !== revision", TWEET)
+        self.assertIn("imageCommitRevisions.get(revisionKey) !== revision", TWEET)
+        self.assertIn("const targetIndex = targetSlide ? slidesState.indexOf(targetSlide) : i;", TWEET)
 
     def test_paste_is_handled_once_and_storage_failure_is_visible(self) -> None:
         self.assertIn("if (e.defaultPrevented) return;", TWEET)

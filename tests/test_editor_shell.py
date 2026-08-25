@@ -43,6 +43,66 @@ class EditorShellTest(unittest.TestCase):
                 for marker in required:
                     self.assertIn(marker, html)
 
+    def test_templates_can_export_the_selected_slide_as_a_single_png(self) -> None:
+        tweet = (PROJECT_ROOT / "templates" / "tweet_editor.html").read_text(
+            encoding="utf-8"
+        )
+        stories = (PROJECT_ROOT / "templates" / "stories_editor.html").read_text(
+            encoding="utf-8"
+        )
+        for html in (tweet, stories):
+            self.assertIn('id="btn-download-current"', html)
+            self.assertIn("Baixar slide atual", html)
+        for marker in (
+            "function downloadCurrentTweetSlide()",
+            "downloadCurrentTweetSlide",
+            "Baixar este slide",
+        ):
+            self.assertIn(marker, tweet)
+        for marker in (
+            "function downloadCurrentSlidePNG()",
+            "function getActiveStoriesSlideIndex()",
+            "captureSlideAsBlob(index)",
+            "downloadCurrentSlidePNG",
+        ):
+            self.assertIn(marker, stories)
+
+    def test_templates_offer_single_or_side_by_side_image_composition(self) -> None:
+        tweet = (PROJECT_ROOT / "templates" / "tweet_editor.html").read_text(
+            encoding="utf-8"
+        )
+        stories = (PROJECT_ROOT / "templates" / "stories_editor.html").read_text(
+            encoding="utf-8"
+        )
+        for html in (tweet, stories):
+            for marker in (
+                'data-image-composer-mode="single"',
+                'data-image-composer-mode="split"',
+                "Duas fotos lado a lado",
+                "Trocar lados",
+                "ou cole aqui",
+                "document.addEventListener('paste', event => {",
+                "canvas.width = 1600; canvas.height = 900;",
+                "imageSmoothingQuality = 'high'",
+            ):
+                self.assertIn(marker, html)
+        for marker in (
+            "function openTweetImageComposer",
+            "function composeSplitImage",
+            "commitTweetImageDataURL(index, dataURL, targetSlide);",
+            "const committed = await commitTweetImageDataURL",
+            "openTweetImageComposer(i, blob);",
+        ):
+            self.assertIn(marker, tweet)
+        for marker in (
+            "function openStoriesImageComposer",
+            "function composeStoriesSplitImage",
+            "commitInlineImage(stageIndex, dataURL);",
+            "const committed = await commitInlineImage",
+            "openStoriesImageComposer(activeStageIndex, blob);",
+        ):
+            self.assertIn(marker, stories)
+
     def test_templates_use_native_visual_tokens_and_type_roles(self) -> None:
         required = (
             "#F2F2F4",
@@ -314,7 +374,8 @@ class EditorShellTest(unittest.TestCase):
             re.DOTALL,
         )
         self.assertIsNotNone(commit_image)
-        self.assertIn("renderSlide(stageIndex);", commit_image.group(1))
+        self.assertIn("const currentIndex = doc.slides.indexOf(targetSlide);", commit_image.group(1))
+        self.assertIn("renderSlide(currentIndex);", commit_image.group(1))
 
     def test_both_templates_offer_a_confirmed_carousel_restart(self) -> None:
         confirmation = (
@@ -492,6 +553,14 @@ class EditorShellTest(unittest.TestCase):
             "if (raw === null) return 42;",
             "function setGlobalTweetFontSize(value, options = {})",
             "slidesState.forEach((slide) => { slide.fontSize = size; });",
+            "function setSlideTweetFontSize(index, value, options = {})",
+            "document.getElementById('slide-font-size-value-' + index)",
+            "if (output) output.value = size + ' px';",
+            "Tamanho da copy",
+            "data-slide-font-size",
+            "const TWEET_COPY_LINE_HEIGHT = 1.10;",
+            "line-height: var(--tweet-copy-line-height);",
+            "const lineHeight = fontSize * TWEET_COPY_LINE_HEIGHT;",
             "function setupGlobalTweetFontSizeControl()",
             "setupGlobalTweetFontSizeControl();",
             "fontSize: currentTweetFontSize",
@@ -501,6 +570,19 @@ class EditorShellTest(unittest.TestCase):
         self.assertNotIn("transform: scale(var(--inline-scale, 1));", html)
         self.assertNotIn(".slide.capa .inline-photo { aspect-ratio: 4 / 3; }", html)
         self.assertNotIn("else safeSet(DOC_KEY, doc);", html)
+
+    def test_tweet_uses_arial_in_preview_and_png_export(self) -> None:
+        html = (PROJECT_ROOT / "templates" / "tweet_editor.html").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("font-family: Arial, sans-serif;", html)
+        self.assertIn("font-weight: 400;", html)
+        self.assertIn("ctx.font = `400 ${fontSize}px ${fontFamily}`;", html)
+        self.assertIn("${seg.bold ? '700 ' : '400 '}${fontSize}px ${fontFamily}", html)
+        self.assertIn("const fontFamily = 'Arial, sans-serif';", html)
+        self.assertIn("margin-top: 8px;", html)
+        self.assertIn("ctx.fillText('@' + handle, nameX, startY + 62);", html)
+        self.assertNotIn('"Helvetica Neue", Helvetica, Arial, sans-serif', html)
 
     def test_stories_canvas_isolates_transformed_slide_paint(self) -> None:
         html = (PROJECT_ROOT / "templates" / "stories_editor.html").read_text(

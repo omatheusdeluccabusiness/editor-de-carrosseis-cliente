@@ -46,6 +46,7 @@
   body.theme-dark .slide-card { background: #1f2124; box-shadow: 0 4px 24px rgba(0,0,0,0.4); }
   body.theme-dark .slide-label { background: #16181b; color: #888; border-bottom-color: #2a2d31; }
   body.theme-dark .slide-controls { border-top-color: #2a2d31; }
+  body.theme-dark .slide-font-size-control label { color: #8b98a5; }
   body.theme-dark .slide-text { background: #16181b; border-color: #383b40; color: #e7e9ea; }
   body.theme-dark .slide-text:focus { border-color: #1D9BF0; background: #1a1d20; }
   body.theme-dark .btn { background: #1f2124; border-color: #383b40; color: #e7e9ea; }
@@ -97,6 +98,7 @@
     --tweet-w: 1080px;
     --tweet-h: 1350px; /* 4:5 default, alterado dinamicamente via setRatio() */
     --tweet-aspect: 1080 / 1350;
+    --tweet-copy-line-height: 1.10;
   }
   .tweet-render-wrap {
     width: calc(var(--tweet-w) / 2);
@@ -109,7 +111,7 @@
     width: var(--tweet-w); height: var(--tweet-h);
     transform: scale(0.5); transform-origin: top left;
     background: #ffffff;
-    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-family: Arial, sans-serif;
     color: #0F1419;
     position: relative;
     padding: 0;
@@ -157,16 +159,16 @@
   }
   .tweet-render .handle {
     font-size: 32px; font-weight: 400; line-height: 1;
-    margin-top: 18px;
+    margin-top: 8px;
     color: #536471;
   }
   body.theme-dark .tweet-render .handle { color: #71767B; }
 
-  /* Body: contenteditable, 42px Helvetica, line-height 1.4, max-width 900px (1080-PAD_X*2). */
+  /* Body: contenteditable, 42px Arial Regular, line-height 1.10, max-width 900px (1080-PAD_X*2). */
   .tweet-render .body {
     position: absolute;
     left: 90px; right: 90px;
-    font-size: 42px; line-height: 1.4;
+    font-size: 42px; line-height: var(--tweet-copy-line-height);
     font-weight: 400;
     letter-spacing: 0;
     color: inherit;
@@ -187,17 +189,21 @@
   .tweet-render mark[data-highlight] {
     color: inherit;
     background: none;
-    padding: 0.01em 0.08em 0.04em;
-    margin: 0 -0.02em;
-    border-radius: 0.08em 0.13em 0.09em 0.11em;
+    /* O marca-texto não pode alterar métrica, largura ou quebra de linha da copy. */
+    padding: 0;
+    margin: 0;
+    border-radius: 0;
+    background-repeat: no-repeat;
+    background-size: 100% 0.88em;
+    background-position: 0 0.08em;
     -webkit-box-decoration-break: clone;
     box-decoration-break: clone;
   }
   body.theme-dark .tweet-render mark[data-highlight] { color: inherit; }
-  .tweet-render mark[data-highlight="yellow"] { background-image: linear-gradient(to bottom, transparent 18%, var(--marker-yellow) 18%, var(--marker-yellow) 89%, transparent 89%); }
-  .tweet-render mark[data-highlight="pink"] { background-image: linear-gradient(to bottom, transparent 18%, var(--marker-pink) 18%, var(--marker-pink) 89%, transparent 89%); }
-  .tweet-render mark[data-highlight="green"] { background-image: linear-gradient(to bottom, transparent 18%, var(--marker-green) 18%, var(--marker-green) 89%, transparent 89%); }
-  .tweet-render mark[data-highlight="blue"] { background-image: linear-gradient(to bottom, transparent 18%, var(--marker-blue) 18%, var(--marker-blue) 89%, transparent 89%); }
+  .tweet-render mark[data-highlight="yellow"] { background-image: linear-gradient(var(--marker-yellow), var(--marker-yellow)); }
+  .tweet-render mark[data-highlight="pink"] { background-image: linear-gradient(var(--marker-pink), var(--marker-pink)); }
+  .tweet-render mark[data-highlight="green"] { background-image: linear-gradient(var(--marker-green), var(--marker-green)); }
+  .tweet-render mark[data-highlight="blue"] { background-image: linear-gradient(var(--marker-blue), var(--marker-blue)); }
 
   .tweet-highlight-menu {
     position: fixed;
@@ -256,6 +262,10 @@
   /* Controles abaixo do tweet (sem textarea agora) */
   .slide-controls { padding: 12px 14px 14px; border-top: 1px solid #ececec; display: flex; flex-direction: column; gap: 10px; }
   .slide-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .slide-font-size-control { display: grid; grid-template-columns: auto minmax(150px, 1fr) auto; align-items: center; gap: 10px; }
+  .slide-font-size-control label { font-size: 12px; font-weight: 600; color: #536471; white-space: nowrap; }
+  .slide-font-size-control input[type="range"] { width: 100%; accent-color: #1D9BF0; }
+  .slide-font-size-control output { min-width: 40px; color: #1D9BF0; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
   .btn {
     border: 1px solid #d8d8d8; background: #fff; padding: 6px 12px; border-radius: 6px;
     font-size: 12px; font-family: inherit; cursor: pointer; color: #0F1419;
@@ -308,6 +318,31 @@
     font-size: 11px; color: #c66; background: #fff5f5; padding: 8px 10px;
     border-radius: 6px; margin-top: 12px; line-height: 1.5;
   }
+  .image-composer-modal { max-width: 660px; }
+  .image-composer-modal .sub { margin-bottom: 14px; }
+  .image-composer-mode { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 14px 0; }
+  .image-composer-mode button {
+    border: 1px solid #d9dde2; border-radius: 9px; background: #fff; color: #0F1419;
+    padding: 11px 12px; text-align: left; font: inherit; cursor: pointer;
+  }
+  .image-composer-mode button strong { display: block; font-size: 13px; }
+  .image-composer-mode button small { display: block; margin-top: 3px; color: #687684; line-height: 1.35; }
+  .image-composer-mode button.is-active { border-color: #1D9BF0; background: #edf8ff; box-shadow: inset 0 0 0 1px #1D9BF0; }
+  .image-composer-slots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .image-composer-slot { min-height: 154px; border: 1px dashed #b8c0c8; border-radius: 10px; overflow: hidden; position: relative; background: #f7f9fa; }
+  .image-composer-slot img { display: none; width: 100%; height: 154px; object-fit: cover; }
+  .image-composer-slot.has-image img { display: block; }
+  .image-composer-slot label { height: 154px; margin: 0; display: flex; align-items: center; justify-content: center; color: #536471; cursor: pointer; font-weight: 600; }
+  .image-composer-slot.has-image label { position: absolute; right: 8px; bottom: 8px; height: auto; padding: 6px 9px; border-radius: 6px; background: rgba(15,20,25,.78); color: #fff; font-size: 11px; }
+  .image-composer-slot input { display: none; }
+  .image-composer-tools { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 10px; }
+  .image-composer-tools p { margin: 0; color: #687684; font-size: 11px; line-height: 1.35; }
+  .image-composer-tools .btn { padding: 7px 10px; }
+  body.theme-dark .image-composer-mode button { color: #e7e9ea; background: #16181b; border-color: #383b40; }
+  body.theme-dark .image-composer-mode button small, body.theme-dark .image-composer-tools p { color: #8b98a5; }
+  body.theme-dark .image-composer-mode button.is-active { background: #102a3b; border-color: #1D9BF0; }
+  body.theme-dark .image-composer-slot { background: #16181b; border-color: #4a5057; }
+  body.theme-dark .image-composer-slot label { color: #b7c0c8; }
   .avatar-crop-modal { max-width: 416px; }
   .avatar-crop-stage {
     width: min(280px, 72vw); aspect-ratio: 1; margin: 20px auto 16px;
@@ -585,6 +620,7 @@
       </div>
       <nav id="slide-rail-list" aria-label="Navegação dos slides"></nav>
       <div class="rail-actions">
+        <button id="btn-download-current" class="shell-button quiet" title="Baixa somente o slide selecionado em PNG">Baixar slide atual</button>
         <button id="btn-add-slide" class="shell-button">+ Adicionar slide</button>
         <button id="btn-delete-slide" class="shell-button danger">Excluir atual</button>
       </div>
@@ -689,6 +725,29 @@
     </div>
   </div>
 
+  <div class="modal-backdrop" id="tweet-image-composer-modal" role="dialog" aria-modal="true" aria-labelledby="tweet-image-composer-title" aria-hidden="true">
+    <div class="modal image-composer-modal" tabindex="-1">
+      <h2 id="tweet-image-composer-title">Adicionar imagem</h2>
+      <p class="sub">Use uma foto única ou monte duas fotos no mesmo quadro 16:9. A montagem é criada localmente e já entra pronta no slide.</p>
+      <div class="image-composer-mode" role="group" aria-label="Formato da imagem">
+        <button type="button" data-image-composer-mode="single" class="is-active"><strong>Imagem única</strong><small>Usa uma foto como hoje.</small></button>
+        <button type="button" data-image-composer-mode="split"><strong>Duas fotos lado a lado</strong><small>Duas metades verticais preenchendo o quadro.</small></button>
+      </div>
+      <div class="image-composer-slots">
+        <div class="image-composer-slot" id="tweet-image-slot-left" tabindex="0"><img id="tweet-image-preview-left" alt="Primeira foto da montagem"><label for="tweet-image-file-left">Adicionar primeira foto ou cole aqui<input id="tweet-image-file-left" type="file" accept="image/*"></label></div>
+        <div class="image-composer-slot" id="tweet-image-slot-right" tabindex="0"><img id="tweet-image-preview-right" alt="Segunda foto da montagem"><label for="tweet-image-file-right">Adicionar segunda foto ou cole aqui<input id="tweet-image-file-right" type="file" accept="image/*"></label></div>
+      </div>
+      <div class="image-composer-tools">
+        <p id="tweet-image-composer-help">Escolha a foto que entrará no slide.</p>
+        <button class="btn" id="tweet-image-composer-swap" type="button" hidden>Trocar lados</button>
+      </div>
+      <div class="actions">
+        <button class="btn" id="tweet-image-composer-cancel" type="button">Cancelar</button>
+        <button class="btn primary" id="tweet-image-composer-apply" type="button" disabled>Usar imagem</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal Telegram Config -->
   <div class="modal-backdrop" id="tg-modal" role="dialog" aria-modal="true" aria-labelledby="tweet-tg-title" aria-hidden="true">
     <div class="modal" tabindex="-1">
@@ -721,6 +780,7 @@
     const TWEET_FONT_SIZE_STORAGE_KEY = 'matheusao-tweet-global-font-size-v1';
     const TWEET_FONT_SIZE_MIN = 28;
     const TWEET_FONT_SIZE_MAX = 72;
+    const TWEET_COPY_LINE_HEIGHT = 1.10;
     let currentTweetFontSize = (function() {
       try {
         const raw = localStorage.getItem(TWEET_FONT_SIZE_STORAGE_KEY);
@@ -1172,7 +1232,6 @@
       currentRatio = RATIO_HEIGHTS[snapshot.ratio] ? snapshot.ratio : '4:5';
       H = RATIO_HEIGHTS[currentRatio];
       currentTweetFontSize = Math.min(TWEET_FONT_SIZE_MAX, Math.max(TWEET_FONT_SIZE_MIN, Math.round(Number(snapshot.fontSize) || 42)));
-      slidesState.forEach((slide) => { slide.fontSize = currentTweetFontSize; });
 
       safeStorageSet(STORAGE_KEY, JSON.stringify(slidesState));
       safeStorageSet(PROFILE_STORAGE_KEY, JSON.stringify(profileState));
@@ -1203,7 +1262,7 @@
       syncProfileDOM();
       applyTheme();
       applyRatio();
-      setGlobalTweetFontSize(currentTweetFontSize, { persist: false, record: false });
+      syncGlobalTweetFontSizeControl();
       buildSlideRail();
       slidesState.forEach((_, index) => loadSlideImage(index));
     }
@@ -1248,6 +1307,7 @@
     function normalizeTweetSlides(slides) {
       return slides.map((slide, index) => ({
         ...slide,
+        fontSize: Math.min(TWEET_FONT_SIZE_MAX, Math.max(TWEET_FONT_SIZE_MIN, Math.round(Number(slide.fontSize) || currentTweetFontSize))),
         isCTA: slide.isCTA === true || /\bcta\b/i.test(String(slide.label || '')),
         isCapa: slide.isCapa === true || /\bcapa\b/i.test(String(slide.label || ''))
       }));
@@ -1361,23 +1421,53 @@
       slidesState.forEach((slide) => { slide.fontSize = size; });
       document.querySelectorAll('.tweet-render .body').forEach((bodyEl, index) => {
         bodyEl.style.fontSize = size + 'px';
-        bodyEl.style.lineHeight = (size * 1.4) + 'px';
+        bodyEl.style.lineHeight = (size * TWEET_COPY_LINE_HEIGHT) + 'px';
         applyLayout(index);
       });
-      const control = document.getElementById('tweet-global-font-size');
-      const output = document.getElementById('tweet-global-font-size-value');
-      if (control) control.value = String(size);
-      if (output) output.value = size + ' px';
+      document.querySelectorAll('[data-slide-font-size]').forEach((control) => {
+        control.value = String(size);
+        const output = document.getElementById(control.getAttribute('data-slide-font-size-output'));
+        if (output) output.value = size + ' px';
+      });
+      syncGlobalTweetFontSizeControl();
       if (!persist) return;
       safeStorageSet(TWEET_FONT_SIZE_STORAGE_KEY, String(size));
       saveState({ record: false });
       if (record) recordEditorMutation('font-size');
     }
 
+    function syncGlobalTweetFontSizeControl() {
+      const control = document.getElementById('tweet-global-font-size');
+      const output = document.getElementById('tweet-global-font-size-value');
+      if (control) control.value = String(currentTweetFontSize);
+      if (output) output.value = currentTweetFontSize + ' px';
+    }
+
+    function setSlideTweetFontSize(index, value, options = {}) {
+      const { persist = true, record = true } = options;
+      const slide = slidesState[index];
+      if (!slide) return;
+      const size = Math.min(TWEET_FONT_SIZE_MAX, Math.max(TWEET_FONT_SIZE_MIN, Math.round(Number(value) || currentTweetFontSize)));
+      slide.fontSize = size;
+      const control = document.getElementById('slide-font-size-' + index);
+      const output = document.getElementById('slide-font-size-value-' + index);
+      if (control) control.value = String(size);
+      if (output) output.value = size + ' px';
+      const bodyEl = document.getElementById('body-' + index);
+      if (bodyEl) {
+        bodyEl.style.fontSize = size + 'px';
+        bodyEl.style.lineHeight = (size * TWEET_COPY_LINE_HEIGHT) + 'px';
+        requestAnimationFrame(() => applyLayout(index));
+      }
+      if (!persist) return;
+      saveState({ record: false });
+      if (record) recordEditorMutation('slide-font-size');
+    }
+
     function setupGlobalTweetFontSizeControl() {
       const control = document.getElementById('tweet-global-font-size');
       if (!control) return;
-      setGlobalTweetFontSize(currentTweetFontSize, { persist: false, record: false });
+      syncGlobalTweetFontSizeControl();
       control.addEventListener('input', () => setGlobalTweetFontSize(control.value, { persist: false, record: false }));
       control.addEventListener('change', () => setGlobalTweetFontSize(control.value, { persist: true, record: true }));
     }
@@ -1494,6 +1584,26 @@
     let savedHighlightRange = null;
     let savedHighlightBody = null;
     let highlightSelectionFrame = 0;
+    const richTextGraphemeSegmenter = typeof Intl !== 'undefined' && Intl.Segmenter
+      ? new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+      : null;
+
+    function getTextGraphemes(text) {
+      const value = String(text || '');
+      if (richTextGraphemeSegmenter) {
+        return Array.from(richTextGraphemeSegmenter.segment(value), part => ({
+          text: part.segment,
+          start: part.index,
+          end: part.index + part.segment.length
+        }));
+      }
+      let offset = 0;
+      return Array.from(value, char => {
+        const segment = { text: char, start: offset, end: offset + char.length };
+        offset += char.length;
+        return segment;
+      });
+    }
 
     function richTextNodeLength(node) {
       if (node.nodeType === Node.TEXT_NODE) return (node.textContent || '').length;
@@ -1630,31 +1740,18 @@
       return found || { container: bodyEl, offset: bodyEl.childNodes.length };
     }
 
-    function restoreRichTextSelection(bodyEl, startOffset, endOffset) {
-      const start = locateRichTextOffset(bodyEl, startOffset);
-      const end = locateRichTextOffset(bodyEl, endOffset);
-      const range = document.createRange();
-      range.setStart(start.container, start.offset);
-      range.setEnd(end.container, end.offset);
-      const selection = window.getSelection();
-      selection.removeAllRanges();
-      selection.addRange(range);
-      savedHighlightRange = range.cloneRange();
-      savedHighlightBody = bodyEl;
-      return range;
-    }
-
     function syncHighlightedBody(bodyEl) {
       const index = Number(String(bodyEl.id || '').replace('body-', ''));
       if (!Number.isInteger(index) || !slidesState[index]) return;
       slidesState[index].text = htmlToMarkdown(bodyEl.innerHTML);
       saveState();
       applyLayout(index);
+      recordEditorMutation('highlight');
     }
 
     function positionHighlightMenu(range) {
       if (!highlightMenu || !range) return;
-      const rect = range.getBoundingClientRect();
+      const rect = Array.from(range.getClientRects())[0] || range.getBoundingClientRect();
       if (!rect.width && !rect.height) return;
       const gap = 9;
       const menuWidth = highlightMenu.offsetWidth || 218;
@@ -1705,9 +1802,16 @@
         if (units[index].char !== '\n') units[index].highlight = safeColor;
       }
       bodyEl.innerHTML = renderRichTextUnits(units);
-      const range = restoreRichTextSelection(bodyEl, start, end);
       syncHighlightedBody(bodyEl);
-      showHighlightMenu(range);
+      const caret = locateRichTextOffset(bodyEl, end);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      const caretRange = document.createRange();
+      caretRange.setStart(caret.container, caret.offset);
+      caretRange.collapse(true);
+      selection.addRange(caretRange);
+      hideHighlightMenu();
+      bodyEl.focus({ preventScroll: true });
     }
 
     function applyHighlightToSavedRange(color) {
@@ -1797,15 +1901,15 @@
       };
       function walk(node, isBold, highlightColor) {
         if (node.nodeType === Node.TEXT_NODE) {
-          const text = node.textContent;
-          for (let i = 0; i < text.length; i++) {
+          const graphemes = getTextGraphemes(node.textContent || '');
+          for (const grapheme of graphemes) {
             const range = document.createRange();
-            range.setStart(node, i);
-            range.setEnd(node, i + 1);
+            range.setStart(node, grapheme.start);
+            range.setEnd(node, grapheme.end);
             const rect = range.getBoundingClientRect();
-            // Ignora chars sem rect (raro, mas pode acontecer pra zero-width)
-            if (rect.width === 0 && rect.height === 0) continue;
-            PUSH_CHAR(text[i], isBold, highlightColor, rect.top);
+            // Caracteres sem largura (p.ex. ZWJ) ainda entram no Canvas, sem criar uma linha falsa.
+            const top = rect.width || rect.height ? rect.top : (currentTop ?? bodyEl.getBoundingClientRect().top);
+            PUSH_CHAR(grapheme.text, isBold, highlightColor, top);
           }
           return;
         }
@@ -1842,19 +1946,12 @@
 
     function drawMarkerStroke(ctx, x, y, width, fontSize, color) {
       if (!color || width <= 0) return;
-      // Mesma faixa vertical do preview CSS (18% → 89% da caixa tipográfica).
-      const top = y + fontSize * 0.18;
-      const bottom = y + fontSize * 0.89;
-      const pad = Math.max(3, fontSize * 0.08);
+      // Mesma faixa vertical do preview CSS: começa em 0.08em e mede 0.88em.
+      const top = y + fontSize * 0.08;
+      const height = fontSize * 0.88;
       ctx.save();
       ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.moveTo(x - pad, top + 1);
-      ctx.lineTo(x + width + pad, top - 1);
-      ctx.lineTo(x + width + pad * 0.72, bottom + 1);
-      ctx.lineTo(x - pad * 0.82, bottom - 1);
-      ctx.closePath();
-      ctx.fill();
+      ctx.fillRect(x, top, width, height);
       ctx.restore();
     }
 
@@ -1878,8 +1975,8 @@
       const avatarSize = 120;
       const hasImg = !!slideImage;
       const imgPad = 60, imgRadius = 24;
-      const fontFamily = '"Helvetica Neue", Helvetica, Arial, sans-serif';
-      ctx.font = `${fontSize}px ${fontFamily}`;
+      const fontFamily = 'Arial, sans-serif';
+      ctx.font = `400 ${fontSize}px ${fontFamily}`;
       const maxTextWidth = W - PAD_X * 2;
       // Se temos lines do DOM, usa elas; senão recai pro wrap manual.
       const lines = precomputedLines || (function() {
@@ -1898,7 +1995,7 @@
         });
         return segs;
       })();
-      const lineHeight = fontSize * 1.4;
+      const lineHeight = fontSize * TWEET_COPY_LINE_HEIGHT;
       const textBlockH = lines.length * lineHeight;
       const headerH = avatarSize, gap = 55, imgGapBetween = 40;
       const actualImgW = W - imgPad * 2;
@@ -1953,7 +2050,7 @@
 
       ctx.font = `32px ${fontFamily}`; ctx.fillStyle = fgMuted;
       ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-      ctx.fillText('@' + handle, nameX, startY + 72);
+      ctx.fillText('@' + handle, nameX, startY + 62);
 
       const textY = startY + headerH + gap;
       ctx.fillStyle = fg; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
@@ -2269,6 +2366,175 @@
     }
 
     const imageCommitRevisions = new Map();
+    const tweetImageComposer = { targetSlide: null, leftDataURL: null, rightDataURL: null, mode: 'single', activeSlot: 'left' };
+
+    function readImageBlobAsDataURL(blob) {
+      return new Promise((resolve, reject) => {
+        if (!blob || !blob.type || !blob.type.startsWith('image/')) {
+          reject(new Error('Arquivo não é uma imagem.'));
+          return;
+        }
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('Não foi possível ler esta imagem.'));
+        reader.onload = () => resolve(reader.result);
+        reader.readAsDataURL(blob);
+      });
+    }
+
+    function drawCoverImage(context, image, x, y, width, height) {
+      const sourceRatio = image.naturalWidth / image.naturalHeight;
+      const targetRatio = width / height;
+      let sx = 0, sy = 0, sw = image.naturalWidth, sh = image.naturalHeight;
+      if (sourceRatio > targetRatio) {
+        sw = image.naturalHeight * targetRatio;
+        sx = (image.naturalWidth - sw) / 2;
+      } else {
+        sh = image.naturalWidth / targetRatio;
+        sy = (image.naturalHeight - sh) / 2;
+      }
+      context.drawImage(image, sx, sy, sw, sh, x, y, width, height);
+    }
+
+    function loadComposerImage(dataURL) {
+      return new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error('Não foi possível carregar uma das fotos.'));
+        image.src = dataURL;
+      });
+    }
+
+    async function composeSplitImage(leftDataURL, rightDataURL) {
+      const [left, right] = await Promise.all([loadComposerImage(leftDataURL), loadComposerImage(rightDataURL)]);
+      if (!left || !right) throw new Error('Não foi possível carregar uma das fotos.');
+      const canvas = document.createElement('canvas');
+      canvas.width = 1600; canvas.height = 900;
+      const context = canvas.getContext('2d');
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = 'high';
+      drawCoverImage(context, left, 0, 0, 800, 900);
+      drawCoverImage(context, right, 800, 0, 800, 900);
+      return canvas.toDataURL('image/jpeg', 0.92);
+    }
+
+    function renderTweetImageComposer() {
+      const state = tweetImageComposer;
+      const modal = document.getElementById('tweet-image-composer-modal');
+      const needsTwo = state.mode === 'split';
+      [['left', state.leftDataURL], ['right', state.rightDataURL]].forEach(([side, dataURL]) => {
+        const slot = document.getElementById('tweet-image-slot-' + side);
+        const preview = document.getElementById('tweet-image-preview-' + side);
+        if (!slot || !preview) return;
+        slot.classList.toggle('has-image', !!dataURL);
+        if (dataURL) preview.src = dataURL;
+        else preview.removeAttribute('src');
+        if (side === 'right') slot.hidden = !needsTwo;
+      });
+      modal.querySelectorAll('[data-image-composer-mode]').forEach(button => button.classList.toggle('is-active', button.dataset.imageComposerMode === state.mode));
+      document.getElementById('tweet-image-composer-swap').hidden = !needsTwo || !state.leftDataURL || !state.rightDataURL;
+      document.getElementById('tweet-image-composer-help').textContent = needsTwo
+        ? (!state.leftDataURL ? 'Adicione ou cole a primeira foto. Depois, faça o mesmo na segunda metade.' : !state.rightDataURL ? 'Agora adicione ou cole a segunda foto. Ctrl+V entra diretamente neste quadro.' : 'Cada foto ocupa metade do quadro, com recorte central automático.')
+        : 'Adicione uma foto ou pressione Ctrl+V para colar a imagem que entrará no slide.';
+      document.getElementById('tweet-image-composer-apply').disabled = !state.leftDataURL || (needsTwo && !state.rightDataURL);
+    }
+
+    function closeTweetImageComposer() {
+      const modal = document.getElementById('tweet-image-composer-modal');
+      modal.classList.remove('visible');
+      modal.setAttribute('aria-hidden', 'true');
+      tweetImageComposer.targetSlide = null;
+      tweetImageComposer.leftDataURL = null;
+      tweetImageComposer.rightDataURL = null;
+      tweetImageComposer.mode = 'single';
+      tweetImageComposer.activeSlot = 'left';
+    }
+
+    async function openTweetImageComposer(index, initialBlob = null) {
+      const targetSlide = slidesState[index];
+      if (!targetSlide) return;
+      tweetImageComposer.targetSlide = targetSlide;
+      tweetImageComposer.leftDataURL = null;
+      tweetImageComposer.rightDataURL = null;
+      tweetImageComposer.mode = 'single';
+      tweetImageComposer.activeSlot = 'left';
+      const modal = document.getElementById('tweet-image-composer-modal');
+      modal.classList.add('visible');
+      modal.setAttribute('aria-hidden', 'false');
+      renderTweetImageComposer();
+      modal.querySelector('.modal').focus();
+      if (!initialBlob) return;
+      try {
+        tweetImageComposer.leftDataURL = await readImageBlobAsDataURL(initialBlob);
+        if (tweetImageComposer.targetSlide !== targetSlide) return;
+        renderTweetImageComposer();
+      } catch (error) {
+        setSendStatus('✗ ' + (error.message || error), 'error');
+      }
+    }
+
+    async function setTweetImageComposerSlot(side, file) {
+      try {
+        tweetImageComposer[side + 'DataURL'] = await readImageBlobAsDataURL(file);
+        renderTweetImageComposer();
+      } catch (error) {
+        setSendStatus('✗ ' + (error.message || error), 'error');
+      }
+    }
+
+    async function applyTweetImageComposer() {
+      const { targetSlide, leftDataURL, rightDataURL, mode } = tweetImageComposer;
+      const index = slidesState.indexOf(targetSlide);
+      if (index < 0 || !leftDataURL || (mode === 'split' && !rightDataURL)) return;
+      const applyButton = document.getElementById('tweet-image-composer-apply');
+      applyButton.disabled = true;
+      applyButton.textContent = 'Preparando…';
+      try {
+        const dataURL = mode === 'split' ? await composeSplitImage(leftDataURL, rightDataURL) : leftDataURL;
+        if (slidesState.indexOf(targetSlide) !== index) return;
+        const committed = await commitTweetImageDataURL(index, dataURL, targetSlide);
+        if (!committed) throw new Error('O slide mudou antes que a imagem fosse aplicada. Tente novamente.');
+        closeTweetImageComposer();
+      } catch (error) {
+        setSendStatus('✗ ' + (error.message || error), 'error');
+      } finally {
+        applyButton.textContent = 'Usar imagem';
+        if (document.getElementById('tweet-image-composer-modal').classList.contains('visible')) renderTweetImageComposer();
+      }
+    }
+
+    function setupTweetImageComposer() {
+      const modal = document.getElementById('tweet-image-composer-modal');
+      modal.querySelectorAll('[data-image-composer-mode]').forEach(button => button.addEventListener('click', () => {
+        tweetImageComposer.mode = button.dataset.imageComposerMode;
+        renderTweetImageComposer();
+      }));
+      ['left', 'right'].forEach(side => document.getElementById('tweet-image-file-' + side).addEventListener('change', event => {
+        const file = event.target.files && event.target.files[0];
+        event.target.value = '';
+        if (file) setTweetImageComposerSlot(side, file);
+      }));
+      ['left', 'right'].forEach(side => document.getElementById('tweet-image-slot-' + side).addEventListener('mousedown', () => {
+        tweetImageComposer.activeSlot = side;
+      }));
+      document.addEventListener('paste', event => {
+        if (!modal.classList.contains('visible')) return;
+        const imageItem = Array.from((event.clipboardData || window.clipboardData)?.items || []).find(item => item.type && item.type.startsWith('image/'));
+        if (!imageItem) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const side = tweetImageComposer.mode === 'split' && (tweetImageComposer.activeSlot === 'right' || (tweetImageComposer.leftDataURL && !tweetImageComposer.rightDataURL)) ? 'right' : 'left';
+        tweetImageComposer.activeSlot = side;
+        setTweetImageComposerSlot(side, imageItem.getAsFile());
+      }, true);
+      document.getElementById('tweet-image-composer-swap').addEventListener('click', () => {
+        [tweetImageComposer.leftDataURL, tweetImageComposer.rightDataURL] = [tweetImageComposer.rightDataURL, tweetImageComposer.leftDataURL];
+        renderTweetImageComposer();
+      });
+      document.getElementById('tweet-image-composer-cancel').addEventListener('click', closeTweetImageComposer);
+      document.getElementById('tweet-image-composer-apply').addEventListener('click', applyTweetImageComposer);
+      modal.addEventListener('mousedown', event => { if (event.target === modal) closeTweetImageComposer(); });
+    }
+
     function normalizeSlideImage(dataURL) {
       return new Promise((resolve) => {
         const image = new Image();
@@ -2287,24 +2553,24 @@
       });
     }
 
+    function commitTweetImageDataURL(i, dataURL, targetSlide = slidesState[i]) {
+      const revisionKey = targetSlide || i;
+      const revision = (imageCommitRevisions.get(revisionKey) || 0) + 1;
+      imageCommitRevisions.set(revisionKey, revision);
+      return normalizeSlideImage(dataURL).then((normalized) => {
+        const targetIndex = targetSlide ? slidesState.indexOf(targetSlide) : i;
+        if (imageCommitRevisions.get(revisionKey) !== revision || targetIndex < 0) return false;
+        targetSlide.imageDataURL = normalized;
+        loadSlideImage(targetIndex);
+        saveState();
+        flashSlide(targetIndex);
+        return true;
+      });
+    }
+
     function acceptImageBlob(blob, i) {
       if (!blob) return;
-      if (!blob.type || !blob.type.startsWith('image/')) {
-        setSendStatus('Arquivo não é imagem', 'error');
-        return;
-      }
-      const revision = (imageCommitRevisions.get(i) || 0) + 1;
-      imageCommitRevisions.set(i, revision);
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const normalized = await normalizeSlideImage(e.target.result);
-        if (imageCommitRevisions.get(i) !== revision || !slidesState[i]) return;
-        slidesState[i].imageDataURL = normalized;
-        loadSlideImage(i);
-        saveState();
-        flashSlide(i);
-      };
-      reader.readAsDataURL(blob);
+      openTweetImageComposer(i, blob);
     }
 
     function flashSlide(i) {
@@ -2563,6 +2829,31 @@
         // Controles abaixo do tweet (sem textarea agora)
         const controls = document.createElement('div');
         controls.className = 'slide-controls';
+
+        const fontSizeControl = document.createElement('div');
+        fontSizeControl.className = 'slide-font-size-control';
+        const fontSizeLabel = document.createElement('label');
+        fontSizeLabel.htmlFor = 'slide-font-size-' + i;
+        fontSizeLabel.textContent = 'Tamanho da copy';
+        const fontSizeInput = document.createElement('input');
+        fontSizeInput.id = 'slide-font-size-' + i;
+        fontSizeInput.type = 'range';
+        fontSizeInput.min = String(TWEET_FONT_SIZE_MIN);
+        fontSizeInput.max = String(TWEET_FONT_SIZE_MAX);
+        fontSizeInput.step = '1';
+        fontSizeInput.value = String(slide.fontSize || currentTweetFontSize);
+        fontSizeInput.setAttribute('aria-label', 'Tamanho da copy do slide ' + (i + 1));
+        fontSizeInput.setAttribute('data-slide-font-size', String(i));
+        fontSizeInput.setAttribute('data-slide-font-size-output', 'slide-font-size-value-' + i);
+        const fontSizeOutput = document.createElement('output');
+        fontSizeOutput.id = 'slide-font-size-value-' + i;
+        fontSizeOutput.htmlFor = fontSizeInput.id;
+        fontSizeOutput.value = fontSizeInput.value + ' px';
+        fontSizeInput.addEventListener('input', () => setSlideTweetFontSize(i, fontSizeInput.value, { persist: false, record: false }));
+        fontSizeInput.addEventListener('change', () => setSlideTweetFontSize(i, fontSizeInput.value, { persist: true, record: true }));
+        fontSizeControl.append(fontSizeLabel, fontSizeInput, fontSizeOutput);
+        controls.appendChild(fontSizeControl);
+
         const actions = document.createElement('div');
         actions.className = 'slide-actions';
 
@@ -2582,7 +2873,7 @@
 
         const uploadLabel = document.createElement('label');
         uploadLabel.className = 'btn';
-        uploadLabel.innerHTML = '+ Imagem (16:9 auto-crop)';
+        uploadLabel.innerHTML = '+ Adicionar imagem';
         const fileInput = document.createElement('input');
         fileInput.type = 'file'; fileInput.accept = 'image/*';
         fileInput.addEventListener('change', (ev) => {
@@ -2598,8 +2889,9 @@
         removeBtn.className = 'btn danger';
         removeBtn.textContent = 'Remover imagem';
         removeBtn.addEventListener('click', () => {
-          imageCommitRevisions.set(i, (imageCommitRevisions.get(i) || 0) + 1);
-          slidesState[i].imageDataURL = null;
+          const targetSlide = slidesState[i];
+          imageCommitRevisions.set(targetSlide, (imageCommitRevisions.get(targetSlide) || 0) + 1);
+          targetSlide.imageDataURL = null;
           slideImageCache.delete(i);
           renderSlide(i); saveState();
         });
@@ -2607,7 +2899,7 @@
 
         const downloadBtn = document.createElement('button');
         downloadBtn.className = 'btn primary';
-        downloadBtn.textContent = 'Baixar PNG';
+        downloadBtn.textContent = 'Baixar este slide';
         downloadBtn.addEventListener('click', () => downloadSlide(i));
         actions.appendChild(downloadBtn);
 
@@ -2648,7 +2940,7 @@
       const measureAt = (fit) => {
         const effectiveSize = fontSize * fit;
         bodyEl.style.fontSize = effectiveSize + 'px';
-        bodyEl.style.lineHeight = (effectiveSize * 1.4) + 'px';
+        bodyEl.style.lineHeight = (effectiveSize * TWEET_COPY_LINE_HEIGHT) + 'px';
         return headerH + gap + bodyEl.scrollHeight + (hasImg ? imgGapBetween + maxImgH : 0);
       };
       let contentFit = 1;
@@ -2696,7 +2988,17 @@
       a.href = url;
       a.download = `slide-${String(i + 1).padStart(2, '0')}.png`;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setSendStatus('✓ Slide ' + (i + 1) + ' baixado em PNG.', 'success');
       return true;
+    }
+
+    function downloadCurrentTweetSlide() {
+      const index = typeof activeSlideIndex === 'number' ? activeSlideIndex : 0;
+      if (!slidesState[index]) {
+        setSendStatus('Selecione um slide antes de exportar.', 'error');
+        return;
+      }
+      downloadSlide(index);
     }
 
     async function downloadAll() {
@@ -2747,7 +3049,6 @@
       slidesState.forEach((s, i) => {
         const original = ORIGINAL_SLIDES[i];
         s.text = original ? original.text : 'adicione aqui a sua copy';
-        s.fontSize = currentTweetFontSize;
       });
       saveState(); buildUI();
       slidesState.forEach((_, i) => { loadSlideImage(i); renderSlide(i); });
@@ -2841,8 +3142,10 @@
     configureHubSession();
     applyUiTheme();
     setupProfileControls();
+    setupTweetImageComposer();
     setupGlobalTweetFontSizeControl();
     document.getElementById('btn-download-all').addEventListener('click', downloadAll);
+    document.getElementById('btn-download-current')?.addEventListener('click', downloadCurrentTweetSlide);
     document.getElementById('btn-add-slide')?.addEventListener('click', addSlide);
     document.getElementById('btn-delete-slide')?.addEventListener('click', deleteCurrentSlide);
     document.getElementById('btn-reset').addEventListener('click', resetTexts);

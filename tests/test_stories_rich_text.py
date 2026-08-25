@@ -91,7 +91,7 @@ class StoriesRichTextContractTest(unittest.TestCase):
             "function getFallbackContentFitScale(ctx, slideData, zoneW, zoneH, isCapa, gap)",
             "const contentFit = getFallbackContentFitScale(ctx, slideData, zoneW, zoneH, !!isCapa, gap);",
             "ctx.scale(bz.scale, bz.scale);",
-            "function measureBodyZoneContentHeight(bodyZone, items)",
+            "function hasSlideCanvasOverflow(bodyZone, items)",
             "node.style.fontSize = (eff.fontSize * contentFit) + 'px';",
             "bodyZone.style.setProperty('--content-fit-gap'",
         )

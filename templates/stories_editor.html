@@ -433,6 +433,23 @@
     background: #229ED9; color: #fff; border-color: #229ED9;
   }
   .modal-card .actions button.primary:hover { background: #1B86B5; }
+  .image-composer-card { width: min(660px, calc(100vw - 32px)); }
+  .image-composer-card .sub { color: rgba(245,242,234,.66); font-size: 12px; line-height: 1.5; margin: -5px 0 14px; }
+  .image-composer-mode { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 14px 0; }
+  .image-composer-mode button { border: 1px solid #464a50; border-radius: 8px; background: #16181b; color: #f5f2ea; padding: 11px 12px; text-align: left; font: inherit; cursor: pointer; }
+  .image-composer-mode button strong { display: block; font-size: 13px; }
+  .image-composer-mode button small { display: block; margin-top: 3px; color: rgba(245,242,234,.58); line-height: 1.35; }
+  .image-composer-mode button.is-active { border-color: #f7c72c; background: rgba(247,199,44,.11); box-shadow: inset 0 0 0 1px #f7c72c; }
+  .image-composer-slots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .image-composer-slot { min-height: 154px; border: 1px dashed #555a60; border-radius: 8px; overflow: hidden; position: relative; background: #16181b; }
+  .image-composer-slot img { display: none; width: 100%; height: 154px; object-fit: cover; }
+  .image-composer-slot.has-image img { display: block; }
+  .image-composer-slot label { height: 154px; margin: 0; display: flex; align-items: center; justify-content: center; color: rgba(245,242,234,.7); cursor: pointer; font-weight: 600; }
+  .image-composer-slot.has-image label { position: absolute; right: 8px; bottom: 8px; height: auto; padding: 6px 9px; border-radius: 6px; background: rgba(0,0,0,.74); color: #fff; font-size: 11px; }
+  .image-composer-slot input { display: none; }
+  .image-composer-tools { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 10px; }
+  .image-composer-tools p { margin: 0; color: rgba(245,242,234,.58); font-size: 11px; line-height: 1.35; }
+  .image-composer-tools .btn { padding: 7px 10px; }
   .toolbar button {
     background: #1f2124; color: #f5f2ea;
     border: 1px solid #383b40;
@@ -840,6 +857,7 @@
     </div>
     <nav id="slide-rail-list" aria-label="Navegação dos slides"></nav>
     <div class="rail-actions">
+      <button id="btn-download-current" class="shell-button quiet" title="Baixa somente o slide selecionado em PNG">Baixar slide atual</button>
       <button id="btn-add-slide" class="shell-button">+ Adicionar slide</button>
       <button id="btn-delete-slide" class="shell-button danger">Excluir atual</button>
     </div>
@@ -892,9 +910,7 @@
     <section class="inspector-section">
       <span class="inspector-title">Imagem do slide ativo</span>
       <div class="inspector-stack">
-        <label id="btn-add-inline" class="shell-button quiet">Adicionar imagem 16:9
-          <input type="file" id="inline-upload" accept="image/*" style="display:none;">
-        </label>
+        <button id="btn-add-inline" class="shell-button quiet" type="button">Adicionar imagem</button>
         <button id="btn-remove-inline" class="shell-button quiet">Remover imagem</button>
       </div>
     </section>
@@ -918,6 +934,29 @@
 </div>
 
 <div id="send-status" class="send-status" style="display:none;"></div>
+
+<div id="stories-image-composer-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="stories-image-composer-title" aria-hidden="true">
+  <div class="modal-card image-composer-card" tabindex="-1">
+    <h2 id="stories-image-composer-title">Adicionar imagem</h2>
+    <p class="sub">Use uma foto única ou monte duas fotos no mesmo quadro 16:9. A montagem é criada localmente e já entra pronta no slide.</p>
+    <div class="image-composer-mode" role="group" aria-label="Formato da imagem">
+      <button type="button" data-image-composer-mode="single" class="is-active"><strong>Imagem única</strong><small>Usa uma foto como hoje.</small></button>
+      <button type="button" data-image-composer-mode="split"><strong>Duas fotos lado a lado</strong><small>Duas metades verticais preenchendo o quadro.</small></button>
+    </div>
+    <div class="image-composer-slots">
+      <div class="image-composer-slot" id="stories-image-slot-left" tabindex="0"><img id="stories-image-preview-left" alt="Primeira foto da montagem"><label for="stories-image-file-left">Adicionar primeira foto ou cole aqui<input id="stories-image-file-left" type="file" accept="image/*"></label></div>
+      <div class="image-composer-slot" id="stories-image-slot-right" tabindex="0"><img id="stories-image-preview-right" alt="Segunda foto da montagem"><label for="stories-image-file-right">Adicionar segunda foto ou cole aqui<input id="stories-image-file-right" type="file" accept="image/*"></label></div>
+    </div>
+    <div class="image-composer-tools">
+      <p id="stories-image-composer-help">Escolha a foto que entrará no slide.</p>
+      <button class="btn" id="stories-image-composer-swap" type="button" hidden>Trocar lados</button>
+    </div>
+    <div class="actions">
+      <button class="btn" id="stories-image-composer-cancel" type="button">Cancelar</button>
+      <button class="btn primary" id="stories-image-composer-apply" type="button" disabled>Usar imagem</button>
+    </div>
+  </div>
+</div>
 
 <!-- Modal Telegram -->
 <div id="tg-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="tg-modal-title" aria-hidden="true">
@@ -1786,10 +1825,11 @@
 
     // O tamanho dos controles é a fonte da verdade. Não reduzimos a fonte para
     // fazer o conteúdo caber: isso mascarava o resultado real do slider e
-    // produzia saltos visuais após o debounce. Mantemos 1× e sinalizamos o
-    // excesso, que já impede uma exportação ilegível.
+    // produzia saltos visuais após o debounce. Mantemos 1× e só sinalizamos
+    // quando o conteúdo ultrapassa o canvas inteiro do slide — não apenas a
+    // zona interna de texto, que tem margens editoriais de propósito.
     applyBodyZoneContentFit(bodyZone, 1);
-    const overflow = measureBodyZoneContentHeight(bodyZone, items) > bodyZone.clientHeight + 1;
+    const overflow = hasSlideCanvasOverflow(bodyZone, items);
     setBodyZoneOverflow(bodyZone, overflow);
     return 1;
   }
@@ -1800,10 +1840,23 @@
     if (wrap) wrap.classList.toggle('content-overflow', overflow);
   }
 
-  function measureBodyZoneContentHeight(bodyZone, items) {
-    const gap = Number.parseFloat(getComputedStyle(bodyZone).gap) || 0;
-    return items.reduce((total, node) => total + node.offsetHeight, 0) +
-      Math.max(0, items.length - 1) * gap;
+  function hasSlideCanvasOverflow(bodyZone, items) {
+    const slideEl = bodyZone && bodyZone.closest('.slide');
+    if (!slideEl || !slideEl.isConnected) return false;
+    const canvasBounds = slideEl.getBoundingClientRect();
+    if (!canvasBounds.width || !canvasBounds.height) return false;
+    // Uma pequena tolerância evita um falso positivo por arredondamento de
+    // subpixel após o preview ser escalado para caber na tela.
+    const tolerance = Math.max(1.5, canvasBounds.width * 0.003);
+    return items.some(node => {
+      const bounds = node.getBoundingClientRect();
+      const crossesCanvasEdge = bounds.left < canvasBounds.left - tolerance ||
+        bounds.right > canvasBounds.right + tolerance ||
+        bounds.top < canvasBounds.top - tolerance ||
+        bounds.bottom > canvasBounds.bottom + tolerance;
+      const hasUnwrappedHorizontalText = node.scrollWidth > node.clientWidth + 1;
+      return crossesCanvasEdge || hasUnwrappedHorizontalText;
+    });
   }
 
   function applyBodyZoneContentFit(bodyZone, fit) {
@@ -2956,6 +3009,174 @@
   });
 
   // ==== IMAGE / BODY-ZONE ====
+  const storiesImageComposer = { targetSlide: null, leftDataURL: null, rightDataURL: null, mode: 'single', activeSlot: 'left' };
+
+  function readStoriesImageBlob(blob) {
+    return new Promise((resolve, reject) => {
+      if (!blob || !blob.type || !blob.type.startsWith('image/')) {
+        reject(new Error('Arquivo não é uma imagem.'));
+        return;
+      }
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('Não foi possível ler esta imagem.'));
+      reader.onload = () => resolve(reader.result);
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  function loadStoriesComposerImage(dataURL) {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error('Não foi possível carregar uma das fotos.'));
+      image.src = dataURL;
+    });
+  }
+
+  function drawStoriesCoverImage(context, image, x, y, width, height) {
+    const sourceRatio = image.naturalWidth / image.naturalHeight;
+    const targetRatio = width / height;
+    let sx = 0, sy = 0, sw = image.naturalWidth, sh = image.naturalHeight;
+    if (sourceRatio > targetRatio) {
+      sw = image.naturalHeight * targetRatio;
+      sx = (image.naturalWidth - sw) / 2;
+    } else {
+      sh = image.naturalWidth / targetRatio;
+      sy = (image.naturalHeight - sh) / 2;
+    }
+    context.drawImage(image, sx, sy, sw, sh, x, y, width, height);
+  }
+
+  async function composeStoriesSplitImage(leftDataURL, rightDataURL) {
+    const [left, right] = await Promise.all([loadStoriesComposerImage(leftDataURL), loadStoriesComposerImage(rightDataURL)]);
+    const canvas = document.createElement('canvas');
+    canvas.width = 1600; canvas.height = 900;
+    const context = canvas.getContext('2d');
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = 'high';
+    drawStoriesCoverImage(context, left, 0, 0, 800, 900);
+    drawStoriesCoverImage(context, right, 800, 0, 800, 900);
+    return canvas.toDataURL('image/jpeg', 0.92);
+  }
+
+  function renderStoriesImageComposer() {
+    const state = storiesImageComposer;
+    const modal = document.getElementById('stories-image-composer-modal');
+    const needsTwo = state.mode === 'split';
+    [['left', state.leftDataURL], ['right', state.rightDataURL]].forEach(([side, dataURL]) => {
+      const slot = document.getElementById('stories-image-slot-' + side);
+      const preview = document.getElementById('stories-image-preview-' + side);
+      if (!slot || !preview) return;
+      slot.classList.toggle('has-image', !!dataURL);
+      if (dataURL) preview.src = dataURL;
+      else preview.removeAttribute('src');
+      if (side === 'right') slot.hidden = !needsTwo;
+    });
+    modal.querySelectorAll('[data-image-composer-mode]').forEach(button => button.classList.toggle('is-active', button.dataset.imageComposerMode === state.mode));
+    document.getElementById('stories-image-composer-swap').hidden = !needsTwo || !state.leftDataURL || !state.rightDataURL;
+    document.getElementById('stories-image-composer-help').textContent = needsTwo
+      ? (!state.leftDataURL ? 'Adicione ou cole a primeira foto. Depois, faça o mesmo na segunda metade.' : !state.rightDataURL ? 'Agora adicione ou cole a segunda foto. Ctrl+V entra diretamente neste quadro.' : 'Cada foto ocupa metade do quadro, com recorte central automático.')
+      : 'Adicione uma foto ou pressione Ctrl+V para colar a imagem que entrará no slide.';
+    document.getElementById('stories-image-composer-apply').disabled = !state.leftDataURL || (needsTwo && !state.rightDataURL);
+  }
+
+  function closeStoriesImageComposer() {
+    const modal = document.getElementById('stories-image-composer-modal');
+    modal.classList.remove('visible');
+    modal.setAttribute('aria-hidden', 'true');
+    storiesImageComposer.targetSlide = null;
+    storiesImageComposer.leftDataURL = null;
+    storiesImageComposer.rightDataURL = null;
+    storiesImageComposer.mode = 'single';
+    storiesImageComposer.activeSlot = 'left';
+  }
+
+  async function openStoriesImageComposer(stageIndex, initialBlob = null) {
+    const targetSlide = doc.slides[stageIndex];
+    if (!targetSlide) return;
+    storiesImageComposer.targetSlide = targetSlide;
+    storiesImageComposer.leftDataURL = null;
+    storiesImageComposer.rightDataURL = null;
+    storiesImageComposer.mode = 'single';
+    storiesImageComposer.activeSlot = 'left';
+    const modal = document.getElementById('stories-image-composer-modal');
+    modal.classList.add('visible');
+    modal.setAttribute('aria-hidden', 'false');
+    renderStoriesImageComposer();
+    modal.querySelector('.modal-card').focus();
+    if (!initialBlob) return;
+    try {
+      storiesImageComposer.leftDataURL = await readStoriesImageBlob(initialBlob);
+      if (storiesImageComposer.targetSlide !== targetSlide) return;
+      renderStoriesImageComposer();
+    } catch (error) {
+      setSendStatus('✗ ' + (error.message || error), 'error');
+    }
+  }
+
+  async function setStoriesImageComposerSlot(side, file) {
+    try {
+      storiesImageComposer[side + 'DataURL'] = await readStoriesImageBlob(file);
+      renderStoriesImageComposer();
+    } catch (error) {
+      setSendStatus('✗ ' + (error.message || error), 'error');
+    }
+  }
+
+  async function applyStoriesImageComposer() {
+    const { targetSlide, leftDataURL, rightDataURL, mode } = storiesImageComposer;
+    const stageIndex = doc.slides.indexOf(targetSlide);
+    if (stageIndex < 0 || !leftDataURL || (mode === 'split' && !rightDataURL)) return;
+    const applyButton = document.getElementById('stories-image-composer-apply');
+    applyButton.disabled = true;
+    applyButton.textContent = 'Preparando…';
+    try {
+      const dataURL = mode === 'split' ? await composeStoriesSplitImage(leftDataURL, rightDataURL) : leftDataURL;
+      if (doc.slides.indexOf(targetSlide) !== stageIndex) return;
+      const committed = await commitInlineImage(stageIndex, dataURL);
+      if (!committed) throw new Error('O slide mudou antes que a imagem fosse aplicada. Tente novamente.');
+      closeStoriesImageComposer();
+    } catch (error) {
+      setSendStatus('✗ ' + (error.message || error), 'error');
+    } finally {
+      applyButton.textContent = 'Usar imagem';
+      if (document.getElementById('stories-image-composer-modal').classList.contains('visible')) renderStoriesImageComposer();
+    }
+  }
+
+  function setupStoriesImageComposer() {
+    const modal = document.getElementById('stories-image-composer-modal');
+    modal.querySelectorAll('[data-image-composer-mode]').forEach(button => button.addEventListener('click', () => {
+      storiesImageComposer.mode = button.dataset.imageComposerMode;
+      renderStoriesImageComposer();
+    }));
+    ['left', 'right'].forEach(side => document.getElementById('stories-image-file-' + side).addEventListener('change', event => {
+      const file = event.target.files && event.target.files[0];
+      event.target.value = '';
+      if (file) setStoriesImageComposerSlot(side, file);
+    }));
+    ['left', 'right'].forEach(side => document.getElementById('stories-image-slot-' + side).addEventListener('mousedown', () => {
+      storiesImageComposer.activeSlot = side;
+    }));
+    document.addEventListener('paste', event => {
+      if (!modal.classList.contains('visible')) return;
+      const imageItem = Array.from((event.clipboardData || window.clipboardData)?.items || []).find(item => item.type && item.type.startsWith('image/'));
+      if (!imageItem) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const side = storiesImageComposer.mode === 'split' && (storiesImageComposer.activeSlot === 'right' || (storiesImageComposer.leftDataURL && !storiesImageComposer.rightDataURL)) ? 'right' : 'left';
+      storiesImageComposer.activeSlot = side;
+      setStoriesImageComposerSlot(side, imageItem.getAsFile());
+    }, true);
+    document.getElementById('stories-image-composer-swap').addEventListener('click', () => {
+      [storiesImageComposer.leftDataURL, storiesImageComposer.rightDataURL] = [storiesImageComposer.rightDataURL, storiesImageComposer.leftDataURL];
+      renderStoriesImageComposer();
+    });
+    document.getElementById('stories-image-composer-cancel').addEventListener('click', closeStoriesImageComposer);
+    document.getElementById('stories-image-composer-apply').addEventListener('click', applyStoriesImageComposer);
+    modal.addEventListener('mousedown', event => { if (event.target === modal) closeStoriesImageComposer(); });
+  }
+
   function normalizeInlineImageDataURL(dataURL, image) {
     if (!image || !image.width || !image.height) {
       return { dataURL, aspectRatio: 16 / 9 };
@@ -2984,31 +3205,34 @@
   }
   const inlineImageCommitRevisions = new Map();
   async function commitInlineImage(stageIndex, dataURL) {
-    const revision = (inlineImageCommitRevisions.get(stageIndex) || 0) + 1;
-    inlineImageCommitRevisions.set(stageIndex, revision);
+    const targetSlide = doc.slides[stageIndex];
+    if (!targetSlide) return false;
+    const revision = (inlineImageCommitRevisions.get(targetSlide) || 0) + 1;
+    inlineImageCommitRevisions.set(targetSlide, revision);
     const image = await loadImage(dataURL);
-    if (inlineImageCommitRevisions.get(stageIndex) !== revision) return;
+    const currentIndex = doc.slides.indexOf(targetSlide);
+    if (inlineImageCommitRevisions.get(targetSlide) !== revision || currentIndex < 0) return false;
     const normalized = normalizeInlineImageDataURL(dataURL, image);
-    const slideData = doc.slides[stageIndex];
-    if (!slideData) return;
-    const previousImage = slideData.inlineImage;
-    slideData.inlineImage = {
+    const previousImage = targetSlide.inlineImage;
+    targetSlide.inlineImage = {
       dataURL: normalized.dataURL,
       aspectRatio: normalized.aspectRatio,
       size: 100,
-      position: getInlineImagePosition(previousImage, slideData.blocks.length)
+      position: getInlineImagePosition(previousImage, targetSlide.blocks.length)
     };
     saveDoc();
-    const stage = document.querySelectorAll('.stage')[stageIndex];
+    const stage = document.querySelectorAll('.stage')[currentIndex];
     const slideEl = stage.querySelector('.slide');
     // A imagem faz parte da ordem visual do slide. Renderizar aqui a insere
     // imediatamente no preview, sem depender de outro evento (como tema).
-    renderSlide(stageIndex);
+    renderSlide(currentIndex);
     flash(slideEl);
+    return true;
   }
   function clearInlineImage(stageIndex) {
-    inlineImageCommitRevisions.set(stageIndex, (inlineImageCommitRevisions.get(stageIndex) || 0) + 1);
     const slideData = doc.slides[stageIndex];
+    if (!slideData) return;
+    inlineImageCommitRevisions.set(slideData, (inlineImageCommitRevisions.get(slideData) || 0) + 1);
     slideData.inlineImage = null;
     saveDoc();
     renderSlide(stageIndex);
@@ -3249,21 +3473,14 @@
       renderAll();
     });
 
-    const inlineUpload = document.getElementById('inline-upload');
-    if (inlineUpload) {
-      inlineUpload.addEventListener('change', (e) => {
-        const file = e.target.files && e.target.files[0];
-        e.target.value = '';
-        if (!file) return;
-        if (activeStageIndex === null) {
-          alert('Clica primeiro no slide onde a imagem deve entrar.');
-          return;
-        }
-        const reader = new FileReader();
-        reader.onload = () => commitInlineImage(activeStageIndex, reader.result);
-        reader.readAsDataURL(file);
-      });
-    }
+    setupStoriesImageComposer();
+    document.getElementById('btn-add-inline')?.addEventListener('click', () => {
+      if (activeStageIndex === null) {
+        alert('Clica primeiro no slide onde a imagem deve entrar.');
+        return;
+      }
+      openStoriesImageComposer(activeStageIndex);
+    });
     const btnRemoveInline = document.getElementById('btn-remove-inline');
     if (btnRemoveInline) {
       btnRemoveInline.addEventListener('click', () => {
@@ -3292,9 +3509,7 @@
       if (item.type && item.type.startsWith('image/')) {
         e.preventDefault();
         const blob = item.getAsFile();
-        const reader = new FileReader();
-        reader.onload = () => commitImageRouted(activeStageIndex, reader.result);
-        reader.readAsDataURL(blob);
+        openStoriesImageComposer(activeStageIndex, blob);
         break;
       }
     }
@@ -3969,7 +4184,7 @@
     refreshSlideContentFit(stageIndex);
     const previewStage = document.querySelectorAll('.stage')[stageIndex];
     if (previewStage && previewStage.querySelector('.body-zone.content-overflow')) {
-      throw new Error('o slide ' + (stageIndex + 1) + ' tem conteúdo demais; reduza o texto, a imagem ou o espaçamento');
+      throw new Error('o slide ' + (stageIndex + 1) + ' ultrapassa o canvas; reduza o texto, a imagem ou o espaçamento');
     }
     const canvas = document.createElement('canvas');
     await renderSlideToCanvas(canvas, slideData);
@@ -3982,12 +4197,48 @@
   let deliveryBusy = false;
   function setDeliveryBusy(active, ownerId) {
     deliveryBusy = active;
-    ['btn-download-all', 'btn-send-tg', 'btn-publish-ig'].forEach(id => {
+    ['btn-download-all', 'btn-download-current', 'btn-send-tg', 'btn-publish-ig'].forEach(id => {
       const button = document.getElementById(id);
       if (!button) return;
       button.disabled = active;
       button.setAttribute('aria-busy', String(active && id === ownerId));
     });
+  }
+
+  function getActiveStoriesSlideIndex() {
+    if (!doc || !Array.isArray(doc.slides) || doc.slides.length === 0) return null;
+    const index = typeof activeStageIndex === 'number' ? activeStageIndex : 0;
+    return Math.max(0, Math.min(index, doc.slides.length - 1));
+  }
+
+  async function downloadCurrentSlidePNG() {
+    if (deliveryBusy) return;
+    const index = getActiveStoriesSlideIndex();
+    if (index === null) {
+      setSendStatus('Selecione um slide antes de exportar.', 'error');
+      return;
+    }
+    const wasSelected = getSelectedBlockEl();
+    setDeliveryBusy(true, 'btn-download-current');
+    setSendStatus('Capturando slide ' + (index + 1) + '…');
+    deselectBlock();
+    try {
+      const blob = await captureSlideAsBlob(index);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'slide-' + String(index + 1).padStart(2, '0') + '.png';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      setSendStatus('✓ Slide ' + (index + 1) + ' baixado em PNG.', 'success');
+    } catch (error) {
+      setSendStatus('✗ Erro ao gerar o slide ' + (index + 1) + ': ' + (error.message || error), 'error');
+    } finally {
+      if (wasSelected) selectBlock(wasSelected);
+      setDeliveryBusy(false, 'btn-download-current');
+    }
   }
 
   async function downloadAllPNGs() {
@@ -4252,6 +4503,7 @@
     if (btnPub) btnPub.addEventListener('click', publishInstagram);
     document.getElementById('btn-ui-theme').addEventListener('click', toggleUiTheme);
     document.getElementById('btn-download-all').addEventListener('click', downloadAllPNGs);
+    document.getElementById('btn-download-current')?.addEventListener('click', downloadCurrentSlidePNG);
     document.getElementById('btn-send-tg').addEventListener('click', sendToTelegram);
     document.getElementById('btn-config-tg').addEventListener('click', openTgModal);
     document.getElementById('tg-cancel').addEventListener('click', closeTgModal);

@@ -104,21 +104,41 @@ class TweetHighlightsTest(unittest.TestCase):
             self.html.index("ctx.fillText(seg.text, x, y)"),
         )
 
-    def test_canvas_marker_uses_the_same_vertical_band_as_preview(self) -> None:
-        preview = re.search(
-            r'mark\[data-highlight="yellow"\].*?transparent\s+(\d+)%,\s*'
-            r'var\(--marker-yellow\)\s+\d+%,\s*'
-            r'var\(--marker-yellow\)\s+(\d+)%',
-            self.html,
-        )
+    def test_marker_never_changes_copy_metrics_and_canvas_matches_its_band(self) -> None:
+        self.assertIn("padding: 0;", self.html)
+        self.assertIn("margin: 0;", self.html)
+        self.assertIn("background-size: 100% 0.88em;", self.html)
+        self.assertIn("background-position: 0 0.08em;", self.html)
         canvas_top = re.search(r"const top = y \+ fontSize \* ([0-9.]+);", self.html)
-        canvas_bottom = re.search(r"const bottom = y \+ fontSize \* ([0-9.]+);", self.html)
+        canvas_height = re.search(r"const height = fontSize \* ([0-9.]+);", self.html)
 
-        self.assertIsNotNone(preview)
         self.assertIsNotNone(canvas_top)
-        self.assertIsNotNone(canvas_bottom)
-        self.assertAlmostEqual(float(canvas_top.group(1)), int(preview.group(1)) / 100)
-        self.assertAlmostEqual(float(canvas_bottom.group(1)), int(preview.group(2)) / 100)
+        self.assertIsNotNone(canvas_height)
+        self.assertAlmostEqual(float(canvas_top.group(1)), 0.08)
+        self.assertAlmostEqual(float(canvas_height.group(1)), 0.88)
+        self.assertIn("ctx.fillRect(x, top, width, height);", self.html)
+
+    def test_highlight_application_clears_native_selection_and_records_undo(self) -> None:
+        required = (
+            "recordEditorMutation('highlight');",
+            "selection.removeAllRanges();",
+            "caretRange.collapse(true);",
+            "hideHighlightMenu();",
+            "bodyEl.focus({ preventScroll: true });",
+        )
+        for marker in required:
+            self.assertIn(marker, self.html)
+
+    def test_export_segments_preserve_graphemes(self) -> None:
+        required = (
+            "new Intl.Segmenter(undefined, { granularity: 'grapheme' })",
+            "function getTextGraphemes(text)",
+            "range.setStart(node, grapheme.start);",
+            "range.setEnd(node, grapheme.end);",
+            "PUSH_CHAR(grapheme.text, isBold, highlightColor, top);",
+        )
+        for marker in required:
+            self.assertIn(marker, self.html)
 
 
 if __name__ == "__main__":
