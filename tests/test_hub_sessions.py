@@ -33,6 +33,14 @@ class HubSessionsTest(unittest.TestCase):
 
         self.assertIn("10 slides", html)
 
+    def test_generated_notes_session_uses_notes_template(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            session = create_hub_session("notes", Path(tmp))
+            html = session.path.read_text(encoding="utf-8")
+
+        self.assertIn("Bloco de Notas", html)
+        self.assertIn("notes-editor", html)
+
     def test_refresh_keeps_hub_document_key_and_replaces_template_source(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

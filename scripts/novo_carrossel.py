@@ -95,9 +95,13 @@ Caption curta resumindo a tese. Reescreve aqui.
 """
 
 
+def notes_placeholder(title: str, date: str) -> str:
+    return stories_placeholder(title, date).replace("tipo: carrossel", "tipo: bloco-de-notas", 1)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Cria e abre um carrossel em branco.")
-    parser.add_argument("template", choices=["tweet", "stories"], nargs="?", default="stories")
+    parser.add_argument("template", choices=["tweet", "stories", "notes"], nargs="?", default="stories")
     parser.add_argument("title", nargs="*", help="titulo opcional")
     parser.add_argument("--no-launch", action="store_true", help="gera HTML sem abrir browser")
     args = parser.parse_args()
@@ -108,15 +112,27 @@ def main() -> int:
     stamp = now.strftime("%Y%m%d-%H%M")
     title = " ".join(args.title).strip()
     if not title:
-        title = f"Tweet novo {date} {hour}" if args.template == "tweet" else f"Carrossel novo {date} {hour}"
+        if args.template == "tweet":
+            title = f"Tweet novo {date} {hour}"
+        elif args.template == "notes":
+            title = f"Bloco de Notas {date} {hour}"
+        else:
+            title = f"Carrossel novo {date} {hour}"
 
     default_slug = f"novo-tweet-{stamp}" if args.template == "tweet" and not args.title else slugify(title)
     if args.template == "stories" and not args.title:
         default_slug = f"novo-carrossel-{stamp}"
+    if args.template == "notes" and not args.title:
+        default_slug = f"novo-bloco-de-notas-{stamp}"
 
     CONTENT_DIR.mkdir(parents=True, exist_ok=True)
     md_path = unique_path(CONTENT_DIR / f"{default_slug}.md")
-    body = tweet_placeholder(title, date) if args.template == "tweet" else stories_placeholder(title, date)
+    if args.template == "tweet":
+        body = tweet_placeholder(title, date)
+    elif args.template == "notes":
+        body = notes_placeholder(title, date)
+    else:
+        body = stories_placeholder(title, date)
     md_path.write_text(body, encoding="utf-8")
 
     cmd = [sys.executable, str(GENERATOR), str(md_path), "--editor", "--template", args.template]

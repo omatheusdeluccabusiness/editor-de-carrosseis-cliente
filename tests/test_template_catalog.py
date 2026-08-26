@@ -11,9 +11,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 class ActiveTemplatesTest(unittest.TestCase):
-    def test_only_tweet_and_stories_are_executable(self) -> None:
-        self.assertEqual(set(roteiro_to_instagram.EDITOR_TEMPLATES), {"tweet", "stories"})
-        self.assertEqual(roteiro_to_instagram.TEMPLATE_SLIDES_BY_NAME, {"tweet": 10, "stories": 10})
+    def test_official_templates_are_executable(self) -> None:
+        self.assertEqual(set(roteiro_to_instagram.EDITOR_TEMPLATES), {"tweet", "stories", "notes"})
+        self.assertEqual(roteiro_to_instagram.TEMPLATE_SLIDES_BY_NAME, {"tweet": 10, "stories": 10, "notes": 10})
         self.assertFalse((PROJECT_ROOT / "templates" / "ostentacao_editor.html").exists())
 
     def test_generator_source_has_no_legacy_runtime_identifier(self) -> None:
@@ -22,16 +22,17 @@ class ActiveTemplatesTest(unittest.TestCase):
 
 
 class TemplateCatalogTest(unittest.TestCase):
-    def test_public_catalog_contains_only_official_templates(self) -> None:
+    def test_public_catalog_contains_official_templates(self) -> None:
         items = public_template_catalog()
-        self.assertEqual([item["id"] for item in items], ["tweet", "stories"])
-        self.assertEqual([item["initial_slides"] for item in items], [10, 10])
-        self.assertEqual([item["aspect_ratio"] for item in items], ["4:5", "4:5"])
+        self.assertEqual([item["id"] for item in items], ["tweet", "stories", "notes"])
+        self.assertEqual([item["initial_slides"] for item in items], [10, 10, 10])
+        self.assertEqual([item["aspect_ratio"] for item in items], ["4:5", "4:5", "4:5"])
 
     def test_stories_catalog_keeps_4_5_default_and_offers_matching_3_4_export(self) -> None:
         hub = (PROJECT_ROOT / "templates" / "hub.html").read_text(encoding="utf-8")
         tweet = (PROJECT_ROOT / "templates" / "tweet_editor.html").read_text(encoding="utf-8")
         stories = (PROJECT_ROOT / "templates" / "stories_editor.html").read_text(encoding="utf-8")
+        notes = (PROJECT_ROOT / "templates" / "notes_editor.html").read_text(encoding="utf-8")
 
         self.assertEqual(get_template("stories").aspect_ratio, "4:5")
         self.assertRegex(
@@ -44,6 +45,9 @@ class TemplateCatalogTest(unittest.TestCase):
         self.assertIn('data-stories-ratio="3:4"', stories)
         self.assertIn("const dpr = 2;", stories)
         self.assertIn("const W = 1080;", tweet)
+        self.assertEqual(get_template("notes").aspect_ratio, "4:5")
+        self.assertIn("Bloco de Notas", notes)
+        self.assertIn("preview-sheet--notes", hub)
         self.assertIn("'4:5': 1350", tweet)
 
     def test_unknown_template_is_rejected(self) -> None:

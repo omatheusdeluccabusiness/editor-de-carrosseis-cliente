@@ -1,0 +1,4597 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<script>
+  (() => {
+    const key = 'carrossel-editor-ui-theme-v1';
+    let theme = 'light';
+    try { theme = localStorage.getItem(key) || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); }
+    catch (_) { theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; }
+    document.documentElement.dataset.uiTheme = theme;
+  })();
+</script>
+<title>Editor Bloco de Notas — {{TITLE}}</title>
+<style>
+  @font-face {
+    font-family: 'Advercase';
+    src: url('/assets/fonts/Advercase-Regular.otf') format('opentype');
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: 'Advercase';
+    src: url('/assets/fonts/Advercase-Bold.otf') format('opentype');
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+  }
+
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: #000; color: #f5f2ea; min-height: 100vh; font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif; }
+  body { padding: 40px 24px 80px; }
+
+  .top { text-align: center; max-width: 920px; margin: 0 auto 48px; }
+  .top h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 10px; }
+  .top .sub { color: rgba(245, 242, 234, 0.55); font-size: 13px; line-height: 1.6; }
+
+  .grid {
+    display: flex; flex-direction: column; gap: 56px; align-items: center;
+    max-width: 720px; margin: 0 auto;
+  }
+  .slide-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .slide-label { font-size: 13px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(245,242,234,0.85); }
+  .slide-wrap.content-overflow .slide-label::after {
+    content: ' · reduza o conteúdo';
+    color: #ff6b6b;
+    letter-spacing: 0.04em;
+  }
+  .slide-mood { font-size: 11px; color: rgba(245,242,234,0.45); text-align: center; }
+
+  .stage {
+    /* Responsivo: usa toda largura disponível até 540px (50% de 1080) */
+    width: min(540px, calc(100vw - 64px));
+    aspect-ratio: var(--notes-aspect, 1080 / 1350);
+    height: auto;
+    overflow: hidden; border-radius: 8px;
+    box-shadow: 0 14px 50px rgba(0, 0, 0, 0.6);
+    position: relative;
+    background: #000;
+    contain: paint;
+  }
+  .stage > .slide {
+    /* Escala dinâmica: stageWidth / 1080. Aplicada via CSS calc usando --stage-w */
+    transform: scale(var(--slide-scale, 0.5));
+    transform-origin: top left;
+    width: var(--notes-w, 1080px); height: var(--notes-h, 1350px);
+  }
+
+  /* ================= BASE SLIDE (NOTES TEMPLATE 04) ================= */
+  .slide { position: relative; overflow: hidden; font-family: var(--notes-content-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif); color: #FFFFFF; background: var(--slide-background, #000000); }
+  .slide .photo { position: absolute; inset: 0; overflow: hidden; }
+  .slide .photo-img {
+    position: absolute; left: 0; top: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+    transform-origin: center center;
+    transform: translate(0px, 0px) scale(1);
+    user-select: none; -webkit-user-drag: none;
+    display: none;
+  }
+  .slide .photo-img.has-src { display: block; }
+  .slide.active .photo-img.has-src { cursor: grab; }
+  .slide.active .photo-img.has-src.dragging { cursor: grabbing; }
+  /* Notas aesthetic: zero gradient, zero decoração.
+     Full-bleed photo (.photo) foi descontinuado — TUDO usa .inline-photo agora. */
+  .slide .photo::before, .slide .photo::after { content: none; }
+  .slide .photo { display: none !important; }
+
+  /* Stamp e tag-strip não existem no Notas — escondidos via display:none.
+     Mantidos no DOM pra compat com pipeline genérico. */
+  .slide .stamp, .slide .tag-strip { display: none !important; }
+
+  .slide .body-zone {
+    position: absolute; top: 180px; bottom: 180px; left: 90px; right: 90px;
+    z-index: 4;
+    display: flex; flex-direction: column;
+    gap: var(--content-fit-gap, var(--block-gap, 36px));
+    justify-content: center; align-items: center;
+    text-align: center;
+    transform-origin: center center;
+    transform: translate(0px, 0px) scale(1);
+    transition: outline 0.15s ease;
+  }
+  /* Width 100% pra que align-left/center/right consigam aplicar text-align
+     no espaço completo do body-zone. NÃO forçar text-align aqui, pra não bloquear
+     as classes .align-left/.align-center/.align-right que vêm do block.align. */
+  .slide .body-zone > * { width: 100%; }
+
+  /* Layout pra slides com inline-image: a imagem permanece no topo e a copy
+     começa logo abaixo, usando somente o gap configurado do slide. Assim não
+     sobra um vazio artificial entre os dois elementos. */
+  .slide .body-zone.has-inline-image {
+    justify-content: flex-start;
+  }
+  .slide .body-zone.has-inline-image > .inline-photo {
+    flex-shrink: 0;
+  }
+  body.shift-held .stage.active .body-zone {
+    outline: 2px dashed rgba(244, 196, 48, 0.7);
+    outline-offset: 6px;
+    cursor: move;
+  }
+
+  .slide .h-display {
+    font-weight: 700;
+    font-size: 88px; line-height: 96px; letter-spacing: 0em;
+    color: #FFFFFF;
+  }
+  .slide .h-display.smaller { font-size: 72px; line-height: 80px; }
+  .slide .h-display.tiny { font-size: 56px; line-height: 64px; }
+
+  .slide .body {
+    font-weight: 400; font-size: 52px; line-height: 62px; letter-spacing: 0em;
+    color: #FFFFFF; max-width: 920px;
+  }
+  .slide .body.italic { font-style: italic; color: #FFFFFF; font-size: 48px; }
+  .slide .body.big { font-size: 60px; line-height: 70px; font-weight: 400; }
+  .slide .body.lede { font-size: 56px; line-height: 68px; font-weight: 400; color: #FFFFFF; }
+  .slide [data-block-id] strong, .slide [data-block-id] b { font-weight: 700; }
+  .slide [data-block-id] em, .slide [data-block-id] i { font-style: italic; }
+
+  /* Notas: cor de texto (foreground), sem highlight de fundo, sem rotação. */
+  .hot { color: #d70611; background: none; padding: 0; display: inline; transform: none; box-shadow: none; }
+  .hot.yellow { color: #f8ce07; background: none; }
+
+  /* Footer-bar não existe no Notas. Escondido via display:none pra preservar
+     o DOM gerado pelo pipeline genérico. */
+  .slide .footer-bar { display: none !important; }
+
+  /* Estado ativo (slide selecionado pra paste) e flash */
+  .stage { cursor: pointer; transition: outline 0.15s ease; }
+  .stage.active { outline: 4px solid #F4C430; outline-offset: 6px; }
+  .stage.drag-over { outline: 4px dashed #1D9BF0; outline-offset: 6px; }
+  .slide.flash { animation: flashAnim 0.6s ease; }
+  @keyframes flashAnim {
+    0%, 100% { filter: none; }
+    35% { filter: brightness(1.35); }
+  }
+
+  /* Texto editável inline */
+  [contenteditable="true"] { outline: none; cursor: text; }
+  [contenteditable="true"]:focus {
+    background: rgba(244, 196, 48, 0.08);
+    box-shadow: 0 0 0 3px rgba(244, 196, 48, 0.45);
+    border-radius: 4px;
+  }
+
+  /* ============================================
+     EDITOR UI — Barra contextual em área própria + bubble menu
+     ============================================ */
+  body { padding-top: 80px; }
+
+  #block-toolbar {
+    position: relative; z-index: 10;
+    background: #1a1c1f;
+    border: 1px solid #383b40;
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    padding: 6px;
+    display: flex; gap: 2px; align-items: center;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    width: 100%; max-width: none;
+    margin: 14px 0 18px;
+  }
+  #block-toolbar .tb-empty-state {
+    color: rgba(245, 242, 234, 0.5);
+    font-size: 12px;
+    padding: 8px 14px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+  }
+  #block-toolbar.empty { display: none; }
+  #block-toolbar.empty .tb-controls { display: none; }
+  #block-toolbar:not(.empty) .tb-empty-state { display: none; }
+  #block-toolbar .tb-controls {
+    display: flex; gap: 0; align-items: stretch;
+    flex-direction: column;
+    justify-content: flex-start;
+    width: 100%;
+  }
+  #block-toolbar .tb-section {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 7px;
+    width: 100%; padding: 9px 4px;
+    border-top: 1px solid rgba(255,255,255,.12);
+  }
+  #block-toolbar .tb-section:first-of-type {
+    padding-top: 2px;
+    border-top: 0;
+  }
+  #block-toolbar .tb-slide-chip {
+    font-size: 10px; font-weight: 800;
+    color: #0B0B0B;
+    background: #F4C430;
+    letter-spacing: 0.14em;
+    padding: 6px 10px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    line-height: 1;
+  }
+  #block-toolbar .sub-sep {
+    display: none;
+  }
+
+  #bubble-menu {
+    position: fixed; z-index: 1100;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.12s ease;
+    background: #1a1c1f;
+    border: 1px solid #383b40;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+    padding: 4px;
+    display: flex; gap: 2px; align-items: center;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  #bubble-menu.show { opacity: 1; pointer-events: auto; }
+
+  #block-toolbar button, #bubble-menu button {
+    background: transparent; border: none;
+    color: #f5f2ea;
+    padding: 8px 10px;
+    font-size: 11px; font-weight: 700;
+    border-radius: 5px; cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    line-height: 1;
+    min-width: 30px;
+    transition: background 0.08s ease;
+  }
+  #block-toolbar button:hover, #bubble-menu button:hover {
+    background: #2a2d31;
+  }
+  #block-toolbar button.active {
+    background: #F4C430; color: #0B0B0B;
+  }
+  #block-toolbar button.danger { color: #ff6b6b; }
+  #block-toolbar button.danger:hover { background: rgba(255, 107, 107, 0.15); }
+  #block-toolbar .sep {
+    display: none;
+  }
+  /* Sliders com rótulos explícitos para uso sem conhecimento técnico. */
+  #block-toolbar .tb-slider-group {
+    display: flex; align-items: center; gap: 5px;
+    padding: 0;
+    width: 100%;
+  }
+  #block-toolbar .tb-slider-label {
+    font-size: 10px; font-weight: 700;
+    color: rgba(245, 242, 234, 0.76);
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    line-height: 1;
+  }
+  #block-toolbar input[type="range"] {
+    -webkit-appearance: none; appearance: none;
+    flex: 1; min-width: 56px; width: auto; height: 3px;
+    background: rgba(245, 242, 234, 0.18);
+    border-radius: 2px;
+    cursor: pointer; outline: none;
+    margin: 0;
+  }
+  #block-toolbar input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: #F4C430; cursor: grab; border: none;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  }
+  #block-toolbar input[type="range"]::-moz-range-thumb {
+    width: 12px; height: 12px; border-radius: 50%;
+    background: #F4C430; cursor: grab; border: none;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  }
+  #block-toolbar input[type="range"]:active::-webkit-slider-thumb { cursor: grabbing; }
+  #block-toolbar input[type="range"]:active::-moz-range-thumb { cursor: grabbing; }
+  #block-toolbar .tb-slider-val {
+    font-size: 9px; font-weight: 700;
+    color: rgba(245, 242, 234, 0.7);
+    min-width: 36px; text-align: left;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  #block-toolbar .tb-slider-val.is-override {
+    color: #F4C430;
+  }
+  #bubble-menu .hot-btn {
+    background: #E1342B; color: #fff;
+  }
+  #bubble-menu .hot-btn:hover { background: #c42e26; }
+  #bubble-menu .hot-yellow-btn {
+    background: #F4C430; color: #0B0B0B;
+  }
+  #bubble-menu .hot-yellow-btn:hover { background: #d8ad28; }
+
+  /* Block selecionado (persistente até clicar fora) */
+  .body-zone [data-block-id] {
+    border-radius: 4px;
+    transition: outline 0.1s ease;
+  }
+  .body-zone [data-block-id]:hover:not(.selected):not(:focus) {
+    outline: 2px solid rgba(244, 196, 48, 0.3);
+    outline-offset: 4px;
+  }
+  .body-zone [data-block-id].selected {
+    outline: 3px solid #F4C430;
+    outline-offset: 6px;
+  }
+
+  /* Alinhamento de texto */
+  [data-block-id].align-left { text-align: left; }
+  [data-block-id].align-center { text-align: center; }
+  [data-block-id].align-right { text-align: right; }
+
+  /* Snap guides (linha amarela quando bloco snaps no centro) */
+  .slide::before, .slide::after {
+    content: ''; position: absolute;
+    background: #F4C430;
+    pointer-events: none;
+    z-index: 50;
+    opacity: 0;
+    transition: opacity 0.08s ease;
+  }
+  .slide::before {
+    top: 0; bottom: 0; left: 50%;
+    width: 4px; margin-left: -2px;
+    box-shadow: 0 0 24px rgba(244, 196, 48, 0.7);
+  }
+  .slide::after {
+    left: 0; right: 0; top: 50%;
+    height: 4px; margin-top: -2px;
+    box-shadow: 0 0 24px rgba(244, 196, 48, 0.7);
+  }
+  .slide.snap-x::before { opacity: 0.85; }
+  .slide.snap-y::after { opacity: 0.85; }
+
+  /* Toolbar topo */
+  .toolbar {
+    display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+  .toolbar button.primary { background: #0F1419; color: #fff; border-color: #0F1419; }
+  .toolbar button.primary:hover { background: #2A2D2F; }
+  .toolbar button.tg { background: #229ED9; color: #fff; border-color: #229ED9; }
+  .toolbar button.tg:hover { background: #1B86B5; }
+  .toolbar button.tg-config { background: transparent; color: #229ED9; border-color: #229ED9; }
+  .toolbar button.tg-config:hover { background: rgba(34, 158, 217, 0.1); }
+  .send-status {
+    text-align: center; margin: 14px auto; max-width: 720px;
+    color: rgba(245, 242, 234, 0.7); font-size: 12px;
+    padding: 8px 14px; border-radius: 6px;
+    transition: background 0.2s ease;
+  }
+  .send-status.success { background: rgba(74, 162, 87, 0.18); color: #6fbf7e; }
+  .send-status.error { background: rgba(255, 107, 107, 0.18); color: #ff6b6b; }
+
+  /* Modal Telegram */
+  .modal {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.65); z-index: 2000;
+    justify-content: center; align-items: center;
+  }
+  .modal.visible { display: flex; }
+  .modal-card {
+    background: #1f2124; color: #f5f2ea;
+    border: 1px solid #383b40;
+    border-radius: 10px;
+    padding: 28px;
+    width: 460px; max-width: calc(100vw - 32px);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  .modal-card h2 { font-size: 18px; margin-bottom: 16px; font-weight: 700; }
+  .modal-card label {
+    display: block; font-size: 11px;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    color: rgba(245, 242, 234, 0.6);
+    margin-top: 14px; margin-bottom: 6px;
+  }
+  .modal-card input {
+    width: 100%;
+    background: #16181b; border: 1px solid #383b40;
+    color: #f5f2ea;
+    padding: 10px 14px; border-radius: 6px;
+    font-family: -apple-system, monospace; font-size: 13px;
+  }
+  .modal-card input:focus { outline: none; border-color: #229ED9; }
+  .modal-card .help {
+    margin-top: 16px; padding: 12px;
+    background: #16181b; border-radius: 6px;
+    font-size: 11px; color: rgba(245, 242, 234, 0.6); line-height: 1.6;
+  }
+  .modal-card .help b { color: #f5f2ea; }
+  .modal-card .help code {
+    background: #2a2d31; color: #f5f2ea;
+    padding: 1px 6px; border-radius: 3px;
+    font-family: monospace;
+  }
+  .modal-card .actions {
+    display: flex; gap: 8px; justify-content: flex-end;
+    margin-top: 20px;
+  }
+  .modal-card .actions button {
+    background: #2a2d31; color: #f5f2ea;
+    border: 1px solid #383b40;
+    padding: 8px 16px; border-radius: 6px;
+    font-family: inherit; font-size: 12px; cursor: pointer;
+  }
+  .modal-card .actions button:hover { background: #383b40; }
+  .modal-card .actions button.primary {
+    background: #229ED9; color: #fff; border-color: #229ED9;
+  }
+  .modal-card .actions button.primary:hover { background: #1B86B5; }
+  .image-composer-card { width: min(660px, calc(100vw - 32px)); }
+  .image-composer-card .sub { color: rgba(245,242,234,.66); font-size: 12px; line-height: 1.5; margin: -5px 0 14px; }
+  .image-composer-mode { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 14px 0; }
+  .image-composer-mode button { border: 1px solid #464a50; border-radius: 8px; background: #16181b; color: #f5f2ea; padding: 11px 12px; text-align: left; font: inherit; cursor: pointer; }
+  .image-composer-mode button strong { display: block; font-size: 13px; }
+  .image-composer-mode button small { display: block; margin-top: 3px; color: rgba(245,242,234,.58); line-height: 1.35; }
+  .image-composer-mode button.is-active { border-color: #f7c72c; background: rgba(247,199,44,.11); box-shadow: inset 0 0 0 1px #f7c72c; }
+  .image-composer-slots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .image-composer-slot { min-height: 154px; border: 1px dashed #555a60; border-radius: 8px; overflow: hidden; position: relative; background: #16181b; }
+  .image-composer-slot img { display: none; width: 100%; height: 154px; object-fit: cover; }
+  .image-composer-slot.has-image img { display: block; }
+  .image-composer-slot label { height: 154px; margin: 0; display: flex; align-items: center; justify-content: center; color: rgba(245,242,234,.7); cursor: pointer; font-weight: 600; }
+  .image-composer-slot.has-image label { position: absolute; right: 8px; bottom: 8px; height: auto; padding: 6px 9px; border-radius: 6px; background: rgba(0,0,0,.74); color: #fff; font-size: 11px; }
+  .image-composer-slot input { display: none; }
+  .image-composer-tools { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 10px; }
+  .image-composer-tools p { margin: 0; color: rgba(245,242,234,.58); font-size: 11px; line-height: 1.35; }
+  .image-composer-tools .btn { padding: 7px 10px; }
+  .toolbar button {
+    background: #1f2124; color: #f5f2ea;
+    border: 1px solid #383b40;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-family: inherit; font-size: 12px; cursor: pointer;
+  }
+  .toolbar button:hover { background: #2a2d31; }
+  .toolbar button.danger { color: #ff6b6b; border-color: #5a3030; }
+  .toolbar .hint {
+    color: rgba(245, 242, 234, 0.55);
+    font-size: 12px;
+    align-self: center;
+    margin-left: 12px;
+  }
+
+  /* ================= TEMA OSTENTAÇÃO (preto + dourado minimalista) ================= */
+  /* A classe bg-XX é legada; a cor vem do documento e pode variar por slide. */
+  .slide[class*="bg-"] { background: var(--slide-background, #000000); }
+
+  /* Marca decorativa: removida permanentemente do tema Ostentação (Matheus 2026-05-06) */
+  .slide .brand-mark { display: none; }
+
+  /* Reduz fortemente o gradient de legibilidade (não tem foto em cima) */
+  .slide .photo::before { display: none; }
+  .slide .photo::after { display: none; }
+
+  /* Footer minimal: fundo escuro, texto cinza claro */
+  .slide .footer-bar {
+    background: transparent;
+    padding: 30px 90px 50px 90px;
+    color: rgba(245, 240, 232, 0.4);
+  }
+  .slide .footer-bar.dark {
+    background: transparent;
+    color: rgba(245, 240, 232, 0.4);
+  }
+  .slide .footer-tag {
+    color: rgba(245, 240, 232, 0.4);
+    font-weight: 500;
+    font-size: 22px;
+    font-stretch: normal;
+    letter-spacing: 0.04em;
+    text-transform: none;
+  }
+  .slide .footer-bar.dark .footer-tag { color: rgba(245, 240, 232, 0.4); }
+
+  /* ============ NOTES TEMPLATE OVERRIDES ============
+     Mantém o Notas limpo: texto branco, alinhamento configurável e destaque
+     somente por cor. */
+  .slide .h-display { color: #FFFFFF; }
+  .slide .h-display.accent { color: #FFFFFF; }
+  .slide .h-display.tiny { color: #FFFFFF; text-transform: none; }
+  .slide.cta-final .h-display.smaller { color: #FFFFFF; }
+
+  /* Cada slide define o próprio contraste a partir da cor escolhida. */
+  .slide.light-background,
+  .slide.light-background[class*="bg-"] { color: #2A2A2C !important; }
+  .slide.light-background .h-display,
+  .slide.light-background .h-display.accent,
+  .slide.light-background .h-display.tiny,
+  .slide.light-background .cta-final .h-display.smaller,
+  .slide.light-background.capa .h-display { color: #2A2A2C !important; }
+  .slide.light-background .body,
+  .slide.light-background .body.italic,
+  .slide.light-background .body.big,
+  .slide.light-background .body.lede,
+  .slide.light-background.capa .body,
+  .slide.light-background.capa .body.lede,
+  .slide.light-background.capa .body.big { color: #2A2A2C !important; }
+
+  /* Capa Notas: NÃO sobrescreve fonte. Posicionamento e tamanho coerentes com
+     a regra .slide.capa que eu defini lá em cima (image top, text bottom). */
+  .slide.capa .body.lede,
+  .slide.capa .body.big,
+  .slide.capa .body {
+    font-family: var(--notes-content-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+    font-style: normal;
+    font-weight: 400;
+    color: #FFFFFF;
+    text-align: center;
+  }
+  .slide.capa .h-display { text-align: center; color: #FFFFFF; }
+
+  /* A capa começa centralizada, mas a escolha feita na barra precisa sempre
+     prevalecer. Estas regras vencem as regras padrão de capa para que o
+     alinhamento seja visível também no preview. */
+  .slide.capa [data-block-id].align-left { text-align: left; }
+  .slide.capa [data-block-id].align-center { text-align: center; }
+  .slide.capa [data-block-id].align-right { text-align: right; }
+
+  /* Hot: APENAS troca cor do texto. Zero background, zero border, zero underline.
+     .hot (sem .yellow) = vermelho. .hot.yellow = amarelo. */
+  .slide .hot {
+    background: transparent !important;
+    color: #d70611 !important;
+    padding: 0;
+    transform: none;
+    box-shadow: none;
+    text-decoration: none !important;
+    border: none !important;
+    border-bottom: none !important;
+    display: inline;
+    /* O destaque deve mudar somente a cor. Fixar as métricas no contexto do
+       bloco impede que um span inserido pelo contenteditable altere a caixa da
+       linha ou provoque uma quebra visual inesperada. */
+    font-family: inherit;
+    font-size: inherit;
+    font-style: inherit;
+    font-weight: inherit;
+    line-height: inherit;
+    letter-spacing: inherit;
+    word-spacing: inherit;
+    white-space: inherit;
+    vertical-align: baseline;
+  }
+  .slide .hot.yellow {
+    color: #f8ce07 !important;
+  }
+
+  /* Inline photo proporcional — opcional, vai como primeiro filho do body-zone. */
+  .slide .inline-photo {
+    width: var(--content-fit-inline-width, var(--inline-width, 100%));
+    aspect-ratio: var(--inline-aspect, 16 / 9);
+    align-self: center;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .slide .inline-photo-media {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    border-radius: 16px;
+    background: #0B0B0B;
+    transform: none;
+  }
+  .slide .inline-photo-media img {
+    width: 100%; height: 100%;
+    object-fit: contain;
+    display: block;
+    user-select: none; -webkit-user-drag: none;
+  }
+  .inline-photo-controls {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.68);
+    color: #fff;
+    font: 700 18px/1 -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+    letter-spacing: 0;
+    opacity: 0.88;
+    pointer-events: auto;
+    transition: opacity 150ms ease;
+  }
+  .stage.active .inline-photo-controls,
+  .inline-photo:hover .inline-photo-controls,
+  .inline-photo:focus-within .inline-photo-controls {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .inline-photo-controls input[type="range"] {
+    width: 148px;
+    height: 18px;
+    accent-color: #F4C430;
+    cursor: ew-resize;
+  }
+
+  /* ===== NATIVE STUDIO: shell da página (não altera os slides) ===== */
+  :root {
+    --ui-canvas: #F2F2F4;
+    --ui-surface: #FFFFFF;
+    --ui-surface-muted: #F7F7F8;
+    --ui-text: #1D1D1F;
+    --ui-text-secondary: #6E6E73;
+    --ui-line: #D2D2D7;
+    --ui-blue: #007AFF;
+    --ui-blue-soft: rgba(0, 122, 255, 0.10);
+    --ui-danger: #FF3B30;
+    --ui-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", Inter, sans-serif;
+    --notes-content-font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif;
+    --notes-w: 1080px;
+    --notes-h: 1350px;
+    --notes-aspect: 1080 / 1350;
+  }
+  html[data-ui-theme="dark"] {
+    color-scheme: dark;
+    --ui-canvas: #0f1115; --ui-surface: #171a20; --ui-surface-muted: #20242c;
+    --ui-text: #f4f6f8; --ui-text-secondary: #9aa3b2; --ui-line: #303744;
+    --ui-blue: #5b8cff; --ui-blue-soft: rgba(91,140,255,.16); --ui-danger: #ff6b61;
+  }
+  html[data-ui-theme="dark"] .app-header { background: rgba(23,26,32,.98); border-color: rgba(255,255,255,.10); }
+  html[data-ui-theme="dark"] .production-rail,
+  html[data-ui-theme="dark"] .inspector-panel { background: var(--ui-surface); border-color: rgba(255,255,255,.10); }
+  html[data-ui-theme="dark"] .shell-button,
+  html[data-ui-theme="dark"] .caption-field,
+  html[data-ui-theme="dark"] .typeface-select { border-color: rgba(255,255,255,.14); }
+  html[data-ui-theme="dark"] .shell-button:hover { background: #252a33; border-color: #3a424f; }
+  html[data-ui-theme="dark"] .rail-actions,
+  html[data-ui-theme="dark"] .inspector-section { border-color: rgba(255,255,255,.10); }
+  .ui-theme-toggle { width: 34px; padding: 0; font-size: 17px; line-height: 1; }
+  html, body {
+    background: var(--ui-canvas); color: var(--ui-text);
+    font-family: var(--ui-font); -webkit-font-smoothing: antialiased;
+  }
+  body { min-height: 100vh; padding: 0; }
+  button, textarea, input { font: inherit; }
+  .app-header {
+    position: sticky; top: 0; z-index: 900;
+    min-height: 64px; padding: 10px 24px;
+    display: flex; align-items: center; justify-content: space-between; gap: 24px;
+    background: rgba(255, 255, 255, 0.98); color: var(--ui-text);
+    border-bottom: 1px solid rgba(210, 210, 215, 0.72);
+  }
+  .app-identity { min-width: 0; }
+  .app-kicker, .inspector-title, .rail-heading, .stage-kicker {
+    font-family: var(--ui-font); font-size: 13px; line-height: 1.2;
+    letter-spacing: -0.01em; text-transform: none; color: var(--ui-text-secondary);
+  }
+  .app-kicker { display: none; }
+  .app-header h1 {
+    margin: 0; font-family: var(--ui-font);
+    font-size: 18px; font-weight: 600; line-height: 1.2; letter-spacing: -0.025em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .doc-meta { margin-top: 2px; font-size: 11px; color: var(--ui-text-secondary); font-variant-numeric: tabular-nums; }
+  .app-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-shrink: 0; }
+  .shell-button, label.shell-button {
+    min-height: 34px; padding: 0 14px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    border: 1px solid rgba(210, 210, 215, 0.9); border-radius: 9px;
+    background: var(--ui-surface); color: var(--ui-text);
+    font-size: 13px; font-weight: 500; cursor: pointer;
+    transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+  }
+  .shell-button[hidden] { display: none; }
+  .shell-button:hover { background: #ECECEF; border-color: #C7C7CC; }
+  .shell-button.publish, .shell-button.action { background: var(--ui-blue); border-color: var(--ui-blue); color: #fff; }
+  .shell-button.publish:hover, .shell-button.action:hover { background: #006EE6; border-color: #006EE6; }
+  .shell-button.danger { color: var(--ui-danger); border-color: rgba(255, 59, 48, 0.26); }
+  .shell-button.danger:hover { background: rgba(255, 59, 48, 0.08); }
+  .shell-button.restart-carousel { color: var(--ui-danger); border-color: rgba(255, 59, 48, 0.34); }
+
+  .ratio-segmented {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px;
+  }
+  .ratio-segmented button {
+    min-height: 40px; padding: 7px 8px; border-radius: 8px;
+    border: 1px solid rgba(210, 210, 215, 0.9); background: var(--ui-surface);
+    color: var(--ui-text); cursor: pointer; font: inherit; font-size: 12px; font-weight: 650;
+    font-variant-numeric: tabular-nums;
+  }
+  .ratio-segmented button small { display: block; margin-top: 2px; color: var(--ui-text-secondary); font-size: 10px; font-weight: 500; }
+  .ratio-segmented button.is-active { background: var(--ui-text); border-color: var(--ui-text); color: var(--ui-surface); }
+  .ratio-segmented button.is-active small { color: inherit; opacity: .76; }
+  .shell-button.restart-carousel:hover { background: rgba(255, 59, 48, 0.08); border-color: rgba(255, 59, 48, 0.52); }
+  .shell-button.quiet { background: transparent; }
+  .production-layout {
+    width: 100%; min-height: calc(100vh - 64px); margin: 0;
+    display: grid; grid-template-columns: 220px minmax(540px, 1fr) 300px;
+    gap: 0; align-items: stretch;
+  }
+  .production-rail, .inspector-panel {
+    position: sticky; top: 64px; height: calc(100vh - 64px); overflow: auto;
+    border: 0; border-radius: 0; background: var(--ui-surface); color: var(--ui-text); box-shadow: none;
+  }
+  .production-rail { padding: 18px 12px 14px; border-right: 1px solid rgba(210, 210, 215, 0.72); }
+  .inspector-panel { padding: 4px 18px 18px; border-left: 1px solid rgba(210, 210, 215, 0.72); }
+  .rail-header { display: flex; align-items: center; justify-content: space-between; padding: 0 8px 12px; }
+  .rail-heading { color: var(--ui-text); font-weight: 600; }
+  .rail-count { font-size: 11px; color: var(--ui-text-secondary); font-variant-numeric: tabular-nums; }
+  #slide-rail-list { display: flex; flex-direction: column; gap: 2px; }
+  .rail-slide-control { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .rail-item {
+    flex: 1; min-width: 0; min-height: 40px; padding: 6px 10px 6px 9px;
+    display: grid; grid-template-columns: 28px 1fr; align-items: center; gap: 7px;
+    border: 0; border-left: 3px solid transparent; border-radius: 8px;
+    background: transparent; color: var(--ui-text); text-align: left; cursor: pointer;
+    transition: background-color 150ms ease, color 150ms ease;
+  }
+  .rail-item:hover { background: var(--ui-surface-muted); }
+  .rail-item[draggable="true"] { cursor: grab; }
+  .rail-item[draggable="true"]:active { cursor: grabbing; }
+  .rail-slide-control.is-dragging { opacity: .42; }
+  .rail-slide-control.drop-before { box-shadow: inset 0 2px 0 var(--ui-blue); }
+  .rail-slide-control.drop-after { box-shadow: inset 0 -2px 0 var(--ui-blue); }
+  .rail-item.is-active { background: var(--ui-blue-soft); color: var(--ui-blue); border-left: 3px solid var(--ui-blue); }
+  .rail-index { font-size: 11px; color: #8E8E93; font-variant-numeric: tabular-nums; }
+  .rail-item.is-active .rail-index { color: var(--ui-blue); }
+  .rail-role { font-size: 13px; font-weight: 500; letter-spacing: -0.01em; }
+  .rail-color-options { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+  .background-palette { display: flex; align-items: center; gap: 8px; }
+  .background-swatch {
+    width: 20px; height: 20px; padding: 0; border: 1px solid rgba(29,29,31,.2);
+    border-radius: 6px; background: var(--swatch-color); cursor: pointer;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.16);
+    transition: transform 150ms ease, box-shadow 150ms ease, outline-color 150ms ease;
+  }
+  .rail-color-options .background-swatch { width: 15px; height: 15px; border-radius: 5px; }
+  .background-swatch:hover { transform: translateY(-1px); }
+  .background-swatch.is-selected { outline: 2px solid var(--ui-blue); outline-offset: 2px; }
+  .background-swatch.is-inherited { box-shadow: inset 0 0 0 2px rgba(255,255,255,.72), 0 0 0 1px rgba(29,29,31,.5); }
+  .background-help { margin-top: 10px; color: var(--ui-text-secondary); font-size: 11px; line-height: 1.35; }
+  .rail-actions { display: grid; gap: 7px; padding-top: 14px; margin-top: 14px; border-top: 1px solid rgba(210,210,215,.72); }
+  .rail-actions .shell-button { width: 100%; min-height: 34px; padding: 0 10px; font-size: 12px; }
+  .editor-stage { min-width: 0; padding: 24px clamp(24px, 4vw, 64px) 72px; background: var(--ui-canvas); }
+  .stage-intro { max-width: 680px; margin: 0 auto 16px; display: flex; align-items: end; justify-content: space-between; gap: 20px; }
+  .stage-kicker { color: var(--ui-text); font-weight: 600; }
+  .stage-intro p { margin-top: 4px; color: var(--ui-text-secondary); font-size: 12px; }
+  .stage-shortcut { font-size: 11px; color: var(--ui-text-secondary); white-space: nowrap; }
+  .grid { max-width: 540px; margin: 0 auto; gap: 56px; }
+  .slide-label { color: var(--ui-text-secondary); font-family: var(--ui-font); font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; }
+  .stage { box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 18px 48px rgba(0,0,0,.16); }
+  .stage.active { outline: 3px solid var(--ui-blue); outline-offset: 4px; }
+  .inspector-section { padding: 18px 0; border-bottom: 1px solid rgba(210,210,215,.72); }
+  .inspector-section:last-child { border-bottom: 0; }
+  .inspector-title { display: block; margin-bottom: 10px; color: var(--ui-text); font-weight: 600; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+  .inspector-stack { display: grid; gap: 8px; }
+  .inspector-stack .shell-button, .inspector-stack label.shell-button { width: 100%; }
+  .typeface-select {
+    width: 100%; min-height: 34px; padding: 0 34px 0 11px;
+    border: 1px solid rgba(210,210,215,.9); border-radius: 9px;
+    background: var(--ui-surface); color: var(--ui-text);
+    font-size: 13px; font-weight: 500; cursor: pointer;
+  }
+  .typeface-select:focus { border-color: var(--ui-blue); box-shadow: 0 0 0 3px rgba(0,122,255,.13); outline: none; }
+  .caption-field {
+    width: 100%; min-height: 150px; resize: vertical;
+    border: 1px solid rgba(210,210,215,.9); border-radius: 10px; padding: 10px 11px;
+    background: var(--ui-surface-muted); color: var(--ui-text); font-size: 13px; line-height: 1.45; outline: none;
+  }
+  .caption-field:focus { border-color: var(--ui-blue); background: var(--ui-surface); box-shadow: 0 0 0 3px rgba(0,122,255,.13); }
+  .maintenance summary { cursor: pointer; color: var(--ui-text-secondary); font-size: 12px; font-weight: 500; }
+  .maintenance[open] summary { margin-bottom: 10px; }
+  .send-status { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 1200; margin: 0; background: #1D1D1F; color: #fff; }
+  #block-toolbar { background: rgba(29,29,31,.98); border-color: rgba(255,255,255,.13); box-shadow: 0 10px 32px rgba(0,0,0,.22); }
+  :where(button, textarea, input, summary, label):focus-visible {
+    outline: 3px solid rgba(0,122,255,.28); outline-offset: 2px;
+  }
+  @media (max-width: 1100px) {
+    .production-layout { grid-template-columns: minmax(0, 1fr) 290px; }
+    .production-rail { position: static; grid-column: 1 / -1; height: auto; border-right: 0; border-bottom: 1px solid rgba(210,210,215,.72); }
+    #slide-rail-list { flex-direction: row; overflow-x: auto; padding-bottom: 2px; }
+    .rail-slide-control { min-width: 164px; }
+    .rail-item { min-width: 112px; }
+    .rail-actions { grid-template-columns: 1fr 1fr; }
+    .inspector-panel { top: 64px; }
+  }
+  @media (max-width: 760px) {
+    .app-header { position: relative; padding: 12px 16px; align-items: flex-start; flex-direction: column; gap: 10px; }
+    .app-actions { width: 100%; display: grid; grid-template-columns: 1fr 1fr; }
+    .production-layout { width: 100%; grid-template-columns: minmax(0, 1fr); gap: 0; }
+    .production-rail, .inspector-panel { position: static; height: auto; max-height: none; }
+    .production-rail { order: 1; }
+    .editor-stage { order: 2; }
+    .inspector-panel { order: 3; }
+    .editor-stage { padding: 20px 12px 48px; }
+    .inspector-panel { border-left: 0; border-top: 1px solid rgba(210,210,215,.72); }
+    .stage-shortcut { display: none; }
+    #block-toolbar { max-width: 100%; max-height: none; overflow: visible; margin: 14px 0; }
+    #block-toolbar .tb-controls, #block-toolbar .tb-section { min-width: 0; }
+    #block-toolbar input[type="range"] { min-width: 52px; }
+    .stage { width: min(540px, calc(100vw - 36px)); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+  }
+
+
+
+  /* ================= BLOCO DE NOTAS =================
+     A linguagem visual é uma folha editorial minimalista: texto à esquerda,
+     margens generosas e ritmo de leitura. Mantém o motor dos Stories intacto. */
+  .notes-editor { background: #eef0f3; color: #171719; }
+  .notes-editor .top .sub,
+  .notes-editor .slide-label,
+  .notes-editor .slide-mood { color: rgba(23, 23, 25, .55); }
+  .notes-editor .stage {
+    border-radius: 0;
+    background: #fff;
+    box-shadow: 0 22px 60px rgba(22, 24, 29, .14), 0 2px 8px rgba(22, 24, 29, .08);
+  }
+  .notes-editor .stage.active { outline-color: #e3b515; }
+  .notes-editor .slide {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", sans-serif;
+  }
+  .notes-editor .slide .body-zone {
+    top: 265px;
+    bottom: 170px;
+    left: 92px;
+    right: 92px;
+    justify-content: center;
+    align-items: stretch;
+    text-align: left;
+    gap: var(--content-fit-gap, var(--block-gap, 46px));
+  }
+  .notes-editor .slide.capa .body-zone { top: 245px; bottom: 210px; }
+  .notes-editor .slide .body-zone > [data-block-id] { text-align: left !important; }
+  .notes-editor .slide .h-display,
+  .notes-editor .slide .h-display.smaller,
+  .notes-editor .slide .h-display.tiny {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", "Segoe UI", sans-serif;
+    font-size: 76px;
+    line-height: 1.12;
+    letter-spacing: -0.04em;
+    font-weight: 720;
+  }
+  .notes-editor .slide .body,
+  .notes-editor .slide .body.lede,
+  .notes-editor .slide .body.big,
+  .notes-editor .slide .body.italic {
+    max-width: none;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", sans-serif;
+    font-size: 45px;
+    line-height: 1.31;
+    letter-spacing: -0.022em;
+    font-weight: 400;
+  }
+  .notes-editor .slide .body.italic { font-style: italic; }
+  /* A capa nasce como manchete: os blocos de texto mantêm a mesma edição,
+     mas recebe peso de título no preview e na exportação. */
+  .notes-editor .slide.capa .body { font-weight: 700; }
+  .notes-editor .slide .inline-photo { border-radius: 18px; }
+  .notes-editor .slide .hot { color: #b51d21; }
+  .notes-editor .slide .hot.yellow { color: #b07800; }
+  .notes-editor [contenteditable="true"]:focus {
+    background: rgba(255, 213, 0, .11);
+    box-shadow: 0 0 0 3px rgba(227, 181, 21, .42);
+  }
+  .notes-editor .body-zone [data-block-id].selected { outline-color: #e3b515; }
+  @media (max-width: 700px) {
+    .notes-editor .slide .body-zone { top: 230px; bottom: 140px; left: 74px; right: 74px; }
+  }
+</style>
+</head>
+<body class="notes-editor">
+
+<header class="app-header">
+  <div class="app-identity">
+    <div class="app-kicker">Editor de carrosséis · Bloco de Notas</div>
+    <h1>Bloco de Notas</h1>
+    <div class="doc-meta">{{N_SLIDES}} slides · 1080×1350 · @omatheusdelucca</div>
+  </div>
+  <div class="app-actions">
+    <button id="btn-back-hub" class="shell-button quiet" type="button" hidden>Voltar aos modelos</button>
+    <button id="btn-restart-carousel" class="shell-button restart-carousel" type="button">Reiniciar carrossel</button>
+    <button id="btn-ui-theme" class="shell-button ui-theme-toggle" type="button" aria-label="Ativar interface escura" title="Ativar interface escura" aria-pressed="false"><span id="ui-theme-icon" aria-hidden="true">&#9790;</span></button>
+    <button id="btn-download-all" class="shell-button" title="Baixa todos os slides em um arquivo ZIP">Exportar PNGs (.zip)</button>
+    <button id="btn-publish-ig" class="shell-button publish">Publicar</button>
+  </div>
+</header>
+
+<div class="production-layout">
+  <aside class="production-rail" aria-label="Navegação dos slides">
+    <div class="rail-header">
+      <span class="rail-heading">Slides</span>
+      <span class="rail-count">{{N_SLIDES}} telas</span>
+    </div>
+    <nav id="slide-rail-list" aria-label="Navegação dos slides"></nav>
+    <div class="rail-actions">
+      <button id="btn-download-current" class="shell-button quiet" title="Baixa somente o slide selecionado em PNG">Baixar slide atual</button>
+      <button id="btn-add-slide" class="shell-button">+ Adicionar slide</button>
+      <button id="btn-delete-slide" class="shell-button danger">Excluir atual</button>
+    </div>
+  </aside>
+
+  <main class="editor-stage">
+    <div class="stage-intro">
+      <div>
+        <span class="stage-kicker">Pré-visualização</span>
+        <p>Clique em um bloco para editar. Selecione o slide antes de inserir imagem.</p>
+      </div>
+      <span class="stage-shortcut">⇧ arrasta bloco · ⌘V imagem</span>
+    </div>
+    <div class="grid">
+
+{{SLIDES_HTML}}
+
+    </div>
+  </main>
+
+  <aside class="inspector-panel" aria-label="Propriedades do carrossel">
+    <div id="block-toolbar-dock" aria-label="Ferramentas do bloco selecionado"></div>
+    <section class="inspector-section">
+      <span class="inspector-title">Documento</span>
+      <div class="inspector-stack">
+        <label class="sr-only" for="notes-typography">Tipografia do carrossel</label>
+        <select id="notes-typography" class="typeface-select" aria-label="Tipografia do carrossel">
+          <option value="sans">Sem serifa</option>
+          <option value="advercase">Advercase</option>
+        </select>
+        <div class="ratio-segmented" role="group" aria-label="Proporção da edição e exportação">
+          <button type="button" data-notes-ratio="4:5" title="1080 × 1350 pixels">4:5 <small>1080 × 1350</small></button>
+          <button type="button" data-notes-ratio="3:4" title="1080 × 1440 pixels">3:4 <small>1080 × 1440</small></button>
+        </div>
+      </div>
+    </section>
+    <section class="inspector-section">
+      <span class="inspector-title">Fundo de todos os slides</span>
+      <div id="global-background-palette" class="background-palette" role="group" aria-label="Cor padrão dos slides">
+        <button class="background-swatch" type="button" data-background-color="#000000" style="--swatch-color:#000000" aria-label="Preto"></button>
+        <button class="background-swatch" type="button" data-background-color="#fafaf7" style="--swatch-color:#fafaf7" aria-label="Branco suave"></button>
+        <button class="background-swatch" type="button" data-background-color="#cc0001" style="--swatch-color:#cc0001" aria-label="Vermelho"></button>
+      </div>
+      <p class="background-help">Nos slides à esquerda, escolha uma cor para sobrescrever apenas aquele slide. Clique novamente na cor individual ativa para voltar ao padrão.</p>
+    </section>
+    <section class="inspector-section">
+      <label class="inspector-title" for="ig-caption">Legenda</label>
+      <textarea id="ig-caption" class="caption-field" rows="7">{{CAPTION}}</textarea>
+    </section>
+    <section class="inspector-section">
+      <span class="inspector-title">Imagem do slide ativo</span>
+      <div class="inspector-stack">
+        <button id="btn-add-inline" class="shell-button quiet" type="button">Adicionar imagem</button>
+        <button id="btn-remove-inline" class="shell-button quiet">Remover imagem</button>
+      </div>
+    </section>
+    <section class="inspector-section">
+      <span class="inspector-title">Entrega</span>
+      <div class="inspector-stack">
+        <button id="btn-send-tg" class="shell-button action">Enviar ao Telegram</button>
+        <button id="btn-config-tg" class="shell-button quiet">Configurar Telegram</button>
+      </div>
+    </section>
+    <section class="inspector-section">
+      <details class="maintenance">
+        <summary>Manutenção</summary>
+        <div class="inspector-stack">
+          <button id="btn-reset" class="shell-button danger">Limpar imagens</button>
+          <button id="btn-reset-text" class="shell-button danger">Restaurar texto original</button>
+        </div>
+      </details>
+    </section>
+  </aside>
+</div>
+
+<div id="send-status" class="send-status" style="display:none;"></div>
+
+<div id="notes-image-composer-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="notes-image-composer-title" aria-hidden="true">
+  <div class="modal-card image-composer-card" tabindex="-1">
+    <h2 id="notes-image-composer-title">Adicionar imagem</h2>
+    <p class="sub">Use uma foto única ou monte duas fotos no mesmo quadro 16:9. A montagem é criada localmente e já entra pronta no slide.</p>
+    <div class="image-composer-mode" role="group" aria-label="Formato da imagem">
+      <button type="button" data-image-composer-mode="single" class="is-active"><strong>Imagem única</strong><small>Usa uma foto como hoje.</small></button>
+      <button type="button" data-image-composer-mode="split"><strong>Duas fotos lado a lado</strong><small>Duas metades verticais preenchendo o quadro.</small></button>
+    </div>
+    <div class="image-composer-slots">
+      <div class="image-composer-slot" id="notes-image-slot-left" tabindex="0"><img id="notes-image-preview-left" alt="Primeira foto da montagem"><label for="notes-image-file-left">Adicionar primeira foto ou cole aqui<input id="notes-image-file-left" type="file" accept="image/*"></label></div>
+      <div class="image-composer-slot" id="notes-image-slot-right" tabindex="0"><img id="notes-image-preview-right" alt="Segunda foto da montagem"><label for="notes-image-file-right">Adicionar segunda foto ou cole aqui<input id="notes-image-file-right" type="file" accept="image/*"></label></div>
+    </div>
+    <div class="image-composer-tools">
+      <p id="notes-image-composer-help">Escolha a foto que entrará no slide.</p>
+      <button class="btn" id="notes-image-composer-swap" type="button" hidden>Trocar lados</button>
+    </div>
+    <div class="actions">
+      <button class="btn" id="notes-image-composer-cancel" type="button">Cancelar</button>
+      <button class="btn primary" id="notes-image-composer-apply" type="button" disabled>Usar imagem</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Telegram -->
+<div id="tg-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="tg-modal-title" aria-hidden="true">
+  <div class="modal-card" tabindex="-1">
+    <h2 id="tg-modal-title">Configurar Telegram</h2>
+    <p id="tg-config-status" class="help">Verificando configuração local…</p>
+    <div class="help">
+      As credenciais ficam somente no servidor local em <code>~/.matheusao-telegram.json</code>.
+      Use <code>./configurar-credenciais.sh</code> para configurar este computador.
+    </div>
+    <div class="actions">
+      <button class="btn" id="tg-test">Testar configuração</button>
+      <button class="btn primary" id="tg-cancel">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Block toolbar — inserida na área própria do editor após o carregamento. -->
+<div id="block-toolbar" class="empty">
+  <span class="tb-empty-state">Clique num bloco de texto pra editar</span>
+  <div class="tb-controls">
+    <span class="tb-slide-chip" id="tb-slide-tag">slide ?</span>
+
+    <span class="sep"></span>
+
+    <div class="tb-section" title="Alinhamento do bloco">
+      <button data-align="left"   title="Alinhar à esquerda">⬅</button>
+      <button data-align="center" title="Centralizar">●</button>
+      <button data-align="right"  title="Alinhar à direita">➡</button>
+    </div>
+
+    <span class="sep"></span>
+
+    <div class="tb-section">
+      <div class="tb-slider-group" title="Altura entre linhas do bloco">
+        <span class="tb-slider-label">Entrelinhas</span>
+        <input type="range" id="tb-line-height" min="30" max="200" step="1" aria-label="Altura entre linhas" />
+        <span class="tb-slider-val" id="tb-line-height-val">96px</span>
+      </div>
+      <div class="tb-slider-group" title="Distância entre caracteres do bloco">
+        <span class="tb-slider-label">Espaço entre letras</span>
+        <input type="range" id="tb-letter-spacing" min="-0.10" max="0.30" step="0.005" aria-label="Espaçamento entre letras" />
+        <span class="tb-slider-val" id="tb-letter-spacing-val">0.000em</span>
+      </div>
+      <div class="tb-slider-group" title="Tamanho do texto">
+        <span class="tb-slider-label">Tamanho do texto</span>
+        <input type="range" id="tb-font-size" min="20" max="140" step="1" aria-label="Tamanho da fonte" />
+        <span class="tb-slider-val" id="tb-font-size-val">52px</span>
+      </div>
+      <button data-action="spacing-reset" title="Restaurar tamanho e espaçamento do texto">↺</button>
+    </div>
+
+    <span class="sep"></span>
+
+    <div class="tb-section">
+      <div class="tb-slider-group" title="Escurecer a foto de fundo">
+        <span class="tb-slider-label">Escurecer foto</span>
+        <input type="range" id="tb-fade" min="0" max="2" step="0.05" aria-label="Intensidade do filtro" />
+        <span class="tb-slider-val" id="tb-fade-val">100%</span>
+      </div>
+      <button data-action="fade-reset" title="Restaurar fade 100%">↺</button>
+      <span class="sub-sep"></span>
+      <div class="tb-slider-group" title="Espaço vertical entre blocos do slide">
+        <span class="tb-slider-label">Espaço entre blocos</span>
+        <input type="range" id="tb-gap" min="0" max="80" step="1" aria-label="Espaço entre blocos" />
+        <span class="tb-slider-val" id="tb-gap-val">36px</span>
+      </div>
+      <button data-action="gap-reset" title="Restaurar gap padrão (36px)">↺</button>
+    </div>
+
+    <span class="sep"></span>
+
+    <div class="tb-section" title="Ações no bloco">
+      <button data-action="up"     title="Mover pra cima (Cmd+Shift+↑)">↑</button>
+      <button data-action="down"   title="Mover pra baixo (Cmd+Shift+↓)">↓</button>
+      <span class="sub-sep"></span>
+      <button data-action="add"    title="Adicionar bloco abaixo">+</button>
+      <button data-action="delete" class="danger" title="Apagar bloco">✕</button>
+    </div>
+  </div>
+</div>
+
+<!-- Bubble menu (aparece ao selecionar texto para formatação inline) -->
+<div id="bubble-menu">
+  <button data-action="format-bold" title="Negrito">B</button>
+  <button data-action="format-italic" title="Itálico">I</button>
+  <button class="hot-btn" data-action="hot-red" title="Marcar como Hot vermelho (Cmd+H)">H</button>
+  <button class="hot-yellow-btn" data-action="hot-yellow" title="Marcar como Hot amarelo (Cmd+Shift+H)">Hy</button>
+  <button data-action="hot-clear" title="Limpar destaque">✕</button>
+</div>
+
+<script>
+  // ==== STORAGE KEYS ====
+  const DOC_KEY = '{{DOC_KEY}}';
+  const LEGACY_TEXT_KEY = '{{DOC_KEY}}-text-legacy';
+  const LEGACY_BZ_KEY = '{{DOC_KEY}}-bz-legacy';
+  const LEGACY_IMG_KEY = '{{DOC_KEY}}-img-legacy';
+  const LEGACY_INLINE_KEY = '{{DOC_KEY}}-inline-legacy';
+
+  // ==== STATE ====
+  let doc = null;
+  let initialNotasDocument = null;
+  let activeStageIndex = null;
+  let selectedBlockId = null;
+  let selectedSlideIdx = null;
+  const NOTES_RATIO_HEIGHTS = { '4:5': 1350, '3:4': 1440 };
+
+  // ==== HELPERS ====
+  function uid() { return 'b_' + Math.random().toString(36).slice(2, 8); }
+  function safeGet(key) { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { return null; } }
+  let lastStorageError = '';
+  function safeSet(key, val) {
+    try {
+      localStorage.setItem(key, JSON.stringify(val));
+      lastStorageError = '';
+      return true;
+    } catch (error) {
+      lastStorageError = error && error.message ? error.message : 'armazenamento indisponível';
+      const status = document.getElementById('send-status');
+      if (status) setSendStatus('✗ Não foi possível salvar localmente. Exporte antes de fechar.', 'error');
+      return false;
+    }
+  }
+  function saveDoc() {
+    safeSet(DOC_KEY, doc);
+    recordEditorMutation('document');
+  }
+
+  // ==== UNDO GLOBAL DO DOCUMENTO ====
+  const UNDO_LIMIT = 50;
+  const UNDO_STORAGE_KEY = DOC_KEY + '-undo-v1';
+  let notesUndoController = null;
+
+  function createUndoController(options) {
+    let undoStack = [];
+    let baseline = null;
+    let armed = false;
+    let restoring = false;
+
+    function serialize(snapshot) {
+      try { return JSON.stringify(snapshot); }
+      catch (e) { return ''; }
+    }
+
+    function loadStack() {
+      try {
+        const parsed = JSON.parse(sessionStorage.getItem(options.storageKey) || '[]');
+        return Array.isArray(parsed) ? parsed.slice(-UNDO_LIMIT) : [];
+      } catch (e) { return []; }
+    }
+
+    function persistStack() {
+      while (true) {
+        try {
+          sessionStorage.setItem(options.storageKey, JSON.stringify(undoStack));
+          return;
+        } catch (e) {
+          if (undoStack.length <= 1) return;
+          undoStack.shift();
+        }
+      }
+    }
+
+    function arm() {
+      undoStack = loadStack();
+      baseline = options.captureSnapshot();
+      armed = true;
+    }
+
+    function record() {
+      if (!armed || restoring) return;
+      const current = options.captureSnapshot();
+      if (serialize(current) === serialize(baseline)) return;
+      if (baseline !== null) undoStack.push(baseline);
+      if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+      baseline = current;
+      persistStack();
+    }
+
+    function checkpoint() {
+      if (!armed || restoring) return;
+      const current = options.captureSnapshot();
+      const last = undoStack.length ? undoStack[undoStack.length - 1] : null;
+      if (serialize(current) !== serialize(last)) undoStack.push(current);
+      if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+      baseline = current;
+      persistStack();
+    }
+
+    function undo() {
+      if (!armed || restoring || undoStack.length === 0) return false;
+      const snapshot = undoStack.pop();
+      persistStack();
+      restoring = true;
+      try {
+        options.restoreSnapshot(snapshot);
+        baseline = snapshot;
+      } finally {
+        restoring = false;
+      }
+      return true;
+    }
+
+    function resetBaseline() {
+      baseline = options.captureSnapshot();
+    }
+
+    return { arm, record, checkpoint, undo, resetBaseline };
+  }
+
+  function captureNotasSnapshot() {
+    const snapshotDoc = JSON.parse(JSON.stringify(doc || { version: 6, slides: [] }));
+    document.querySelectorAll('[data-block-id]').forEach((blockEl) => {
+      const slideIndex = getStageIndex(blockEl);
+      const slide = snapshotDoc.slides[slideIndex];
+      if (!slide) return;
+      const block = slide.blocks.find(item => item.id === blockEl.dataset.blockId);
+      if (block) block.html = blockEl.innerHTML;
+    });
+    const captionEl = document.getElementById('ig-caption');
+    return {
+      document: snapshotDoc,
+      caption: captionEl ? captionEl.value : '',
+      typography: doc.typography || 'sans'
+    };
+  }
+
+  function restoreNotasSnapshot(snapshot) {
+    if (!snapshot || !snapshot.document || !Array.isArray(snapshot.document.slides)) return;
+    const structureChanged = doc.slides.length !== snapshot.document.slides.length;
+    doc = JSON.parse(JSON.stringify(snapshot.document));
+    safeSet(DOC_KEY, doc);
+    try {
+      localStorage.setItem(DOC_KEY + '-caption', snapshot.caption || '');
+    } catch (e) {}
+
+    if (structureChanged) {
+      setUndoFeedback('Ação desfeita');
+      location.reload();
+      return;
+    }
+
+    if (document.activeElement && typeof document.activeElement.blur === 'function') {
+      document.activeElement.blur();
+    }
+    deselectBlock();
+    activeStageIndex = Math.min(
+      typeof activeStageIndex === 'number' ? activeStageIndex : 0,
+      Math.max(0, doc.slides.length - 1)
+    );
+    setNotasTypography(snapshot.typography || 'sans', { persist: false, record: false });
+    const captionEl = document.getElementById('ig-caption');
+    if (captionEl) captionEl.value = snapshot.caption || '';
+    renderAll();
+    buildSlideRail();
+  }
+
+  function recordEditorMutation(reason) {
+    if (notesUndoController) notesUndoController.record(reason);
+  }
+
+  function pushCurrentUndoSnapshot() {
+    if (notesUndoController) notesUndoController.checkpoint();
+  }
+
+  function undoEditorAction() {
+    if (!notesUndoController || !notesUndoController.undo()) return false;
+    setUndoFeedback('Ação desfeita');
+    return true;
+  }
+
+  function armEditorUndo() {
+    notesUndoController = createUndoController({
+      storageKey: UNDO_STORAGE_KEY,
+      captureSnapshot: captureNotasSnapshot,
+      restoreSnapshot: restoreNotasSnapshot
+    });
+    notesUndoController.arm();
+  }
+
+  function setUndoFeedback(message) {
+    setSendStatus(message, 'success');
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'z') return;
+    if (!undoEditorAction()) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  }, true);
+
+  function blockToClassName(block) {
+    let cls = block.kind;
+    if (block.variant && block.variant !== 'default') cls += ' ' + block.variant;
+    if (block.align) cls += ' align-' + block.align;
+    return cls;
+  }
+
+  function inferKindVariant(el) {
+    const classes = Array.from(el.classList);
+    let kind = classes.includes('h-display') ? 'h-display' : 'body';
+    let variant = 'default';
+    ['smaller', 'tiny', 'big', 'lede', 'italic'].forEach(v => {
+      if (classes.includes(v)) variant = v;
+    });
+    return { kind, variant };
+  }
+
+  function getStageIndex(el) {
+    const wrap = el.closest('.slide-wrap');
+    if (!wrap) return -1;
+    return Array.from(document.querySelectorAll('.slide-wrap')).indexOf(wrap);
+  }
+
+  function getBlockContext(blockEl) {
+    if (!blockEl) return null;
+    const sIdx = getStageIndex(blockEl);
+    if (sIdx < 0) return null;
+    const slideData = doc.slides[sIdx];
+    const blockIdx = slideData.blocks.findIndex(b => b.id === blockEl.dataset.blockId);
+    if (blockIdx < 0) return null;
+    return { sIdx, blockIdx, slideData, block: slideData.blocks[blockIdx] };
+  }
+
+  function getSelectedBlockEl() {
+    if (!selectedBlockId) return null;
+    return document.querySelector(`[data-block-id="${selectedBlockId}"]`);
+  }
+
+  // ==== SPACING HELPERS (line-height + letter-spacing por bloco) ====
+  const ADVERCASE_DEFAULT_LETTER_SPACING = 0.015;
+
+  function getTypefaceDefaultLetterSpacing(baseLetterSpacing) {
+    return doc && doc.typography === 'advercase'
+      ? ADVERCASE_DEFAULT_LETTER_SPACING
+      : baseLetterSpacing;
+  }
+
+  function getVariantBaseSpacing(kind, variant) {
+    const key = kind + ':' + variant;
+    const base = (typeof VARIANT_STYLES !== 'undefined') ? VARIANT_STYLES[key] : null;
+    if (base) return { lineHeight: base.lineHeight, letterSpacing: base.letterSpacing || 0, fontSize: base.size };
+    return { lineHeight: 36, letterSpacing: 0, fontSize: 26 };
+  }
+  function getEffectiveSpacing(block) {
+    const base = getVariantBaseSpacing(block.kind, block.variant);
+    const defaultLetterSpacing = getTypefaceDefaultLetterSpacing(base.letterSpacing);
+    // Ao alterar o tamanho, a entrelinha acompanha proporcionalmente enquanto
+    // o usuário não escolher um valor próprio no seu slider.
+    let effLH = base.lineHeight;
+    if (block.lineHeight != null) {
+      effLH = block.lineHeight;
+    } else if (block.fontSize != null) {
+      effLH = Math.round(block.fontSize * (base.lineHeight / base.fontSize));
+    }
+    return {
+      lineHeight: effLH,
+      letterSpacing: (block.letterSpacing != null) ? block.letterSpacing : defaultLetterSpacing,
+      fontSize: (block.fontSize != null) ? block.fontSize : base.fontSize,
+      lhOverride: block.lineHeight != null,
+      lsOverride: block.letterSpacing != null,
+      fsOverride: block.fontSize != null,
+    };
+  }
+  function applySpacingToNode(node, block, contentFit = 1) {
+    const eff = getEffectiveSpacing(block);
+    // O ajuste automático reduz apenas tipografia e ritmo vertical. A largura
+    // do bloco continua sempre em 900px, evitando o efeito de coluna estreita
+    // depois que uma imagem é inserida.
+    node.style.fontSize = (eff.fontSize * contentFit) + 'px';
+    node.style.lineHeight = (eff.lineHeight * contentFit) + 'px';
+    node.style.letterSpacing = eff.letterSpacing + 'em';
+  }
+
+  function applyLiveSpacingToNode(node, block) {
+    // O slider precisa representar exatamente o valor escolhido. Um antigo
+    // auto-fit reduzia silenciosamente toda a tipografia depois do arraste,
+    // causando o efeito de crescer e voltar ou de não responder ao aumento.
+    // Quando não houver espaço, o slide é marcado como excesso — nunca
+    // reescalado por trás do controle.
+    applySpacingToNode(node, block, 1);
+  }
+
+  // ==== FADE PER-SLIDE (intensidade do filtro de legibilidade) ====
+  // slide.fade é multiplicador 0..2 (default 1). Afeta o `.slide .photo::before`
+  // via CSS var --fade. Canvas multiplica os alphas dos rgba no drawLegibilityFilter.
+  function getEffectiveFade(slide) {
+    return (slide && slide.fade != null) ? slide.fade : 1;
+  }
+  function applyFadeToSlide(slideEl, fade) {
+    if (fade == null || fade === 1) {
+      slideEl.style.removeProperty('--fade');
+      slideEl.style.removeProperty('--fade-boost');
+      return;
+    }
+    // Canal 1: opacity do ::before (gradient principal). CSS clampa em 1.0.
+    slideEl.style.setProperty('--fade', String(Math.min(1, fade)));
+    // Canal 2: camada preta extra no ::after, proporcional ao excesso acima de 1.0.
+    if (fade > 1) {
+      const boost = Math.min(1, fade - 1);
+      slideEl.style.setProperty('--fade-boost', String(boost));
+    } else {
+      slideEl.style.removeProperty('--fade-boost');
+    }
+  }
+
+  // ==== GAP PER-SLIDE (espaço vertical entre blocos do body-zone) ====
+  function getEffectiveGap(slide) {
+    // Notas: gap default 36px (mais respiro entre blocos com PT Serif 52-64px).
+    return (slide && slide.gap != null) ? slide.gap : 36;
+  }
+  function applyGapToSlide(slideEl, gap) {
+    const bz = slideEl.querySelector('.body-zone');
+    if (!bz) return;
+    if (gap == null || gap === 36) {
+      bz.style.removeProperty('--block-gap');
+    } else {
+      bz.style.setProperty('--block-gap', gap + 'px');
+    }
+  }
+
+  // ==== DOC: BUILD/LOAD/SAVE ====
+  function buildDocFromDOM(options = {}) {
+    const useLegacy = options.useLegacy !== false;
+    const legacyText = useLegacy ? (safeGet(LEGACY_TEXT_KEY) || {}) : {};
+    const legacyBz = useLegacy ? (safeGet(LEGACY_BZ_KEY) || {}) : {};
+    const legacyImg = useLegacy ? (safeGet(LEGACY_IMG_KEY) || {}) : {};
+    const legacyInline = useLegacy ? (safeGet(LEGACY_INLINE_KEY) || {}) : {};
+
+    const slides = [];
+    document.querySelectorAll('.slide-wrap').forEach((wrap, sIdx) => {
+      const slideEl = wrap.querySelector('.slide');
+      const bgClass = Array.from(slideEl.classList).find(c => c.startsWith('bg-')) || 'bg-01';
+      const isCapa = slideEl.classList.contains('capa');
+      const isCTA = slideEl.classList.contains('cta-final');
+      const footerEl = slideEl.querySelector('.footer-bar');
+      const footerVariant = (footerEl && footerEl.classList.contains('dark')) ? 'dark' : 'default';
+
+      const blocks = [];
+      slideEl.querySelectorAll('.body-zone .h-display, .body-zone .body').forEach((el, eIdx) => {
+        const html = (legacyText[sIdx] && legacyText[sIdx][eIdx] !== undefined)
+          ? legacyText[sIdx][eIdx]
+          : el.innerHTML.trim();
+        const { kind, variant } = inferKindVariant(el);
+        // Engine: textos de corpo (body) sempre centralizados.
+        // h-display: center na capa, left no resto.
+        let align = (kind === 'body') ? 'center' : (isCapa ? 'center' : 'left');
+        const cls = Array.from(el.classList);
+        if (cls.includes('align-center')) align = 'center';
+        else if (cls.includes('align-right')) align = 'right';
+        else if (cls.includes('align-left')) align = 'left';
+        const block = { id: uid(), kind, variant, html, align };
+        // Defaults de diagramação declarados no HTML (override do variant)
+        const lhAttr = el.getAttribute('data-line-height');
+        const lsAttr = el.getAttribute('data-letter-spacing');
+        if (lhAttr) block.lineHeight = parseFloat(lhAttr);
+        if (lsAttr) block.letterSpacing = parseFloat(lsAttr);
+        blocks.push(block);
+      });
+
+      const slideData = {
+        id: 's' + (sIdx + 1),
+        bgClass,
+        isCapa,
+        isCTA,
+        footerVariant,
+        blocks,
+        bzTransform: legacyBz[sIdx] || { tx: 0, ty: 0, scale: 1 },
+        image: legacyImg[sIdx] || null,
+        inlineImage: legacyInline[sIdx] || null,
+      };
+      const fadeAttr = slideEl.getAttribute('data-fade');
+      if (fadeAttr) slideData.fade = parseFloat(fadeAttr);
+      const gapAttr = slideEl.getAttribute('data-gap');
+      if (gapAttr) slideData.gap = parseFloat(gapAttr);
+      slides.push(slideData);
+    });
+
+    return { version: 13, typography: 'sans', ratio: '4:5', backgroundColor: '#fafaf7', slides };
+  }
+
+  function createBlankNotasDocument() {
+    const source = initialNotasDocument || buildDocFromDOM({ useLegacy: false });
+    const blank = JSON.parse(JSON.stringify(source));
+    blank.version = 13;
+    blank.typography = doc && doc.typography === 'advercase' ? 'advercase' : 'sans';
+    blank.ratio = normalizeNotasRatio(doc && doc.ratio);
+    blank.backgroundColor = getGlobalBackgroundColor();
+    blank.slides.forEach((slide, slideIndex) => {
+      slide.id = 's' + (slideIndex + 1);
+      slide.blocks = slide.blocks.map(block => ({ ...block, id: uid(), html: 'adicione aqui a sua copy' }));
+      slide.bzTransform = { tx: 0, ty: 0, scale: 1 };
+      slide.image = null;
+      slide.inlineImage = null;
+      delete slide.backgroundColor;
+    });
+    return blank;
+  }
+
+  function restartCarousel() {
+    const confirmation = 'Você quer reiniciar esse template e começar outro do zero? Se sim, certifique-se de ter exportado os slides antes';
+    if (!confirm(confirmation)) return;
+    pushCurrentUndoSnapshot();
+    doc = createBlankNotasDocument();
+    safeSet(DOC_KEY, doc);
+    safeSet(DOC_KEY + '-caption', '');
+    localStorage.removeItem(LEGACY_TEXT_KEY);
+    localStorage.removeItem(LEGACY_BZ_KEY);
+    localStorage.removeItem(LEGACY_IMG_KEY);
+    localStorage.removeItem(LEGACY_INLINE_KEY);
+    window.location.reload();
+  }
+
+  function migrateDoc(d) {
+    if (!d.version || d.version < 4) {
+      // v4: hot apenas na capa (slide 1). Slides 2-8 limpos.
+      d.slides.forEach((slide, i) => {
+        if (i === 0) return;
+        slide.blocks.forEach(b => {
+          b.html = b.html.replace(/<span class="hot(?: yellow)?">([\s\S]*?)<\/span>/g, '$1');
+        });
+      });
+      d.version = 4;
+    }
+    if (d.version < 5) {
+      // v5: inlineImage opcional por slide (16:9 inline no body-zone).
+      d.slides.forEach(s => { if (s.inlineImage === undefined) s.inlineImage = null; });
+      d.version = 5;
+    }
+    if (d.version < 6) {
+      // v6: blocks body sempre alinhamento central (regra de engine).
+      d.slides.forEach(s => {
+        s.blocks.forEach(b => { if (b.kind === 'body') b.align = 'center'; });
+      });
+      d.version = 6;
+    }
+    if (d.version < 7) {
+      d.typography = d.typography === 'advercase' ? 'advercase' : 'sans';
+      d.version = 7;
+    }
+    if (d.version < 8) {
+      // v8: a imagem passa a ter posição na pilha visual. Sem posição, ela
+      // mantém o comportamento anterior: antes de todos os blocos de texto.
+      d.slides.forEach(s => {
+        if (s.inlineImage && s.inlineImage.dataURL && !Number.isInteger(s.inlineImage.position)) {
+          s.inlineImage.position = 0;
+        }
+      });
+      d.version = 8;
+    }
+    if (d.version < 9) d.version = 9;
+    if (d.version < 10) {
+      d.backgroundColor = '#fafaf7';
+      d.slides.forEach(s => { delete s.backgroundColor; });
+      d.version = 10;
+    }
+    if (d.version < 11) {
+      // Versões antigas não gravavam a identidade do CTA. O template gerado
+      // usa bg-10 nele; recuperar essa marca impede que um slide novo seja
+      // anexado depois do CTA (e pareça ter entrado no meio do carrossel).
+      d.slides.forEach(s => { s.isCTA = s.isCTA === true || s.bgClass === 'bg-10'; });
+      d.version = 11;
+    }
+    if (d.version < 12) {
+      // A primeira implementação desta função inseria slides novos antes do
+      // CTA. O comportamento correto do botão é anexar no fim; IDs "s_"
+      // identificam os slides criados no editor e permitem corrigir sessões
+      // já abertas sem alterar o conteúdo original.
+      const addedSlides = d.slides.filter(s => /^s_/.test(String(s.id || '')));
+      const ctaIndex = d.slides.findIndex(s => s.isCTA);
+      if (addedSlides.length && ctaIndex >= 0) {
+        const stableSlides = d.slides.filter(s => !/^s_/.test(String(s.id || '')));
+        const stableCtaIndex = stableSlides.findIndex(s => s.isCTA);
+        if (stableCtaIndex >= 0) {
+          d.slides = stableSlides.slice(0, stableCtaIndex + 1)
+            .concat(addedSlides, stableSlides.slice(stableCtaIndex + 1));
+        }
+      }
+      d.version = 12;
+    }
+    if (d.version < 13) {
+      d.ratio = '4:5';
+      d.version = 13;
+    }
+    d.backgroundColor = normalizeBackgroundColor(d.backgroundColor);
+    d.ratio = normalizeNotasRatio(d.ratio);
+    d.slides.forEach(s => {
+      if (s.backgroundColor != null) s.backgroundColor = normalizeBackgroundColor(s.backgroundColor);
+    });
+    d.typography = d.typography === 'advercase' ? 'advercase' : 'sans';
+    return d;
+  }
+
+  function loadOrInitDoc() {
+    const saved = safeGet(DOC_KEY);
+    if (saved && saved.slides && saved.slides.length > 0) {
+      // Garante campo align em blocos antigos
+      saved.slides.forEach(s => {
+        s.blocks.forEach(b => { if (!b.align) b.align = s.isCapa ? 'center' : 'left'; });
+        // Migração v4→v5: full-bleed image (slideData.image) descontinuado.
+        // Se slide tem image mas não tem inlineImage, migra como inline-photo.
+        if (s.image && s.image.dataURL && !s.inlineImage) {
+          s.inlineImage = { dataURL: s.image.dataURL };
+          delete s.image;
+        }
+      });
+      doc = migrateDoc(saved);
+      // A ordem visual é derivada exclusivamente do documento. Reconstruir
+      // mesmo quando a contagem coincide evita associar o conteúdo de um
+      // índice ao stage antigo após uma migração/reordenação de CTA.
+      rebuildDOMFromDoc();
+      // Só renderiza após todos os stages do documento existirem. Antes, um
+      // slide recém-criado podia elevar doc.slides para 11 enquanto o DOM
+      // ainda tinha os 10 estágios do HTML de origem.
+      setNotasTypography(doc.typography || 'sans', { persist: false, record: false });
+      try {
+        const pending = Number(sessionStorage.getItem(DOC_KEY + '-pending-active-slide'));
+        sessionStorage.removeItem(DOC_KEY + '-pending-active-slide');
+        if (Number.isInteger(pending) && pending >= 0 && pending < doc.slides.length) {
+          activeStageIndex = pending;
+        }
+      } catch (e) {}
+      saveDoc();
+      return;
+    }
+    doc = buildDocFromDOM();
+    doc.version = 13;
+    setNotasTypography('sans', { persist: false, record: false });
+    saveDoc();
+  }
+
+  // ==== SLIDE-LEVEL ADD / DELETE (DOM sincronizado com doc.slides) ====
+  function buildSlideWrapHTML(label, bgClass, isCapa, isCTA) {
+    const slideClasses = ['slide'];
+    if (bgClass) slideClasses.push(bgClass);
+    if (isCapa) slideClasses.push('capa');
+    if (isCTA) slideClasses.push('cta-final');
+    return '<div class="slide-wrap">' +
+             '<div class="slide-label">' + label + '</div>' +
+             '<div class="stage">' +
+               '<div class="' + slideClasses.join(' ') + '">' +
+                 '<div class="photo"></div>' +
+                 '<div class="body-zone"></div>' +
+               '</div>' +
+             '</div>' +
+           '</div>';
+  }
+
+  function getSlideLabel(slide, index) {
+    const role = slide.isCapa ? 'CAPA' : (slide.isCTA ? 'CTA' : 'SLIDE');
+    return String(index + 1).padStart(2, '0') + ' — ' + role;
+  }
+
+  function rebuildDOMFromDoc() {
+    const grid = document.querySelector('.grid');
+    if (!grid) return;
+    grid.querySelectorAll('.slide-wrap').forEach(w => w.remove());
+    doc.slides.forEach((s, i) => {
+      const label = getSlideLabel(s, i);
+      const tmpl = document.createElement('template');
+      tmpl.innerHTML = buildSlideWrapHTML(label, s.bgClass || 'bg-01', !!s.isCapa, !!s.isCTA);
+      grid.appendChild(tmpl.content.firstChild);
+    });
+  }
+
+  function addSlide() {
+    flushDOMToDoc();
+    const newSlide = {
+      id: 's_' + Date.now().toString(36),
+      bgClass: 'bg-01',
+      backgroundColor: null,
+      isCapa: false,
+      isCTA: false,
+      footerVariant: 'default',
+      blocks: [
+        { id: uid(), kind: 'body', variant: 'lede', html: 'adicione aqui a sua copy', align: 'left' }
+      ],
+      bzTransform: { tx: 0, ty: 0, scale: 1 },
+      image: null,
+      inlineImage: null,
+    };
+    // O botão sempre acrescenta no fim, depois do CTA quando ele existir.
+    // É a leitura natural da lista vertical e evita reposicionar conteúdo.
+    const insertAt = doc.slides.length;
+    doc.slides.push(newSlide);
+    try { sessionStorage.setItem(DOC_KEY + '-pending-active-slide', String(insertAt)); } catch (e) {}
+    saveDoc();
+    // Reload pra re-wire listeners do novo stage (mais robusto que replicar 110 linhas de wire-up).
+    location.reload();
+  }
+
+  function deleteCurrentSlide() {
+    flushDOMToDoc();
+    if (doc.slides.length <= 1) {
+      alert('Não dá pra apagar o último slide.');
+      return;
+    }
+    let sIdx = (typeof selectedSlideIdx === 'number') ? selectedSlideIdx : null;
+    if (sIdx === null && typeof activeStageIndex === 'number') sIdx = activeStageIndex;
+    if (sIdx === null || sIdx === undefined) {
+      alert('Clica num bloco do slide que você quer apagar primeiro (ou no slide pra ele ficar ativo).');
+      return;
+    }
+    if (!confirm('Apagar o slide ' + (sIdx + 1) + '?')) return;
+    doc.slides.splice(sIdx, 1);
+    saveDoc();
+    location.reload();
+  }
+
+  // ==== TIPOGRAFIA E FUNDOS (Notas) ====
+  const SLIDE_BACKGROUND_COLORS = [
+    { value: '#000000', label: 'Preto' },
+    { value: '#fafaf7', label: 'Branco suave' },
+    { value: '#cc0001', label: 'Vermelho' },
+  ];
+  const DEFAULT_SLIDE_BACKGROUND = '#fafaf7';
+  const NOTES_TYPEFACES = {
+    sans: {
+      cssFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif',
+      canvasFamily: '"SF Pro Display", "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif',
+    },
+    advercase: {
+      cssFamily: 'Advercase, Georgia, "Times New Roman", serif',
+      canvasFamily: 'Advercase, Georgia, "Times New Roman", serif',
+    },
+  };
+  function getNotasTypeface() {
+    const typography = doc && NOTES_TYPEFACES[doc.typography] ? doc.typography : 'sans';
+    return NOTES_TYPEFACES[typography];
+  }
+  function normalizeNotasRatio(ratio) {
+    return NOTES_RATIO_HEIGHTS[ratio] ? ratio : '4:5';
+  }
+  function getNotasHeight() {
+    return NOTES_RATIO_HEIGHTS[normalizeNotasRatio(doc && doc.ratio)];
+  }
+  function applyNotasRatio(options = {}) {
+    const { render = true } = options;
+    const ratio = normalizeNotasRatio(doc && doc.ratio);
+    const height = NOTES_RATIO_HEIGHTS[ratio];
+    SLIDE_H = height;
+    document.documentElement.style.setProperty('--notes-w', SLIDE_W + 'px');
+    document.documentElement.style.setProperty('--notes-h', height + 'px');
+    document.documentElement.style.setProperty('--notes-aspect', SLIDE_W + ' / ' + height);
+    document.querySelectorAll('[data-notes-ratio]').forEach(button => {
+      const active = button.dataset.notesRatio === ratio;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-pressed', String(active));
+    });
+    updateSlideCountUI();
+    updateSlideScale();
+    if (render && typeof renderAll === 'function') renderAll();
+  }
+  function setNotasRatio(nextRatio) {
+    const ratio = normalizeNotasRatio(nextRatio);
+    if (!doc || ratio === normalizeNotasRatio(doc.ratio)) return;
+    doc.ratio = ratio;
+    safeSet(DOC_KEY, doc);
+    applyNotasRatio();
+    recordEditorMutation('ratio');
+  }
+  function setNotasTypography(nextTypography, options = {}) {
+    const typography = NOTES_TYPEFACES[nextTypography] ? nextTypography : 'sans';
+    const { persist = true, record = true } = options;
+    if (!doc) return;
+    doc.typography = typography;
+    document.documentElement.style.setProperty('--notes-content-font', getNotasTypeface().cssFamily);
+    const selector = document.getElementById('notes-typography');
+    if (selector) selector.value = typography;
+    if (persist) safeSet(DOC_KEY, doc);
+    if (record) recordEditorMutation('typography');
+    if (typeof renderAll === 'function') renderAll();
+  }
+  function normalizeBackgroundColor(color) {
+    const candidate = String(color || '').toLowerCase();
+    return SLIDE_BACKGROUND_COLORS.some(item => item.value === candidate)
+      ? candidate
+      : DEFAULT_SLIDE_BACKGROUND;
+  }
+  function getGlobalBackgroundColor() {
+    return normalizeBackgroundColor(doc && doc.backgroundColor);
+  }
+  function getSlideBackgroundColor(slideData) {
+    return slideData && slideData.backgroundColor != null
+      ? normalizeBackgroundColor(slideData.backgroundColor)
+      : getGlobalBackgroundColor();
+  }
+  function isLightSlideBackground(slideData) {
+    return getSlideBackgroundColor(slideData) === '#fafaf7';
+  }
+  function getSlideTextColor(slideData) {
+    return isLightSlideBackground(slideData) ? '#2A2A2C' : '#FFFFFF';
+  }
+  function applySlideBackground(slideEl, slideData) {
+    if (!slideEl) return;
+    slideEl.style.setProperty('--slide-background', getSlideBackgroundColor(slideData));
+    slideEl.classList.toggle('light-background', isLightSlideBackground(slideData));
+  }
+  function updateGlobalBackgroundPalette() {
+    const active = getGlobalBackgroundColor();
+    document.querySelectorAll('#global-background-palette [data-background-color]').forEach(button => {
+      const selected = button.dataset.backgroundColor === active;
+      button.classList.toggle('is-selected', selected);
+      button.setAttribute('aria-pressed', String(selected));
+    });
+  }
+  function setGlobalBackgroundColor(color) {
+    doc.backgroundColor = normalizeBackgroundColor(color);
+    saveDoc();
+    renderAll();
+    buildSlideRail();
+    updateGlobalBackgroundPalette();
+  }
+  function setSlideBackgroundColor(index, color) {
+    const slideData = doc.slides[index];
+    if (!slideData) return;
+    const normalized = normalizeBackgroundColor(color);
+    // Repetir o clique na cor individual ativa devolve o slide ao fundo global.
+    if (slideData.backgroundColor === normalized) delete slideData.backgroundColor;
+    else slideData.backgroundColor = normalized;
+    saveDoc();
+    renderSlide(index);
+    buildSlideRail();
+  }
+
+  // ==== TRANSFORM HELPERS ====
+  function applyTransformToImg(img, tx, ty, scale) {
+    img.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+    img.dataset.tx = tx; img.dataset.ty = ty; img.dataset.scale = scale;
+  }
+  function applyTransformToBz(bz, tx, ty, scale) {
+    // Somente o zoom manual transforma a zona inteira. O fit automático atua
+    // em fontes, gaps e imagem, preservando a largura útil do texto.
+    bz.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+    bz.dataset.tx = tx; bz.dataset.ty = ty; bz.dataset.scale = scale;
+  }
+  function getImgState(img) {
+    return {
+      tx: parseFloat(img.dataset.tx || 0),
+      ty: parseFloat(img.dataset.ty || 0),
+      scale: parseFloat(img.dataset.scale || 1)
+    };
+  }
+  function getBzState(bz) {
+    return {
+      tx: parseFloat(bz.dataset.tx || 0),
+      ty: parseFloat(bz.dataset.ty || 0),
+      scale: parseFloat(bz.dataset.scale || 1)
+    };
+  }
+
+  function getContentFitScale(bodyZone) {
+    const saved = Number(bodyZone && bodyZone.dataset.contentFitScale);
+    return Number.isFinite(saved) && saved > 0 && saved <= 1 ? saved : 1;
+  }
+
+  function fitBodyZoneContent(bodyZone) {
+    if (!bodyZone) return 1;
+    const items = Array.from(bodyZone.children).filter(node =>
+      node.matches && (node.matches('[data-block-id]') || node.matches('.inline-photo'))
+    );
+    if (!items.length || !bodyZone.clientHeight) {
+      applyBodyZoneContentFit(bodyZone, 1);
+      return 1;
+    }
+
+    // O tamanho dos controles é a fonte da verdade. Não reduzimos a fonte para
+    // fazer o conteúdo caber: isso mascarava o resultado real do slider e
+    // produzia saltos visuais após o debounce. Mantemos 1× e só sinalizamos
+    // quando o conteúdo ultrapassa o canvas inteiro do slide — não apenas a
+    // zona interna de texto, que tem margens editoriais de propósito.
+    applyBodyZoneContentFit(bodyZone, 1);
+    const overflow = hasSlideCanvasOverflow(bodyZone, items);
+    setBodyZoneOverflow(bodyZone, overflow);
+    return 1;
+  }
+
+  function setBodyZoneOverflow(bodyZone, overflow) {
+    bodyZone.classList.toggle('content-overflow', overflow);
+    const wrap = bodyZone.closest('.slide-wrap');
+    if (wrap) wrap.classList.toggle('content-overflow', overflow);
+  }
+
+  function hasSlideCanvasOverflow(bodyZone, items) {
+    const slideEl = bodyZone && bodyZone.closest('.slide');
+    if (!slideEl || !slideEl.isConnected) return false;
+    const canvasBounds = slideEl.getBoundingClientRect();
+    if (!canvasBounds.width || !canvasBounds.height) return false;
+    // Uma pequena tolerância evita um falso positivo por arredondamento de
+    // subpixel após o preview ser escalado para caber na tela.
+    const tolerance = Math.max(1.5, canvasBounds.width * 0.003);
+    return items.some(node => {
+      const bounds = node.getBoundingClientRect();
+      const crossesCanvasEdge = bounds.left < canvasBounds.left - tolerance ||
+        bounds.right > canvasBounds.right + tolerance ||
+        bounds.top < canvasBounds.top - tolerance ||
+        bounds.bottom > canvasBounds.bottom + tolerance;
+      const hasUnwrappedHorizontalText = node.scrollWidth > node.clientWidth + 1;
+      return crossesCanvasEdge || hasUnwrappedHorizontalText;
+    });
+  }
+
+  function applyBodyZoneContentFit(bodyZone, fit) {
+    const stageIndex = getStageIndex(bodyZone);
+    const slideData = stageIndex >= 0 ? doc.slides[stageIndex] : null;
+    const baseGap = getEffectiveGap(slideData);
+    bodyZone.dataset.contentFitScale = String(fit);
+    bodyZone.style.setProperty('--content-fit-scale', String(fit));
+    bodyZone.style.setProperty('--content-fit-gap', (baseGap * fit) + 'px');
+    if (slideData && slideData.inlineImage && slideData.inlineImage.dataURL) {
+      const baseImageWidth = getInlineImageLayout(900, 990, slideData.inlineImage).width;
+      bodyZone.style.setProperty('--content-fit-inline-width', ((baseImageWidth / 900) * fit * 100) + '%');
+    } else {
+      bodyZone.style.removeProperty('--content-fit-inline-width');
+    }
+    bodyZone.querySelectorAll('[data-block-id]').forEach(node => {
+      const context = getBlockContext(node);
+      if (context) applySpacingToNode(node, context.block, fit);
+    });
+    bodyZone.classList.remove('content-auto-fitted');
+  }
+
+  function refreshSlideContentFit(stageIndex) {
+    const stage = document.querySelectorAll('.stage')[stageIndex];
+    const bodyZone = stage && stage.querySelector('.body-zone');
+    if (!bodyZone) return;
+    fitBodyZoneContent(bodyZone);
+    const state = getBzState(bodyZone);
+    applyTransformToBz(bodyZone, state.tx, state.ty, state.scale);
+  }
+
+  const pendingContentFitFrames = new Map();
+  function scheduleSlideContentFit(stageIndex) {
+    if (pendingContentFitFrames.has(stageIndex)) return;
+    const frame = requestAnimationFrame(() => {
+      pendingContentFitFrames.delete(stageIndex);
+      refreshSlideContentFit(stageIndex);
+    });
+    pendingContentFitFrames.set(stageIndex, frame);
+  }
+
+  // ==== IMAGE HELPERS ====
+  function getPhotoImg(slideEl) {
+    const photo = slideEl.querySelector('.photo');
+    if (!photo) return null;
+    let img = photo.querySelector('.photo-img');
+    if (!img) {
+      img = document.createElement('img');
+      img.className = 'photo-img';
+      photo.insertBefore(img, photo.firstChild);
+    }
+    return img;
+  }
+  function applyImageToSlide(slideEl, payload) {
+    const img = getPhotoImg(slideEl);
+    if (!img) return;
+    if (!payload || !payload.dataURL) return;
+    img.src = payload.dataURL;
+    img.classList.add('has-src');
+    applyTransformToImg(img, payload.tx || 0, payload.ty || 0, payload.scale || 1);
+  }
+  function clearImageFromSlide(slideEl) {
+    const img = slideEl.querySelector('.photo-img');
+    if (img) {
+      img.classList.remove('has-src');
+      img.removeAttribute('src');
+      applyTransformToImg(img, 0, 0, 1);
+    }
+  }
+  function flash(slide) {
+    slide.classList.add('flash');
+    setTimeout(() => slide.classList.remove('flash'), 600);
+  }
+
+  // ==== INLINE PHOTO PROPORCIONAL DENTRO DO BODY-ZONE ====
+  function getInlineImageAspectRatio(inlineImage) {
+    const ratio = Number(inlineImage && inlineImage.aspectRatio);
+    return Number.isFinite(ratio) && ratio > 0.15 && ratio < 8 ? ratio : (16 / 9);
+  }
+
+  function getInlineImageSize(inlineImage) {
+    const size = Number(inlineImage && inlineImage.size);
+    return Number.isFinite(size) ? Math.min(100, Math.max(45, size)) : 100;
+  }
+
+  function getInlineImagePosition(inlineImage, blockCount) {
+    const position = Number(inlineImage && inlineImage.position);
+    const normalized = Number.isInteger(position) ? position : 0;
+    return Math.max(0, Math.min(blockCount, normalized));
+  }
+
+  function getInlineImageLayout(zoneW, zoneH, inlineImage) {
+    if (!inlineImage || !inlineImage.dataURL) {
+      return { aspectRatio: 16 / 9, width: 0, height: 0, x: 0, size: 100 };
+    }
+    const aspectRatio = getInlineImageAspectRatio(inlineImage);
+    // Reserva espaço para a copy, mesmo quando a imagem é vertical.
+    const maxHeight = zoneH * 0.68;
+    const fittedWidth = Math.min(zoneW, maxHeight * aspectRatio);
+    const scale = getInlineImageSize(inlineImage) / 100;
+    // O controle de tamanho altera a caixa real da imagem. Antes ele escalava
+    // só o conteúdo visual, mas continuava reservando o espaço de 100%.
+    const width = fittedWidth * scale;
+    const height = width / aspectRatio;
+    return { aspectRatio, width, height, x: (zoneW - width) / 2, size: scale * 100, scale: 1 };
+  }
+
+  function applyInlinePhotoLayout(node, inlineImage) {
+    const layout = getInlineImageLayout(900, 990, inlineImage);
+    node.style.setProperty('--inline-aspect', String(layout.aspectRatio));
+    node.style.setProperty('--inline-width', (layout.width / 900 * 100) + '%');
+    node.style.removeProperty('--inline-scale');
+    const resizeInput = node.querySelector('.inline-photo-controls input');
+    if (resizeInput) resizeInput.value = String(layout.size);
+  }
+
+  function applyInlinePhotoToSlide(slideEl, inlineImage) {
+    const bz = slideEl.querySelector('.body-zone');
+    if (!bz) return null;
+    let node = bz.querySelector('.inline-photo');
+    if (!inlineImage || !inlineImage.dataURL) {
+      if (node) node.remove();
+      bz.classList.remove('has-inline-image');
+      return null;
+    }
+    bz.classList.add('has-inline-image');
+    if (!node) {
+      node = document.createElement('div');
+      node.className = 'inline-photo';
+      node.contentEditable = 'false';
+      const media = document.createElement('div');
+      media.className = 'inline-photo-media';
+      const im = document.createElement('img');
+      media.appendChild(im);
+      node.appendChild(media);
+      const controls = document.createElement('label');
+      controls.className = 'inline-photo-controls';
+      controls.setAttribute('aria-label', 'Tamanho da imagem');
+      controls.innerHTML = '<span aria-hidden="true">↔</span>';
+      const input = document.createElement('input');
+      input.type = 'range';
+      input.min = '45';
+      input.max = '100';
+      input.step = '1';
+      input.setAttribute('aria-label', 'Redimensionar imagem');
+      controls.appendChild(input);
+      node.appendChild(controls);
+    }
+    const im = node.querySelector('.inline-photo-media img');
+    const resizeInput = node.querySelector('.inline-photo-controls input');
+    let resizeFrame = 0;
+    const updateSize = (persist) => {
+      const stageIndex = getStageIndex(slideEl);
+      const current = doc.slides[stageIndex] && doc.slides[stageIndex].inlineImage;
+      if (!current) return;
+      current.size = getInlineImageSize({ size: resizeInput.value });
+      applyInlinePhotoLayout(node, current);
+      refreshSlideContentFit(stageIndex);
+      if (persist) saveDoc();
+    };
+    resizeInput.oninput = () => {
+      if (resizeFrame) cancelAnimationFrame(resizeFrame);
+      resizeFrame = requestAnimationFrame(() => {
+        resizeFrame = 0;
+        updateSize(false);
+      });
+    };
+    const commitResize = () => {
+      if (resizeFrame) {
+        cancelAnimationFrame(resizeFrame);
+        resizeFrame = 0;
+      }
+      updateSize(true);
+    };
+    resizeInput.onchange = () => commitResize();
+    if (im.src !== inlineImage.dataURL) {
+      im.onload = () => {
+        const stageIndex = getStageIndex(slideEl);
+        const current = doc.slides[stageIndex] && doc.slides[stageIndex].inlineImage;
+        if (!current || current.dataURL !== inlineImage.dataURL || !im.naturalHeight) return;
+        const aspectRatio = im.naturalWidth / im.naturalHeight;
+        if (!Number.isFinite(current.aspectRatio) || Math.abs(current.aspectRatio - aspectRatio) > 0.0001) {
+          current.aspectRatio = aspectRatio;
+          if (!Number.isFinite(Number(current.size))) current.size = 100;
+          safeSet(DOC_KEY, doc);
+        }
+        applyInlinePhotoLayout(node, current);
+        refreshSlideContentFit(stageIndex);
+      };
+      im.src = inlineImage.dataURL;
+    }
+    applyInlinePhotoLayout(node, inlineImage);
+    return node;
+  }
+
+  // ==== RENDER ====
+  function sanitizeBlockHtml(html) {
+    const source = document.createElement('template');
+    source.innerHTML = html || '';
+    const output = document.createElement('div');
+
+    function appendChildren(from, to) {
+      Array.from(from.childNodes).forEach(child => appendNode(child, to));
+    }
+
+    function appendNode(node, parent) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        parent.appendChild(document.createTextNode(node.textContent || ''));
+        return;
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) return;
+      const tag = node.tagName.toLowerCase();
+      if (tag === 'br') {
+        parent.appendChild(document.createElement('br'));
+        return;
+      }
+      if (tag === 'div' || tag === 'p') {
+        if (parent.lastChild && parent.lastChild.nodeName !== 'BR') parent.appendChild(document.createElement('br'));
+        appendChildren(node, parent);
+        return;
+      }
+
+      const isHot = tag === 'span' && node.classList.contains('hot');
+      const isBold = tag === 'b' || tag === 'strong' ||
+        (/^(bold|[6-9]00)$/i).test((node.style && node.style.fontWeight) || '');
+      const isItalic = tag === 'i' || tag === 'em' ||
+        ((node.style && node.style.fontStyle) || '').toLowerCase() === 'italic';
+      let target = parent;
+      if (isHot) {
+        const marker = document.createElement('span');
+        marker.className = node.classList.contains('yellow') ? 'hot yellow' : 'hot';
+        target.appendChild(marker);
+        target = marker;
+      }
+      if (isBold) {
+        const strong = document.createElement('strong');
+        target.appendChild(strong);
+        target = strong;
+      }
+      if (isItalic) {
+        const em = document.createElement('em');
+        target.appendChild(em);
+        target = em;
+      }
+      appendChildren(node, target);
+    }
+
+    appendChildren(source.content, output);
+    while (output.firstChild && output.firstChild.nodeName === 'BR') output.firstChild.remove();
+    while (output.lastChild && output.lastChild.nodeName === 'BR') output.lastChild.remove();
+    return output.innerHTML;
+  }
+
+  function insertPlainTextAtSelection(text) {
+    const selection = window.getSelection();
+    if (!selection || !selection.rangeCount) return;
+    const range = selection.getRangeAt(0);
+    range.deleteContents();
+    const fragment = document.createDocumentFragment();
+    String(text || '').replace(/\r\n?/g, '\n').split('\n').forEach((line, index, lines) => {
+      if (line) fragment.appendChild(document.createTextNode(line));
+      if (index < lines.length - 1) fragment.appendChild(document.createElement('br'));
+    });
+    const tail = fragment.lastChild;
+    range.insertNode(fragment);
+    if (tail) {
+      range.setStartAfter(tail);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+  }
+
+  function buildBlockNode(block) {
+    const node = document.createElement('div');
+    node.dataset.blockId = block.id;
+    node.className = blockToClassName(block);
+    node.contentEditable = 'true';
+    node.spellcheck = false;
+    block.html = sanitizeBlockHtml(block.html);
+    node.innerHTML = block.html;
+    applySpacingToNode(node, block);
+    attachBlockHandlers(node);
+    return node;
+  }
+
+  function attachBlockHandlers(node) {
+    node.addEventListener('input', onBlockInput);
+    node.addEventListener('mousedown', onBlockMousedown);
+    node.addEventListener('focus', onBlockFocus);
+    node.addEventListener('paste', onBlockTextPaste);
+  }
+
+  function onBlockTextPaste(event) {
+    const clipboard = event.clipboardData;
+    if (!clipboard) return;
+    if (Array.from(clipboard.items || []).some(item => item.type && item.type.startsWith('image/'))) return;
+    event.preventDefault();
+    insertPlainTextAtSelection(clipboard.getData('text/plain'));
+    onBlockInput({ currentTarget: event.currentTarget });
+  }
+
+  function onBlockMousedown(e) {
+    // Click em bloco seleciona ele (mas não impede edit nativo do contenteditable)
+    e.stopPropagation();
+    const node = e.currentTarget;
+    selectBlock(node);
+  }
+
+  function onBlockFocus(e) {
+    // Foco também seleciona
+    selectBlock(e.currentTarget);
+  }
+
+  function renderSlide(sIdx, opts = {}) {
+    const slideData = doc.slides[sIdx];
+    const stage = document.querySelectorAll('.stage')[sIdx];
+    const slideEl = stage.querySelector('.slide');
+    const bodyZone = slideEl.querySelector('.body-zone');
+    applySlideBackground(slideEl, slideData);
+
+    // Save focus
+    const activeId = (document.activeElement && document.activeElement.dataset)
+      ? document.activeElement.dataset.blockId : null;
+    let savedRange = null;
+    if (activeId) {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        try { savedRange = sel.getRangeAt(0).cloneRange(); } catch (e) {}
+      }
+    }
+
+    // Existing nodes by id
+    const existingNodes = new Map();
+    bodyZone.querySelectorAll('[data-block-id]').forEach(n => {
+      existingNodes.set(n.dataset.blockId, n);
+    });
+
+    const inlinePhotoNode = applyInlinePhotoToSlide(slideEl, slideData.inlineImage);
+    const inlineImagePosition = getInlineImagePosition(slideData.inlineImage, slideData.blocks.length);
+
+    // Uma única pilha visual: os controles de ordem podem atravessar a imagem.
+    const newOrder = [];
+    slideData.blocks.forEach((block, blockIndex) => {
+      if (inlinePhotoNode && blockIndex === inlineImagePosition) newOrder.push(inlinePhotoNode);
+      let node = existingNodes.get(block.id);
+      if (!node) {
+        node = buildBlockNode(block);
+      } else {
+        existingNodes.delete(block.id);
+        const newClass = blockToClassName(block);
+        if (node.className.replace(/\s+selected\b/g, '').trim() !== newClass.trim()) {
+          const wasSelected = node.classList.contains('selected');
+          node.className = newClass;
+          if (wasSelected) node.classList.add('selected');
+        }
+        const safeBlockHtml = sanitizeBlockHtml(block.html);
+        block.html = safeBlockHtml;
+        if (node.innerHTML !== safeBlockHtml && document.activeElement !== node) {
+          node.innerHTML = safeBlockHtml;
+        }
+        applySpacingToNode(node, block);
+      }
+      newOrder.push(node);
+    });
+    if (inlinePhotoNode && inlineImagePosition === slideData.blocks.length) newOrder.push(inlinePhotoNode);
+
+    existingNodes.forEach(n => n.remove());
+    newOrder.forEach(n => bodyZone.appendChild(n));
+
+    // Re-aplica selected (caso tenha sido perdido na re-render)
+    if (selectedBlockId) {
+      const sel = bodyZone.querySelector(`[data-block-id="${selectedBlockId}"]`);
+      if (sel) sel.classList.add('selected');
+    }
+
+    // Restore focus
+    if (activeId && !opts.skipFocusRestore) {
+      const restored = bodyZone.querySelector(`[data-block-id="${activeId}"]`);
+      if (restored) {
+        restored.focus();
+        if (savedRange) {
+          try {
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(savedRange);
+          } catch (e) {}
+        }
+      }
+    }
+
+    applyGapToSlide(slideEl, getEffectiveGap(slideData));
+    fitBodyZoneContent(bodyZone);
+    applyTransformToBz(bodyZone, slideData.bzTransform.tx || 0, slideData.bzTransform.ty || 0, slideData.bzTransform.scale || 1);
+
+    if (slideData.image && slideData.image.dataURL) {
+      applyImageToSlide(slideEl, slideData.image);
+    } else {
+      clearImageFromSlide(slideEl);
+    }
+
+    const footerEl = slideEl.querySelector('.footer-bar');
+    if (footerEl) {
+      footerEl.classList.toggle('dark', slideData.footerVariant === 'dark');
+    }
+    applyFadeToSlide(slideEl, getEffectiveFade(slideData));
+  }
+
+  function renderAll() {
+    doc.slides.forEach((_, i) => renderSlide(i));
+  }
+
+  function setRailActive(index) {
+    document.querySelectorAll('[data-rail-index]').forEach((item) => {
+      const isActive = Number(item.getAttribute('data-rail-index')) === index;
+      item.classList.toggle('is-active', isActive);
+      if (isActive) item.setAttribute('aria-current', 'true');
+      else item.removeAttribute('aria-current');
+    });
+  }
+
+  let notesRailDragIndex = null;
+
+  function moveNotasSlide(fromIndex, targetIndex, placeAfter) {
+    flushDOMToDoc();
+    if (!Number.isInteger(fromIndex) || !Number.isInteger(targetIndex)) return;
+    let insertAt = targetIndex + (placeAfter ? 1 : 0);
+    const [moved] = doc.slides.splice(fromIndex, 1);
+    if (!moved) return;
+    if (fromIndex < insertAt) insertAt -= 1;
+    insertAt = Math.max(0, Math.min(insertAt, doc.slides.length));
+    if (insertAt === fromIndex) {
+      doc.slides.splice(fromIndex, 0, moved);
+      return;
+    }
+    doc.slides.splice(insertAt, 0, moved);
+    activeStageIndex = insertAt;
+    selectedSlideIdx = insertAt;
+    try { sessionStorage.setItem(DOC_KEY + '-pending-active-slide', String(insertAt)); } catch (e) {}
+    saveDoc();
+    location.reload();
+  }
+
+  function buildSlideRail() {
+    const list = document.getElementById('slide-rail-list');
+    if (!list || !doc) return;
+    list.innerHTML = '';
+    doc.slides.forEach((slide, index) => {
+      const role = slide.isCapa ? 'Capa' : (slide.isCTA ? 'CTA' : 'Slide');
+      const control = document.createElement('div');
+      control.className = 'rail-slide-control';
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'rail-item';
+      item.draggable = true;
+      item.setAttribute('data-rail-index', String(index));
+      item.setAttribute('aria-label', 'Ir para slide ' + (index + 1) + ', ' + role);
+      item.title = 'Arraste para reposicionar este slide';
+      item.innerHTML = '<span class="rail-index">' + String(index + 1).padStart(2, '0') + '</span>' +
+        '<span class="rail-role">' + role + '</span>';
+      item.addEventListener('click', () => {
+        document.querySelectorAll('.stage').forEach((stage, stageIndex) => {
+          const isActive = stageIndex === index;
+          stage.classList.toggle('active', isActive);
+          const slideEl = stage.querySelector('.slide');
+          if (slideEl) slideEl.classList.toggle('active', isActive);
+        });
+        activeStageIndex = index;
+        setRailActive(index);
+        const wrap = document.querySelectorAll('.slide-wrap')[index];
+        if (wrap) wrap.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+      });
+      item.addEventListener('dragstart', (event) => {
+        notesRailDragIndex = index;
+        control.classList.add('is-dragging');
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', String(index));
+      });
+      item.addEventListener('dragend', () => {
+        notesRailDragIndex = null;
+        document.querySelectorAll('.rail-slide-control').forEach(node => {
+          node.classList.remove('is-dragging', 'drop-before', 'drop-after');
+        });
+      });
+      control.addEventListener('dragover', (event) => {
+        if (notesRailDragIndex === null || notesRailDragIndex === index) return;
+        event.preventDefault();
+        const rect = control.getBoundingClientRect();
+        const placeAfter = event.clientY > rect.top + rect.height / 2;
+        control.classList.toggle('drop-before', !placeAfter);
+        control.classList.toggle('drop-after', placeAfter);
+        event.dataTransfer.dropEffect = 'move';
+      });
+      control.addEventListener('dragleave', (event) => {
+        if (!control.contains(event.relatedTarget)) control.classList.remove('drop-before', 'drop-after');
+      });
+      control.addEventListener('drop', (event) => {
+        if (notesRailDragIndex === null) return;
+        event.preventDefault();
+        const rect = control.getBoundingClientRect();
+        moveNotasSlide(notesRailDragIndex, index, event.clientY > rect.top + rect.height / 2);
+      });
+      control.appendChild(item);
+
+      const colors = document.createElement('div');
+      colors.className = 'rail-color-options';
+      colors.setAttribute('role', 'group');
+      colors.setAttribute('aria-label', 'Cor do slide ' + (index + 1));
+      const effective = getSlideBackgroundColor(slide);
+      const hasOverride = slide.backgroundColor != null;
+      SLIDE_BACKGROUND_COLORS.forEach(({ value, label }) => {
+        const swatch = document.createElement('button');
+        swatch.type = 'button';
+        swatch.className = 'background-swatch';
+        swatch.dataset.backgroundColor = value;
+        swatch.style.setProperty('--swatch-color', value);
+        const selected = value === effective;
+        swatch.classList.toggle('is-selected', selected);
+        swatch.classList.toggle('is-inherited', selected && !hasOverride);
+        swatch.setAttribute('aria-pressed', String(selected));
+        swatch.setAttribute('aria-label', label + ' no slide ' + (index + 1));
+        swatch.title = selected && hasOverride
+          ? 'Clique novamente para usar o fundo global'
+          : 'Usar ' + label + ' neste slide';
+        swatch.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setSlideBackgroundColor(index, value);
+        });
+        colors.appendChild(swatch);
+      });
+      control.append(item, colors);
+      list.appendChild(control);
+    });
+    setRailActive(typeof activeStageIndex === 'number' ? activeStageIndex : 0);
+    updateSlideCountUI();
+  }
+
+  function updateSlideCountUI() {
+    const count = doc && Array.isArray(doc.slides) ? doc.slides.length : 0;
+    document.querySelectorAll('.rail-count').forEach(node => { node.textContent = count + ' telas'; });
+    document.querySelectorAll('.doc-meta').forEach(node => {
+      node.textContent = count + ' slides · 1080×' + getNotasHeight() + ' · @omatheusdelucca';
+    });
+  }
+
+  function flushDOMToDoc() {
+    document.querySelectorAll('[data-block-id]').forEach(blockEl => {
+      const ctx = getBlockContext(blockEl);
+      if (ctx) {
+        const safeHtml = sanitizeBlockHtml(blockEl.innerHTML);
+        ctx.block.html = safeHtml;
+        if (blockEl.innerHTML !== safeHtml) blockEl.innerHTML = safeHtml;
+      }
+    });
+    saveDoc();
+  }
+
+  // ==== BLOCK INPUT (text edit) ====
+  function onBlockInput(e) {
+    const blockEl = e.currentTarget;
+    const ctx = getBlockContext(blockEl);
+    if (!ctx) return;
+    ctx.block.html = sanitizeBlockHtml(blockEl.innerHTML);
+    saveDoc();
+    refreshSlideContentFit(ctx.sIdx);
+  }
+
+  // ==== SELECTION MODEL ====
+  const blockToolbar = document.getElementById('block-toolbar');
+
+  function selectBlock(blockEl) {
+    // Limpa seleção anterior
+    document.querySelectorAll('[data-block-id].selected').forEach(b => b.classList.remove('selected'));
+    if (!blockEl) {
+      selectedBlockId = null;
+      selectedSlideIdx = null;
+      blockToolbar.classList.add('empty');
+      return;
+    }
+    blockEl.classList.add('selected');
+    selectedBlockId = blockEl.dataset.blockId;
+    selectedSlideIdx = getStageIndex(blockEl);
+    activeStageIndex = selectedSlideIdx;
+    setRailActive(selectedSlideIdx);
+    blockToolbar.classList.remove('empty');
+    updateToolbarState();
+  }
+
+  function deselectBlock() { selectBlock(null); }
+
+  function updateToolbarState() {
+    const blockEl = getSelectedBlockEl();
+    if (!blockEl) {
+      blockToolbar.classList.add('empty');
+      return;
+    }
+    const ctx = getBlockContext(blockEl);
+    if (!ctx) return;
+    // Slide tag
+    document.getElementById('tb-slide-tag').textContent = 'slide ' + String(ctx.sIdx + 1).padStart(2, '0');
+    // Align active
+    const align = ctx.block.align || 'left';
+    blockToolbar.querySelectorAll('[data-align]').forEach(btn => {
+      const active = btn.dataset.align === align;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-pressed', String(active));
+    });
+    // Ajuste fino: tamanho, altura entre linhas e espaçamento entre caracteres.
+    const eff = getEffectiveSpacing(ctx.block);
+    const fsInput = document.getElementById('tb-font-size');
+    const fsVal   = document.getElementById('tb-font-size-val');
+    const lhInput = document.getElementById('tb-line-height');
+    const lsInput = document.getElementById('tb-letter-spacing');
+    const lhVal   = document.getElementById('tb-line-height-val');
+    const lsVal   = document.getElementById('tb-letter-spacing-val');
+    if (fsInput) {
+      fsInput.value = eff.fontSize;
+      fsVal.textContent = Math.round(eff.fontSize) + 'px';
+      fsVal.classList.toggle('is-override', eff.fsOverride);
+    }
+    if (lhInput) {
+      lhInput.value = eff.lineHeight;
+      lhVal.textContent = Math.round(eff.lineHeight) + 'px';
+      lhVal.classList.toggle('is-override', eff.lhOverride);
+    }
+    if (lsInput) {
+      lsInput.value = eff.letterSpacing;
+      const sign = eff.letterSpacing >= 0 ? '+' : '';
+      lsVal.textContent = sign + Number(eff.letterSpacing).toFixed(3) + 'em';
+      lsVal.classList.toggle('is-override', eff.lsOverride);
+    }
+    // Fade slider (per-slide)
+    const fadeInput = document.getElementById('tb-fade');
+    const fadeVal   = document.getElementById('tb-fade-val');
+    if (fadeInput) {
+      const fade = getEffectiveFade(ctx.slideData);
+      fadeInput.value = fade;
+      fadeVal.textContent = Math.round(fade * 100) + '%';
+      fadeVal.classList.toggle('is-override', fade !== 1);
+    }
+    // Gap slider (per-slide)
+    const gapInput = document.getElementById('tb-gap');
+    const gapVal   = document.getElementById('tb-gap-val');
+    if (gapInput) {
+      const gap = getEffectiveGap(ctx.slideData);
+      gapInput.value = gap;
+      gapVal.textContent = Math.round(gap) + 'px';
+      gapVal.classList.toggle('is-override', gap !== 36);
+    }
+  }
+
+  // ==== TOOLBAR BUTTON HANDLERS ====
+  blockToolbar.querySelectorAll('[data-align]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const blockEl = getSelectedBlockEl();
+      if (!blockEl) return;
+      setBlockAlign(blockEl, btn.dataset.align);
+    });
+  });
+
+  // ==== SPACING SLIDERS ====
+  (function wireSpacingSliders() {
+    const fsInput = document.getElementById('tb-font-size');
+    const fsVal   = document.getElementById('tb-font-size-val');
+    const lhInput = document.getElementById('tb-line-height');
+    const lsInput = document.getElementById('tb-letter-spacing');
+    const lhVal   = document.getElementById('tb-line-height-val');
+    const lsVal   = document.getElementById('tb-letter-spacing-val');
+    if (!lhInput || !lsInput) return;
+
+    function stopPropEvts(el) {
+      ['mousedown','click','keydown'].forEach(ev => el.addEventListener(ev, e => e.stopPropagation()));
+    }
+    if (fsInput) stopPropEvts(fsInput);
+    stopPropEvts(lhInput);
+    stopPropEvts(lsInput);
+
+    // O cálculo de encaixe mede o conteúdo diversas vezes. Durante o arraste
+    // ele é desnecessário e deixava a pré-visualização engasgada; o DOM recebe
+    // a alteração imediatamente e o encaixe/salvamento é feito na pausa ou ao
+    // soltar o controle.
+    let pendingTextLayoutCommit = null;
+    let pendingTextLayoutStage = null;
+    function commitTextLayout() {
+      if (pendingTextLayoutCommit !== null) {
+        clearTimeout(pendingTextLayoutCommit);
+        pendingTextLayoutCommit = null;
+      }
+      if (pendingTextLayoutStage === null) return;
+      const stageIndex = pendingTextLayoutStage;
+      pendingTextLayoutStage = null;
+      saveDoc();
+      scheduleSlideContentFit(stageIndex);
+    }
+    function queueTextLayoutCommit(stageIndex) {
+      pendingTextLayoutStage = stageIndex;
+      if (pendingTextLayoutCommit !== null) clearTimeout(pendingTextLayoutCommit);
+      pendingTextLayoutCommit = window.setTimeout(commitTextLayout, 180);
+    }
+    [fsInput, lhInput, lsInput].filter(Boolean).forEach(input => {
+      input.addEventListener('change', commitTextLayout);
+    });
+
+    if (fsInput) {
+      fsInput.addEventListener('input', (e) => {
+        const blockEl = getSelectedBlockEl();
+        if (!blockEl) return;
+        const ctx = getBlockContext(blockEl);
+        if (!ctx) return;
+        const value = parseFloat(e.target.value);
+        ctx.block.fontSize = value;
+        // Alterar o tamanho volta a usar o ritmo proporcional da variante.
+        // Isso também elimina valores de entrelinha manuais que ficaram salvos
+        // de ajustes anteriores e impediam a compensação automática.
+        delete ctx.block.lineHeight;
+        fsVal.textContent = Math.round(value) + 'px';
+        fsVal.classList.add('is-override');
+        applyLiveSpacingToNode(blockEl, ctx.block);
+        const next = getEffectiveSpacing(ctx.block);
+        lhInput.value = next.lineHeight;
+        lhVal.textContent = Math.round(next.lineHeight) + 'px';
+        lhVal.classList.remove('is-override');
+        queueTextLayoutCommit(ctx.sIdx);
+      });
+    }
+
+    lhInput.addEventListener('input', (e) => {
+      const blockEl = getSelectedBlockEl();
+      if (!blockEl) return;
+      const ctx = getBlockContext(blockEl);
+      if (!ctx) return;
+      const v = parseFloat(e.target.value);
+      ctx.block.lineHeight = v;
+      lhVal.textContent = Math.round(v) + 'px';
+      lhVal.classList.add('is-override');
+      applyLiveSpacingToNode(blockEl, ctx.block);
+      queueTextLayoutCommit(ctx.sIdx);
+    });
+
+    lsInput.addEventListener('input', (e) => {
+      const blockEl = getSelectedBlockEl();
+      if (!blockEl) return;
+      const ctx = getBlockContext(blockEl);
+      if (!ctx) return;
+      const v = parseFloat(e.target.value);
+      ctx.block.letterSpacing = v;
+      const sign = v >= 0 ? '+' : '';
+      lsVal.textContent = sign + v.toFixed(3) + 'em';
+      lsVal.classList.add('is-override');
+      applyLiveSpacingToNode(blockEl, ctx.block);
+      queueTextLayoutCommit(ctx.sIdx);
+    });
+
+    const resetBtn = blockToolbar.querySelector('[data-action="spacing-reset"]');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const blockEl = getSelectedBlockEl();
+        if (!blockEl) return;
+        const ctx = getBlockContext(blockEl);
+        if (!ctx) return;
+        delete ctx.block.fontSize;
+        delete ctx.block.lineHeight;
+        delete ctx.block.letterSpacing;
+        applySpacingToNode(blockEl, ctx.block);
+        saveDoc();
+        scheduleSlideContentFit(ctx.sIdx);
+        updateToolbarState();
+      });
+    }
+
+    // Fade slider (per-slide)
+    const fadeInput = document.getElementById('tb-fade');
+    const fadeVal   = document.getElementById('tb-fade-val');
+    if (fadeInput) {
+      stopPropEvts(fadeInput);
+      fadeInput.addEventListener('input', (e) => {
+        const blockEl = getSelectedBlockEl();
+        if (!blockEl) return;
+        const ctx = getBlockContext(blockEl);
+        if (!ctx) return;
+        const v = parseFloat(e.target.value);
+        ctx.slideData.fade = v;
+        fadeVal.textContent = Math.round(v * 100) + '%';
+        fadeVal.classList.toggle('is-override', v !== 1);
+        const slideEl = document.querySelectorAll('.stage')[ctx.sIdx].querySelector('.slide');
+        applyFadeToSlide(slideEl, v);
+        saveDoc();
+      });
+      const fadeReset = blockToolbar.querySelector('[data-action="fade-reset"]');
+      if (fadeReset) {
+        fadeReset.addEventListener('click', (e) => {
+          e.preventDefault();
+          const blockEl = getSelectedBlockEl();
+          if (!blockEl) return;
+          const ctx = getBlockContext(blockEl);
+          if (!ctx) return;
+          delete ctx.slideData.fade;
+          const slideEl = document.querySelectorAll('.stage')[ctx.sIdx].querySelector('.slide');
+          applyFadeToSlide(slideEl, 1);
+          saveDoc();
+          updateToolbarState();
+        });
+      }
+    }
+
+    // Gap slider (per-slide)
+    const gapInput = document.getElementById('tb-gap');
+    const gapVal   = document.getElementById('tb-gap-val');
+    if (gapInput) {
+      stopPropEvts(gapInput);
+      gapInput.addEventListener('input', (e) => {
+        const blockEl = getSelectedBlockEl();
+        if (!blockEl) return;
+        const ctx = getBlockContext(blockEl);
+        if (!ctx) return;
+        const v = parseInt(e.target.value, 10);
+        ctx.slideData.gap = v;
+        gapVal.textContent = v + 'px';
+        gapVal.classList.toggle('is-override', v !== 36);
+        const slideEl = document.querySelectorAll('.stage')[ctx.sIdx].querySelector('.slide');
+        applyGapToSlide(slideEl, v);
+        saveDoc();
+        scheduleSlideContentFit(ctx.sIdx);
+      });
+      const gapReset = blockToolbar.querySelector('[data-action="gap-reset"]');
+      if (gapReset) {
+        gapReset.addEventListener('click', (e) => {
+          e.preventDefault();
+          const blockEl = getSelectedBlockEl();
+          if (!blockEl) return;
+          const ctx = getBlockContext(blockEl);
+          if (!ctx) return;
+          delete ctx.slideData.gap;
+          const slideEl = document.querySelectorAll('.stage')[ctx.sIdx].querySelector('.slide');
+          applyGapToSlide(slideEl, 36);
+          saveDoc();
+          scheduleSlideContentFit(ctx.sIdx);
+          updateToolbarState();
+        });
+      }
+    }
+  })();
+
+  blockToolbar.querySelector('[data-action="up"]').addEventListener('click', (e) => {
+    e.preventDefault();
+    const b = getSelectedBlockEl(); if (b) moveBlock(b, -1);
+  });
+  blockToolbar.querySelector('[data-action="down"]').addEventListener('click', (e) => {
+    e.preventDefault();
+    const b = getSelectedBlockEl(); if (b) moveBlock(b, +1);
+  });
+  blockToolbar.querySelector('[data-action="add"]').addEventListener('click', (e) => {
+    e.preventDefault();
+    const b = getSelectedBlockEl(); if (b) insertBlockAfter(b);
+  });
+  blockToolbar.querySelector('[data-action="delete"]').addEventListener('click', (e) => {
+    e.preventDefault();
+    const b = getSelectedBlockEl(); if (b) deleteBlock(b);
+  });
+
+  // ==== MUTATORS ====
+  function setBlockAlign(blockEl, align) {
+    const ctx = getBlockContext(blockEl);
+    if (!ctx) return;
+    ctx.block.align = align;
+    saveDoc();
+    renderSlide(ctx.sIdx);
+    const newEl = document.querySelector(`[data-block-id="${ctx.block.id}"]`);
+    if (newEl) selectBlock(newEl);
+  }
+
+  function getVisualItems(slideData) {
+    const items = slideData.blocks.map(block => ({ type: 'block', block }));
+    if (slideData.inlineImage && slideData.inlineImage.dataURL) {
+      items.splice(getInlineImagePosition(slideData.inlineImage, slideData.blocks.length), 0, { type: 'image' });
+    }
+    return items;
+  }
+
+  function commitVisualItems(slideData, items) {
+    slideData.blocks = items.filter(item => item.type === 'block').map(item => item.block);
+    const imageIndex = items.findIndex(item => item.type === 'image');
+    if (imageIndex >= 0 && slideData.inlineImage) slideData.inlineImage.position = imageIndex;
+  }
+
+  function moveBlock(blockEl, direction) {
+    const ctx = getBlockContext(blockEl);
+    if (!ctx) return;
+    const { slideData, block } = ctx;
+    const items = getVisualItems(slideData);
+    const currentIdx = items.findIndex(item => item.type === 'block' && item.block.id === block.id);
+    const nextIdx = currentIdx + direction;
+    if (currentIdx < 0 || nextIdx < 0 || nextIdx >= items.length) return;
+
+    const [moved] = items.splice(currentIdx, 1);
+    items.splice(nextIdx, 0, moved);
+    commitVisualItems(slideData, items);
+    saveDoc();
+    renderSlide(ctx.sIdx);
+    const newEl = document.querySelector(`[data-block-id="${block.id}"]`);
+    if (newEl) selectBlock(newEl);
+  }
+
+  function insertBlockAfter(blockEl) {
+    const ctx = getBlockContext(blockEl);
+    if (!ctx) return;
+    const newBlock = {
+      id: uid(),
+      kind: ctx.block.kind === 'h-display' ? 'body' : ctx.block.kind,
+      variant: ctx.block.kind === 'h-display' ? 'default' : ctx.block.variant,
+      align: ctx.block.align || 'center',
+      html: 'Novo bloco',
+    };
+    if (ctx.block.kind !== 'h-display') {
+      ['fontSize', 'lineHeight', 'letterSpacing'].forEach(property => {
+        if (ctx.block[property] != null) newBlock[property] = ctx.block[property];
+      });
+    }
+    const items = getVisualItems(ctx.slideData);
+    const sourceIndex = items.findIndex(item => item.type === 'block' && item.block.id === ctx.block.id);
+    items.splice(sourceIndex + 1, 0, { type: 'block', block: newBlock });
+    commitVisualItems(ctx.slideData, items);
+    saveDoc();
+    renderSlide(ctx.sIdx);
+    // Auto-seleciona o novo bloco e foca pra editar
+    const newEl = document.querySelector(`[data-block-id="${newBlock.id}"]`);
+    if (newEl) {
+      selectBlock(newEl);
+      setTimeout(() => {
+        newEl.focus();
+        const range = document.createRange();
+        range.selectNodeContents(newEl);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }, 30);
+    }
+  }
+
+  function deleteBlock(blockEl) {
+    const ctx = getBlockContext(blockEl);
+    if (!ctx) return;
+    if (ctx.slideData.blocks.length <= 1) {
+      alert('Mantém pelo menos 1 bloco no slide.');
+      return;
+    }
+    const plain = ctx.block.html.replace(/<[^>]*>/g, '').trim();
+    if (plain.length > 30 && !confirm('Apagar este bloco?\n\n"' + plain.slice(0, 100) + (plain.length > 100 ? '…' : '') + '"')) return;
+    const removedIdx = ctx.blockIdx;
+    const items = getVisualItems(ctx.slideData).filter(item =>
+      item.type !== 'block' || item.block.id !== ctx.block.id
+    );
+    commitVisualItems(ctx.slideData, items);
+    saveDoc();
+    renderSlide(ctx.sIdx);
+    // Seleciona o bloco vizinho (acima de preferência)
+    const remaining = ctx.slideData.blocks;
+    const targetIdx = Math.max(0, Math.min(removedIdx, remaining.length - 1));
+    const targetBlock = remaining[targetIdx];
+    if (targetBlock) {
+      const newEl = document.querySelector(`[data-block-id="${targetBlock.id}"]`);
+      if (newEl) selectBlock(newEl);
+    } else {
+      deselectBlock();
+    }
+  }
+
+  // ==== BUBBLE MENU (text selection → mark hot) ====
+  const bubbleMenu = document.getElementById('bubble-menu');
+  let lastSelection = null;
+  let bubbleHideTimeout = null;
+
+  function updateBubbleMenu() {
+    if (bubbleHideTimeout) clearTimeout(bubbleHideTimeout);
+    bubbleHideTimeout = setTimeout(() => {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+        bubbleMenu.classList.remove('show');
+        lastSelection = null;
+        return;
+      }
+      const range = sel.getRangeAt(0);
+      let ancestor = range.commonAncestorContainer;
+      if (ancestor.nodeType !== 1) ancestor = ancestor.parentNode;
+      const blockEl = ancestor.closest && ancestor.closest('[data-block-id]');
+      if (!blockEl) {
+        bubbleMenu.classList.remove('show');
+        lastSelection = null;
+        return;
+      }
+      lastSelection = range.cloneRange();
+      bubbleMenu.classList.add('show');
+      const bmRect = bubbleMenu.getBoundingClientRect();
+      const selRect = range.getBoundingClientRect();
+      // position: fixed → coords são VIEWPORT-relative, não somar scrollY
+      let top = selRect.top - bmRect.height - 10;
+      let left = selRect.left + (selRect.width - bmRect.width) / 2;
+      // Se ficar atrás da toolbar fixa do topo (~70px), joga abaixo da seleção
+      if (top < 76) top = selRect.bottom + 10;
+      if (left < 8) left = 8;
+      if (left + bmRect.width > window.innerWidth - 8) left = window.innerWidth - bmRect.width - 8;
+      bubbleMenu.style.top = top + 'px';
+      bubbleMenu.style.left = left + 'px';
+    }, 30);
+  }
+
+  document.addEventListener('selectionchange', updateBubbleMenu);
+
+  function selectedRangeMatchesHotMarker(range) {
+    let node = range.commonAncestorContainer;
+    if (node.nodeType !== 1) node = node.parentNode;
+    const marker = node && node.closest ? node.closest('.hot') : null;
+    if (!marker) return null;
+    const markerRange = document.createRange();
+    markerRange.selectNodeContents(marker);
+    const isExactStart = range.compareBoundaryPoints(Range.START_TO_START, markerRange) === 0;
+    const isExactEnd = range.compareBoundaryPoints(Range.END_TO_END, markerRange) === 0;
+    return isExactStart && isExactEnd ? marker : null;
+  }
+
+  function normalizeHotMarker(marker) {
+    // A seleção pode cruzar um destaque existente. O extractContents preserva
+    // esse span interno; removê-lo aqui evita marcadores aninhados, que podem
+    // fragmentar a linha no contenteditable e deixar preview/PNG divergentes.
+    marker.querySelectorAll('.hot').forEach(nested => {
+      while (nested.firstChild) nested.parentNode.insertBefore(nested.firstChild, nested);
+      nested.remove();
+    });
+    marker.normalize();
+    if (marker.parentNode) marker.parentNode.normalize();
+  }
+
+  function applyHotToSavedSelection(yellow) {
+    if (!lastSelection) {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+      lastSelection = sel.getRangeAt(0).cloneRange();
+    }
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(lastSelection);
+    if (lastSelection.collapsed) return;
+    const range = lastSelection;
+    // Se a seleção já é um destaque inteiro, troca sua cor sem criar spans
+    // aninhados. Isso mantém DOM, preview e PNG com a mesma cor.
+    let marker = selectedRangeMatchesHotMarker(range);
+    if (marker) {
+      marker.className = yellow ? 'hot yellow' : 'hot';
+    } else {
+      // Extrai o fragmento real do DOM (e não somente textContent): assim
+      // <strong>, <em> e seus equivalentes continuam intactos no destaque.
+      const contents = range.extractContents();
+      marker = document.createElement('span');
+      marker.className = yellow ? 'hot yellow' : 'hot';
+      marker.appendChild(contents);
+      range.insertNode(marker);
+      normalizeHotMarker(marker);
+    }
+    const blockEl = marker.closest('[data-block-id]');
+    if (blockEl) {
+      onBlockInput({ currentTarget: blockEl });
+      const nextRange = document.createRange();
+      nextRange.selectNodeContents(marker);
+      sel.removeAllRanges();
+      sel.addRange(nextRange);
+    }
+    bubbleMenu.classList.remove('show');
+    lastSelection = null;
+  }
+
+  function wrapSelectionInHot(yellow) {
+    applyHotToSavedSelection(yellow);
+  }
+
+  function applyInlineFormat(command) {
+    if (!lastSelection) {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+      lastSelection = sel.getRangeAt(0).cloneRange();
+    }
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(lastSelection);
+    if (lastSelection.collapsed) return;
+    document.execCommand(command, false, null);
+    let node = sel.rangeCount ? sel.getRangeAt(0).commonAncestorContainer : null;
+    if (node && node.nodeType !== 1) node = node.parentNode;
+    const blockEl = node && node.closest ? node.closest('[data-block-id]') : document.activeElement;
+    if (blockEl && blockEl.dataset && blockEl.dataset.blockId) {
+      onBlockInput({ currentTarget: blockEl });
+    }
+    bubbleMenu.classList.remove('show');
+    lastSelection = null;
+  }
+
+  function unwrapHot() {
+    if (!lastSelection) return;
+    let node = lastSelection.commonAncestorContainer;
+    if (node.nodeType !== 1) node = node.parentNode;
+    const hot = node.closest && node.closest('.hot');
+    if (!hot) return;
+    const blockEl = hot.closest('[data-block-id]');
+    hot.outerHTML = hot.textContent;
+    if (blockEl) onBlockInput({ currentTarget: blockEl });
+    bubbleMenu.classList.remove('show');
+    lastSelection = null;
+  }
+
+  bubbleMenu.querySelector('[data-action="hot-red"]').addEventListener('mousedown', (e) => {
+    e.preventDefault(); wrapSelectionInHot(false);
+  });
+  bubbleMenu.querySelector('[data-action="hot-yellow"]').addEventListener('mousedown', (e) => {
+    e.preventDefault(); wrapSelectionInHot(true);
+  });
+  bubbleMenu.querySelector('[data-action="format-bold"]').addEventListener('mousedown', (e) => {
+    e.preventDefault(); applyInlineFormat('bold');
+  });
+  bubbleMenu.querySelector('[data-action="format-italic"]').addEventListener('mousedown', (e) => {
+    e.preventDefault(); applyInlineFormat('italic');
+  });
+  bubbleMenu.querySelector('[data-action="hot-clear"]').addEventListener('mousedown', (e) => {
+    e.preventDefault(); unwrapHot();
+  });
+
+  // ==== KEYBOARD SHORTCUTS ====
+  document.addEventListener('keydown', (e) => {
+    // Esc deseleciona
+    if (e.key === 'Escape') {
+      if (selectedBlockId) {
+        e.preventDefault();
+        deselectBlock();
+        return;
+      }
+    }
+    if (!(e.metaKey || e.ctrlKey)) return;
+    const blockEl = getSelectedBlockEl();
+    if (e.key === 'h' || e.key === 'H') {
+      e.preventDefault();
+      wrapSelectionInHot(e.shiftKey);
+      return;
+    }
+    if (blockEl && e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      e.preventDefault();
+      moveBlock(blockEl, e.key === 'ArrowUp' ? -1 : +1);
+      return;
+    }
+  });
+
+  // ==== IMAGE / BODY-ZONE ====
+  const notesImageComposer = { targetSlide: null, leftDataURL: null, rightDataURL: null, mode: 'single', activeSlot: 'left' };
+
+  function readNotasImageBlob(blob) {
+    return new Promise((resolve, reject) => {
+      if (!blob || !blob.type || !blob.type.startsWith('image/')) {
+        reject(new Error('Arquivo não é uma imagem.'));
+        return;
+      }
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('Não foi possível ler esta imagem.'));
+      reader.onload = () => resolve(reader.result);
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  function loadNotasComposerImage(dataURL) {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error('Não foi possível carregar uma das fotos.'));
+      image.src = dataURL;
+    });
+  }
+
+  function drawNotasCoverImage(context, image, x, y, width, height) {
+    const sourceRatio = image.naturalWidth / image.naturalHeight;
+    const targetRatio = width / height;
+    let sx = 0, sy = 0, sw = image.naturalWidth, sh = image.naturalHeight;
+    if (sourceRatio > targetRatio) {
+      sw = image.naturalHeight * targetRatio;
+      sx = (image.naturalWidth - sw) / 2;
+    } else {
+      sh = image.naturalWidth / targetRatio;
+      sy = (image.naturalHeight - sh) / 2;
+    }
+    context.drawImage(image, sx, sy, sw, sh, x, y, width, height);
+  }
+
+  async function composeNotasSplitImage(leftDataURL, rightDataURL) {
+    const [left, right] = await Promise.all([loadNotasComposerImage(leftDataURL), loadNotasComposerImage(rightDataURL)]);
+    const canvas = document.createElement('canvas');
+    canvas.width = 1600; canvas.height = 900;
+    const context = canvas.getContext('2d');
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = 'high';
+    drawNotasCoverImage(context, left, 0, 0, 800, 900);
+    drawNotasCoverImage(context, right, 800, 0, 800, 900);
+    return canvas.toDataURL('image/jpeg', 0.92);
+  }
+
+  function renderNotasImageComposer() {
+    const state = notesImageComposer;
+    const modal = document.getElementById('notes-image-composer-modal');
+    const needsTwo = state.mode === 'split';
+    [['left', state.leftDataURL], ['right', state.rightDataURL]].forEach(([side, dataURL]) => {
+      const slot = document.getElementById('notes-image-slot-' + side);
+      const preview = document.getElementById('notes-image-preview-' + side);
+      if (!slot || !preview) return;
+      slot.classList.toggle('has-image', !!dataURL);
+      if (dataURL) preview.src = dataURL;
+      else preview.removeAttribute('src');
+      if (side === 'right') slot.hidden = !needsTwo;
+    });
+    modal.querySelectorAll('[data-image-composer-mode]').forEach(button => button.classList.toggle('is-active', button.dataset.imageComposerMode === state.mode));
+    document.getElementById('notes-image-composer-swap').hidden = !needsTwo || !state.leftDataURL || !state.rightDataURL;
+    document.getElementById('notes-image-composer-help').textContent = needsTwo
+      ? (!state.leftDataURL ? 'Adicione ou cole a primeira foto. Depois, faça o mesmo na segunda metade.' : !state.rightDataURL ? 'Agora adicione ou cole a segunda foto. Ctrl+V entra diretamente neste quadro.' : 'Cada foto ocupa metade do quadro, com recorte central automático.')
+      : 'Adicione uma foto ou pressione Ctrl+V para colar a imagem que entrará no slide.';
+    document.getElementById('notes-image-composer-apply').disabled = !state.leftDataURL || (needsTwo && !state.rightDataURL);
+  }
+
+  function closeNotasImageComposer() {
+    const modal = document.getElementById('notes-image-composer-modal');
+    modal.classList.remove('visible');
+    modal.setAttribute('aria-hidden', 'true');
+    notesImageComposer.targetSlide = null;
+    notesImageComposer.leftDataURL = null;
+    notesImageComposer.rightDataURL = null;
+    notesImageComposer.mode = 'single';
+    notesImageComposer.activeSlot = 'left';
+  }
+
+  async function openNotasImageComposer(stageIndex, initialBlob = null) {
+    const targetSlide = doc.slides[stageIndex];
+    if (!targetSlide) return;
+    notesImageComposer.targetSlide = targetSlide;
+    notesImageComposer.leftDataURL = null;
+    notesImageComposer.rightDataURL = null;
+    notesImageComposer.mode = 'single';
+    notesImageComposer.activeSlot = 'left';
+    const modal = document.getElementById('notes-image-composer-modal');
+    modal.classList.add('visible');
+    modal.setAttribute('aria-hidden', 'false');
+    renderNotasImageComposer();
+    modal.querySelector('.modal-card').focus();
+    if (!initialBlob) return;
+    try {
+      notesImageComposer.leftDataURL = await readNotasImageBlob(initialBlob);
+      if (notesImageComposer.targetSlide !== targetSlide) return;
+      renderNotasImageComposer();
+    } catch (error) {
+      setSendStatus('✗ ' + (error.message || error), 'error');
+    }
+  }
+
+  async function setNotasImageComposerSlot(side, file) {
+    try {
+      notesImageComposer[side + 'DataURL'] = await readNotasImageBlob(file);
+      renderNotasImageComposer();
+    } catch (error) {
+      setSendStatus('✗ ' + (error.message || error), 'error');
+    }
+  }
+
+  async function applyNotasImageComposer() {
+    const { targetSlide, leftDataURL, rightDataURL, mode } = notesImageComposer;
+    const stageIndex = doc.slides.indexOf(targetSlide);
+    if (stageIndex < 0 || !leftDataURL || (mode === 'split' && !rightDataURL)) return;
+    const applyButton = document.getElementById('notes-image-composer-apply');
+    applyButton.disabled = true;
+    applyButton.textContent = 'Preparando…';
+    try {
+      const dataURL = mode === 'split' ? await composeNotasSplitImage(leftDataURL, rightDataURL) : leftDataURL;
+      if (doc.slides.indexOf(targetSlide) !== stageIndex) return;
+      const committed = await commitInlineImage(stageIndex, dataURL);
+      if (!committed) throw new Error('O slide mudou antes que a imagem fosse aplicada. Tente novamente.');
+      closeNotasImageComposer();
+    } catch (error) {
+      setSendStatus('✗ ' + (error.message || error), 'error');
+    } finally {
+      applyButton.textContent = 'Usar imagem';
+      if (document.getElementById('notes-image-composer-modal').classList.contains('visible')) renderNotasImageComposer();
+    }
+  }
+
+  function setupNotasImageComposer() {
+    const modal = document.getElementById('notes-image-composer-modal');
+    modal.querySelectorAll('[data-image-composer-mode]').forEach(button => button.addEventListener('click', () => {
+      notesImageComposer.mode = button.dataset.imageComposerMode;
+      renderNotasImageComposer();
+    }));
+    ['left', 'right'].forEach(side => document.getElementById('notes-image-file-' + side).addEventListener('change', event => {
+      const file = event.target.files && event.target.files[0];
+      event.target.value = '';
+      if (file) setNotasImageComposerSlot(side, file);
+    }));
+    ['left', 'right'].forEach(side => document.getElementById('notes-image-slot-' + side).addEventListener('mousedown', () => {
+      notesImageComposer.activeSlot = side;
+    }));
+    document.addEventListener('paste', event => {
+      if (!modal.classList.contains('visible')) return;
+      const imageItem = Array.from((event.clipboardData || window.clipboardData)?.items || []).find(item => item.type && item.type.startsWith('image/'));
+      if (!imageItem) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const side = notesImageComposer.mode === 'split' && (notesImageComposer.activeSlot === 'right' || (notesImageComposer.leftDataURL && !notesImageComposer.rightDataURL)) ? 'right' : 'left';
+      notesImageComposer.activeSlot = side;
+      setNotasImageComposerSlot(side, imageItem.getAsFile());
+    }, true);
+    document.getElementById('notes-image-composer-swap').addEventListener('click', () => {
+      [notesImageComposer.leftDataURL, notesImageComposer.rightDataURL] = [notesImageComposer.rightDataURL, notesImageComposer.leftDataURL];
+      renderNotasImageComposer();
+    });
+    document.getElementById('notes-image-composer-cancel').addEventListener('click', closeNotasImageComposer);
+    document.getElementById('notes-image-composer-apply').addEventListener('click', applyNotasImageComposer);
+    modal.addEventListener('mousedown', event => { if (event.target === modal) closeNotasImageComposer(); });
+  }
+
+  function normalizeInlineImageDataURL(dataURL, image) {
+    if (!image || !image.width || !image.height) {
+      return { dataURL, aspectRatio: 16 / 9 };
+    }
+    const maxDimension = 1600;
+    const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(image.width * scale));
+    canvas.height = Math.max(1, Math.round(image.height * scale));
+    const context = canvas.getContext('2d');
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    return {
+      dataURL: canvas.toDataURL('image/jpeg', 0.9),
+      aspectRatio: image.width / image.height
+    };
+  }
+
+  function commitImage(stageIndex, dataURL) {
+    const slideData = doc.slides[stageIndex];
+    slideData.image = { dataURL, tx: 0, ty: 0, scale: 1 };
+    saveDoc();
+    const stage = document.querySelectorAll('.stage')[stageIndex];
+    const slideEl = stage.querySelector('.slide');
+    applyImageToSlide(slideEl, slideData.image);
+    flash(slideEl);
+  }
+  const inlineImageCommitRevisions = new Map();
+  async function commitInlineImage(stageIndex, dataURL) {
+    const targetSlide = doc.slides[stageIndex];
+    if (!targetSlide) return false;
+    const revision = (inlineImageCommitRevisions.get(targetSlide) || 0) + 1;
+    inlineImageCommitRevisions.set(targetSlide, revision);
+    const image = await loadImage(dataURL);
+    const currentIndex = doc.slides.indexOf(targetSlide);
+    if (inlineImageCommitRevisions.get(targetSlide) !== revision || currentIndex < 0) return false;
+    const normalized = normalizeInlineImageDataURL(dataURL, image);
+    const previousImage = targetSlide.inlineImage;
+    targetSlide.inlineImage = {
+      dataURL: normalized.dataURL,
+      aspectRatio: normalized.aspectRatio,
+      size: 100,
+      position: getInlineImagePosition(previousImage, targetSlide.blocks.length)
+    };
+    saveDoc();
+    const stage = document.querySelectorAll('.stage')[currentIndex];
+    const slideEl = stage.querySelector('.slide');
+    // A imagem faz parte da ordem visual do slide. Renderizar aqui a insere
+    // imediatamente no preview, sem depender de outro evento (como tema).
+    renderSlide(currentIndex);
+    flash(slideEl);
+    return true;
+  }
+  function clearInlineImage(stageIndex) {
+    const slideData = doc.slides[stageIndex];
+    if (!slideData) return;
+    inlineImageCommitRevisions.set(slideData, (inlineImageCommitRevisions.get(slideData) || 0) + 1);
+    slideData.inlineImage = null;
+    saveDoc();
+    renderSlide(stageIndex);
+  }
+  // Notas: TUDO vira inline-image proporcional.
+  // Full-bleed photo (slideData.image) foi descontinuado pra Notas
+  // pra simplificar layout e evitar overflow de texto longo.
+  function commitImageRouted(stageIndex, dataURL) {
+    commitInlineImage(stageIndex, dataURL);
+  }
+  function persistImageTransform(stageIndex, img) {
+    const state = getImgState(img);
+    if (!doc.slides[stageIndex].image) return;
+    doc.slides[stageIndex].image.tx = state.tx;
+    doc.slides[stageIndex].image.ty = state.ty;
+    doc.slides[stageIndex].image.scale = state.scale;
+    saveDoc();
+  }
+  function persistBzTransform(stageIndex, bz) {
+    const state = getBzState(bz);
+    doc.slides[stageIndex].bzTransform = state;
+    saveDoc();
+  }
+
+  // ==== BOOT ====
+  // Escala dinâmica do slide pra caber em viewports estreitas (preview lateral, mobile)
+  function updateSlideScale() {
+    document.querySelectorAll('.stage').forEach(stage => {
+      const w = stage.clientWidth;
+      const scale = w / 1080;
+      stage.style.setProperty('--slide-scale', String(scale));
+    });
+  }
+  if (typeof window !== 'undefined') {
+    window.addEventListener('resize', updateSlideScale);
+    if (document.readyState === 'complete') updateSlideScale();
+    else window.addEventListener('load', updateSlideScale);
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const STAGE_SCALE = 0.5;
+    const SCALE_INV = 1 / STAGE_SCALE;
+    const shortcutModifier = /Mac|iPhone|iPad/.test(navigator.platform || '') ? '⌘' : 'Ctrl+';
+    const shortcutHint = document.querySelector('.stage-shortcut');
+    if (shortcutHint) shortcutHint.textContent = 'Shift + arrastar conjunto · ' + shortcutModifier + 'V imagem';
+    document.querySelectorAll('[title*="Cmd+"]').forEach(node => {
+      node.title = node.title.replaceAll('Cmd+', shortcutModifier);
+    });
+
+    // A barra ocupa espaço no fluxo da coluna central, sem nunca cobrir o canvas.
+    const toolbarDock = document.getElementById('block-toolbar-dock');
+    if (toolbarDock && blockToolbar.parentElement !== toolbarDock) {
+      toolbarDock.append(blockToolbar);
+    }
+
+    initialNotasDocument = buildDocFromDOM({ useLegacy: false });
+    loadOrInitDoc();
+    applyNotasRatio({ render: false });
+    const typographySelector = document.getElementById('notes-typography');
+    if (typographySelector) {
+      typographySelector.addEventListener('change', (event) => {
+        setNotasTypography(event.target.value);
+      });
+    }
+    document.querySelectorAll('[data-notes-ratio]').forEach(button => {
+      button.addEventListener('click', () => setNotasRatio(button.dataset.notesRatio));
+    });
+    document.querySelectorAll('#global-background-palette [data-background-color]').forEach(button => {
+      button.addEventListener('click', () => setGlobalBackgroundColor(button.dataset.backgroundColor));
+    });
+    updateGlobalBackgroundPalette();
+    updateSlideScale();
+    buildSlideRail();
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Shift') document.body.classList.add('shift-held');
+    });
+    window.addEventListener('keyup', (e) => {
+      if (e.key === 'Shift') document.body.classList.remove('shift-held');
+    });
+
+    const stages = document.querySelectorAll('.stage');
+
+    // Render inicial: limpa DOM dos blocos e reconstrói do doc
+    stages.forEach((stage, i) => {
+      const slideEl = stage.querySelector('.slide');
+      const bodyZone = slideEl.querySelector('.body-zone');
+      while (bodyZone.firstChild) bodyZone.removeChild(bodyZone.firstChild);
+      renderSlide(i);
+    });
+
+    // Wire-up de cada stage
+    stages.forEach((stage, i) => {
+      const slideEl = stage.querySelector('.slide');
+      const bodyZone = slideEl.querySelector('.body-zone');
+      const photoImg = getPhotoImg(slideEl);
+
+      stage.addEventListener('click', (e) => {
+        // Não deseleciona se o click foi num bloco (handled separately)
+        if (e.target.closest && e.target.closest('[data-block-id]')) return;
+        // Click no slide (mas fora do bloco) ativa pra paste-image
+        stages.forEach(s => {
+          s.classList.remove('active');
+          s.querySelector('.slide').classList.remove('active');
+        });
+        stage.classList.add('active');
+        slideEl.classList.add('active');
+        activeStageIndex = i;
+        setRailActive(i);
+      });
+
+      stage.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        stage.classList.add('drag-over');
+      });
+      stage.addEventListener('dragleave', () => stage.classList.remove('drag-over'));
+      stage.addEventListener('drop', (e) => {
+        e.preventDefault();
+        stage.classList.remove('drag-over');
+        const file = e.dataTransfer.files[0];
+        if (file && file.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onload = () => commitImageRouted(i, reader.result);
+          reader.readAsDataURL(file);
+        }
+      });
+
+      let imgDragging = false, imgDragStart = null;
+      let bzDragging = false, bzDragStart = null;
+
+      photoImg.addEventListener('mousedown', (e) => {
+        if (e.shiftKey) return;
+        if (!photoImg.classList.contains('has-src')) return;
+        if (!slideEl.classList.contains('active')) return;
+        e.preventDefault();
+        imgDragging = true;
+        photoImg.classList.add('dragging');
+        const state = getImgState(photoImg);
+        imgDragStart = { x: e.clientX, y: e.clientY, tx: state.tx, ty: state.ty, scale: state.scale };
+      });
+
+      slideEl.addEventListener('mousedown', (e) => {
+        if (!e.shiftKey) return;
+        if (!slideEl.classList.contains('active')) return;
+        if (e.target.isContentEditable) return;
+        e.preventDefault();
+        e.stopPropagation();
+        bzDragging = true;
+        const state = getBzState(bodyZone);
+        bzDragStart = { x: e.clientX, y: e.clientY, tx: state.tx, ty: state.ty, scale: state.scale };
+      }, true);
+
+      window.addEventListener('mousemove', (e) => {
+        if (imgDragging && imgDragStart) {
+          const dx = (e.clientX - imgDragStart.x) * SCALE_INV;
+          const dy = (e.clientY - imgDragStart.y) * SCALE_INV;
+          applyTransformToImg(photoImg, imgDragStart.tx + dx, imgDragStart.ty + dy, imgDragStart.scale);
+        }
+        if (bzDragging && bzDragStart) {
+          const dx = (e.clientX - bzDragStart.x) * SCALE_INV;
+          const dy = (e.clientY - bzDragStart.y) * SCALE_INV;
+          // Snap-to-center: puxa quando bloco de texto chega perto da linha central
+          // (eixo natural tx=0 ou ty=0, que é a posição "padrão" do body-zone)
+          const SNAP_THRESHOLD = 36; // em coords do slide (1080x1440); ~18px no viewport scaled
+          let newTx = bzDragStart.tx + dx;
+          let newTy = bzDragStart.ty + dy;
+          let snapX = false, snapY = false;
+          if (Math.abs(newTx) < SNAP_THRESHOLD) { newTx = 0; snapX = true; }
+          if (Math.abs(newTy) < SNAP_THRESHOLD) { newTy = 0; snapY = true; }
+          applyTransformToBz(bodyZone, newTx, newTy, bzDragStart.scale);
+          slideEl.classList.toggle('snap-x', snapX);
+          slideEl.classList.toggle('snap-y', snapY);
+        }
+      });
+      window.addEventListener('mouseup', () => {
+        if (imgDragging) {
+          imgDragging = false;
+          photoImg.classList.remove('dragging');
+          persistImageTransform(i, photoImg);
+        }
+        if (bzDragging) {
+          bzDragging = false;
+          slideEl.classList.remove('snap-x');
+          slideEl.classList.remove('snap-y');
+          persistBzTransform(i, bodyZone);
+        }
+      });
+
+      slideEl.addEventListener('wheel', (e) => {
+        if (!slideEl.classList.contains('active')) return;
+        if (e.shiftKey) {
+          e.preventDefault();
+          const state = getBzState(bodyZone);
+          const delta = -e.deltaY * 0.0015;
+          const newScale = Math.max(0.4, Math.min(2.5, state.scale + delta));
+          applyTransformToBz(bodyZone, state.tx, state.ty, newScale);
+          persistBzTransform(i, bodyZone);
+        } else if (photoImg.classList.contains('has-src')) {
+          e.preventDefault();
+          const state = getImgState(photoImg);
+          const delta = -e.deltaY * 0.0015;
+          const newScale = Math.max(1.0, Math.min(5.0, state.scale + delta));
+          applyTransformToImg(photoImg, state.tx, state.ty, newScale);
+          persistImageTransform(i, photoImg);
+        }
+      }, { passive: false });
+    });
+
+    // O rail e o slide precisam concordar desde o primeiro frame: sem isso o
+    // primeiro slide parecia selecionado, mas colar/adicionar imagem não fazia nada.
+    if (stages.length) {
+      activeStageIndex = Math.min(activeStageIndex ?? 0, stages.length - 1);
+      stages.forEach((stage, index) => {
+        const active = index === activeStageIndex;
+        stage.classList.toggle('active', active);
+        const slideEl = stage.querySelector('.slide');
+        if (slideEl) slideEl.classList.toggle('active', active);
+      });
+      setRailActive(activeStageIndex);
+    }
+
+    // Click fora de qualquer bloco/toolbar/bubble deseleciona
+    document.body.addEventListener('mousedown', (e) => {
+      if (e.target.closest('[data-block-id]')) return;
+      if (e.target.closest('#block-toolbar')) return;
+      if (e.target.closest('#bubble-menu')) return;
+      // Click em outras áreas (toolbar superior, body, etc.) deseleciona
+      deselectBlock();
+    });
+
+    // Botões da toolbar superior
+    document.getElementById('btn-add-slide')?.addEventListener('click', addSlide);
+    document.getElementById('btn-delete-slide')?.addEventListener('click', deleteCurrentSlide);
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      if (!confirm('Apagar todas as imagens coladas (fullbleed e 16:9)?')) return;
+      doc.slides.forEach(s => { s.image = null; s.inlineImage = null; });
+      saveDoc();
+      renderAll();
+    });
+
+    setupNotasImageComposer();
+    document.getElementById('btn-add-inline')?.addEventListener('click', () => {
+      if (activeStageIndex === null) {
+        alert('Clica primeiro no slide onde a imagem deve entrar.');
+        return;
+      }
+      openNotasImageComposer(activeStageIndex);
+    });
+    const btnRemoveInline = document.getElementById('btn-remove-inline');
+    if (btnRemoveInline) {
+      btnRemoveInline.addEventListener('click', () => {
+        if (activeStageIndex === null) {
+          alert('Clica primeiro no slide cuja imagem deve ser removida.');
+          return;
+        }
+        clearInlineImage(activeStageIndex);
+      });
+    }
+    document.getElementById('btn-reset-text').addEventListener('click', () => {
+      if (!confirm('Restaurar texto original do roteiro + posições/escalas? (apaga edições e reordens)')) return;
+      pushCurrentUndoSnapshot();
+      localStorage.removeItem(DOC_KEY);
+      localStorage.removeItem(LEGACY_TEXT_KEY);
+      localStorage.removeItem(LEGACY_BZ_KEY);
+      window.location.reload();
+    });
+    document.getElementById('btn-restart-carousel').addEventListener('click', restartCarousel);
+  });
+
+  document.addEventListener('paste', (e) => {
+    if (activeStageIndex === null) return;
+    const items = (e.clipboardData || window.clipboardData).items;
+    for (const item of items) {
+      if (item.type && item.type.startsWith('image/')) {
+        e.preventDefault();
+        const blob = item.getAsFile();
+        openNotasImageComposer(activeStageIndex, blob);
+        break;
+      }
+    }
+  });
+
+  // ==== API LOCAL PROTEGIDA ====
+  function localApiFetch(url, options = {}) {
+    const headers = new Headers(options.headers || {});
+    headers.set('X-Carrossel-CSRF', window.CARROSSEL_CSRF || '');
+    return fetch(url, { ...options, headers });
+  }
+
+  function setSendStatus(msg, kind) {
+    const el = document.getElementById('send-status');
+    if (!el) return;
+    el.textContent = msg;
+    el.className = 'send-status' + (kind ? ' ' + kind : '');
+    el.style.display = msg ? 'block' : 'none';
+    if (kind === 'success') {
+      setTimeout(() => { if (el.textContent === msg) el.style.display = 'none'; }, 4000);
+    }
+  }
+
+  // ==== CANVAS RENDERER (1080×1350 ou 1080×1440, igual ao preview) ====
+  const SLIDE_W = 1080;
+  let SLIDE_H = 1350;
+  const FOOTER_H = 84;
+
+  // Base local usada pelo Canvas; a família selecionada substitui esta base.
+  const PTS_BOLD = 'Georgia, "Times New Roman", serif';
+  const PTS_REG  = 'Georgia, "Times New Roman", serif';
+  const HCN = PTS_BOLD;
+  const HN  = PTS_REG;
+  const VARIANT_STYLES = {
+    'h-display:default':  { fontSpec: '700 88px ' + PTS_BOLD, size: 88, lineHeight: 96, color: '#FFFFFF', uppercase: false, letterSpacing: 0 },
+    'h-display:smaller':  { fontSpec: '700 72px ' + PTS_BOLD, size: 72, lineHeight: 80, color: '#FFFFFF', uppercase: false, letterSpacing: 0 },
+    'h-display:tiny':     { fontSpec: '700 56px ' + PTS_BOLD, size: 56, lineHeight: 64, color: '#FFFFFF', uppercase: false, letterSpacing: 0 },
+    'body:default':       { fontSpec: '400 52px ' + PTS_REG,  size: 52, lineHeight: 62, color: '#FFFFFF', letterSpacing: 0 },
+    'body:big':           { fontSpec: '400 60px ' + PTS_REG,  size: 60, lineHeight: 70, color: '#FFFFFF', letterSpacing: 0 },
+    'body:lede':          { fontSpec: '400 56px ' + PTS_REG,  size: 56, lineHeight: 68, color: '#FFFFFF', letterSpacing: 0 },
+    'body:italic':        { fontSpec: 'italic 400 48px ' + PTS_REG, size: 48, lineHeight: 58, color: '#FFFFFF', letterSpacing: 0 },
+  };
+
+  function withNotasTypeface(fontSpec) {
+    return fontSpec.replace(PTS_BOLD, getNotasTypeface().canvasFamily);
+  }
+
+  function applyStyleToCtx(ctx, style) {
+    ctx.font = style.fontSpec;
+    try { ctx.letterSpacing = ((style.letterSpacing || 0) * style.size) + 'px'; } catch (e) {}
+  }
+
+  // ==== FONT PRELOAD (fix race condition Canvas measureText vs fillText) ====
+  // document.fonts.ready só espera loads em andamento. Se ctx.font='...' é a 1a vez
+  // que a face foi solicitada, measureText pode cair em fallback estreito enquanto
+  // fillText (depois) desenha com a face real (mais larga). Resultado: wrap acha que
+  // cabe mais texto do que cabe, e o PNG sai diferente do DOM. Solução: forçar load
+  // explícito de cada fontSpec via document.fonts.load antes de qualquer render Canvas.
+  const FONT_PRELOAD_SPECS = Object.values(VARIANT_STYLES).map(s => s.fontSpec).concat([
+    '900 28px ' + HCN, // footer-tag
+    '400 52px Advercase',
+    '700 88px Advercase',
+  ]);
+  let _fontsPreloaded = false;
+  async function preloadCanvasFonts() {
+    if (_fontsPreloaded) return;
+    if (!document.fonts || !document.fonts.load) { _fontsPreloaded = true; return; }
+    const probe = 'AaÁÇã0123 OSNL MATHEUSÃO SAUDADE';
+    try {
+      await Promise.all(FONT_PRELOAD_SPECS.map(spec =>
+        document.fonts.load(spec, probe).catch(() => null)
+      ));
+      await document.fonts.ready;
+    } catch (e) { /* ignora, segue sem preload */ }
+    _fontsPreloaded = true;
+  }
+  if (typeof window !== 'undefined') {
+    if (document.readyState === 'complete') preloadCanvasFonts();
+    else window.addEventListener('load', () => preloadCanvasFonts());
+    if (document.fonts && document.fonts.addEventListener) {
+      document.fonts.addEventListener('loadingdone', () => {
+        if (!doc || !Array.isArray(doc.slides)) return;
+        doc.slides.forEach((_, index) => scheduleSlideContentFit(index));
+      });
+    }
+  }
+
+  function resolveBlockStyle(block, isCapa, contentFit = 1, textColor = null) {
+    const styleKey = block.kind + ':' + block.variant;
+    let baseStyle = VARIANT_STYLES[styleKey];
+    if (!baseStyle) return null;
+    // Mantém no Canvas a mesma compensação proporcional usada no preview.
+    let size = baseStyle.size;
+    let fontSpec = withNotasTypeface(baseStyle.fontSpec);
+    let lineHeight = baseStyle.lineHeight;
+    const coverHeadline = isCapa && block.kind === 'body';
+    if (coverHeadline) fontSpec = fontSpec.replace(/\b400\b/, '700');
+    if (block.fontSize != null) {
+      size = block.fontSize;
+      fontSpec = fontSpec.replace(/(\b\d+(?:\.\d+)?)px\b/, size + 'px');
+      if (block.lineHeight == null) {
+        lineHeight = Math.round(size * (baseStyle.lineHeight / baseStyle.size));
+      }
+    }
+    if (block.lineHeight != null) {
+      lineHeight = block.lineHeight;
+    }
+    size *= contentFit;
+    lineHeight *= contentFit;
+    fontSpec = fontSpec.replace(/(\b\d+(?:\.\d+)?)px\b/, size + 'px');
+    return Object.assign({}, baseStyle, {
+      size,
+      fontSpec,
+      lineHeight,
+      color: textColor || baseStyle.color,
+      letterSpacing: (block.letterSpacing != null)
+        ? block.letterSpacing
+        : getTypefaceDefaultLetterSpacing(baseStyle.letterSpacing),
+    });
+  }
+  function resolveBlockAlign(block, isCapa) {
+    if (block.align) return block.align;
+    if (block.kind === 'body') return 'center';
+    if (isCapa && block.kind === 'h-display') return 'center';
+    return 'left';
+  }
+
+    const BG_GRADIENTS = {
+    'bg-01': { angle: 165, stops: [['#000000', 0], ['#000000', 1.0]] },
+    'bg-02': { angle: 165, stops: [['#000000', 0], ['#000000', 1.0]] },
+    'bg-03': { angle: 165, stops: [['#000000', 0], ['#000000', 1.0]] },
+    'bg-04': { angle: 165, stops: [['#000000', 0], ['#000000', 1.0]] },
+    'bg-05': { angle: 165, stops: [['#000000', 0], ['#000000', 1.0]] },
+    'bg-06': { angle: 165, stops: [['#000000', 0], ['#000000', 1.0]] },
+    'bg-07': { angle: 165, stops: [['#000000', 0], ['#000000', 1.0]] },
+    'bg-08': { angle: 165, stops: [['#000000', 0], ['#000000', 1.0]] },
+    'bg-09': { angle: 165, stops: [['#000000', 0], ['#000000', 1.0]] },
+    'bg-10': { angle: 165, stops: [['#000000', 0], ['#000000', 1.0]] },
+  };
+
+  const _imgCache = new Map();
+  function loadImage(src) {
+    if (_imgCache.has(src)) return Promise.resolve(_imgCache.get(src));
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => { _imgCache.set(src, img); resolve(img); };
+      img.onerror = () => resolve(null);
+      img.src = src;
+    });
+  }
+
+  function decodeHTMLEntities(s) {
+    const t = document.createElement('textarea');
+    t.innerHTML = s;
+    return t.value;
+  }
+
+  function nodeHasInlineStyle(node, property, predicate) {
+    const value = node && node.style ? node.style[property] : '';
+    return !!value && predicate(value);
+  }
+
+  function parseHtmlSegments(html) {
+    // Usa o próprio DOM do navegador pra parsear HTML rico do contenteditable.
+    // Resolve em segments com flags: { text, hot, hotYellow, italic, bold }.
+    // Quebras forçadas (<br>, <div>, <p>) viram '\n' dentro do text — o wrap honra.
+    // NBSP é preservado como char comum (não vira split point no wrap).
+    //
+    // Heurística de quebras (replica DOM):
+    //   <br>      emite SEMPRE 1 '\n' (cria linha vazia mesmo após outra quebra)
+    //   <div>/<p> abrir emite 1 '\n', MAS coalesce se já há '\n' anterior
+    //   início do texto: nunca emite '\n'
+    const sandbox = document.createElement('div');
+    sandbox.innerHTML = html;
+    const segments = [];
+
+    function pushBreak(type) {
+      if (segments.length === 0) return;
+      const last = segments[segments.length - 1];
+      if (type === 'block' && last && last.text === '\n') return;
+      segments.push({ text: '\n', hot: false, hotYellow: false, italic: false, bold: false });
+    }
+
+    function visit(node, ctx) {
+      if (node.nodeType === 3) {
+        // Whitespace collapse: \n e \t no texto cru viram espaço, matching
+        // o comportamento CSS white-space: normal do DOM. Quebras explícitas
+        // (<br>, <div>, <p>) viram '\n' via pushBreak separadamente.
+        // NBSP ( ) é preservado (não colapsa).
+        const t = (node.textContent || '').replace(/[\n\t]+/g, ' ').replace(/ {2,}/g, ' ');
+        if (t) segments.push({ text: t, hot: !!ctx.hot, hotYellow: !!ctx.hotYellow, italic: !!ctx.italic, bold: !!ctx.bold });
+        return;
+      }
+      if (node.nodeType !== 1) return;
+      const tag = node.tagName.toLowerCase();
+      if (tag === 'br') { pushBreak('br'); return; }
+      const isBlock = (tag === 'div' || tag === 'p');
+      if (isBlock) pushBreak('block');
+      let next = ctx;
+      if (tag === 'span' && node.classList.contains('hot')) {
+        // O destaque mais interno é o que o CSS efetivamente mostra. Não
+        // herdar o amarelo evita que um vermelho dentro de um antigo amarelo
+        // seja exportado com a cor errada.
+        next = Object.assign({}, ctx, { hot: true, hotYellow: node.classList.contains('yellow') });
+      }
+      const isItalic = tag === 'i' || tag === 'em' ||
+        nodeHasInlineStyle(node, 'fontStyle', value => value.toLowerCase() === 'italic');
+      const isBold = tag === 'b' || tag === 'strong' ||
+        nodeHasInlineStyle(node, 'fontWeight', value => value.toLowerCase() === 'bold' || parseInt(value, 10) >= 600);
+      if (isItalic || isBold) {
+        next = Object.assign({}, next, { italic: !!next.italic || isItalic, bold: !!next.bold || isBold });
+      }
+      for (const child of Array.from(node.childNodes)) visit(child, next);
+    }
+
+    for (const child of Array.from(sandbox.childNodes)) visit(child, {});
+    while (segments.length && /^\n$/.test(segments[segments.length - 1].text)) segments.pop();
+    return segments;
+  }
+
+  function withSegmentStyle(baseStyle, seg) {
+    if (!seg.italic && !seg.bold) return baseStyle;
+    let fontSpec = baseStyle.fontSpec;
+    if (seg.italic && !/^\s*italic\b/i.test(fontSpec)) {
+      fontSpec = 'italic ' + fontSpec;
+    }
+    if (seg.bold) {
+      fontSpec = fontSpec.replace(/(^|\s)((?:italic\s+)?)(\d{3})(\s+\d+px\b)/, (_, p1, p2, w, p4) => {
+        const newW = Math.max(parseInt(w, 10), 700);
+        return p1 + p2 + newW + p4;
+      });
+    }
+    return Object.assign({}, baseStyle, { fontSpec });
+  }
+
+  function makeLinearGradient(ctx, def, w, h) {
+    const angleRad = (def.angle - 90) * Math.PI / 180;
+    const cx = w / 2, cy = h / 2;
+    const halfDiag = Math.sqrt(w*w + h*h) / 2;
+    const dx = Math.cos(angleRad) * halfDiag;
+    const dy = Math.sin(angleRad) * halfDiag;
+    const grad = ctx.createLinearGradient(cx - dx, cy - dy, cx + dx, cy + dy);
+    def.stops.forEach(([color, stop]) => grad.addColorStop(stop, color));
+    return grad;
+  }
+
+  function drawLegibilityFilter(ctx, w, h, fade) {
+    // Tema Ostentação: sem foto, sem fade gradient. Mantém função vazia pra compatibilidade.
+    return;
+  }
+
+  async function drawPhoto(ctx, imageData, w, h) {
+    if (!imageData || !imageData.dataURL) return;
+    const img = await loadImage(imageData.dataURL);
+    if (!img) return;
+    const tx = imageData.tx || 0;
+    const ty = imageData.ty || 0;
+    const scale = imageData.scale || 1;
+    // object-fit: cover base
+    const imgRatio = img.width / img.height;
+    const slideRatio = w / h;
+    let baseW, baseH;
+    if (imgRatio > slideRatio) {
+      baseH = h;
+      baseW = baseH * imgRatio;
+    } else {
+      baseW = w;
+      baseH = baseW / imgRatio;
+    }
+    // Apply scale (transform: scale)
+    const drawW = baseW * scale;
+    const drawH = baseH * scale;
+    // Center then translate
+    const drawX = (w - drawW) / 2 + tx;
+    const drawY = (h - drawH) / 2 + ty;
+    ctx.save();
+    // Clip to slide bounds
+    ctx.beginPath();
+    ctx.rect(0, 0, w, h);
+    ctx.clip();
+    ctx.drawImage(img, drawX, drawY, drawW, drawH);
+    ctx.restore();
+  }
+
+  function applyTextTransform(text, uppercase) {
+    return uppercase ? text.toLocaleUpperCase('pt-BR') : text;
+  }
+
+  function tokenizeSegments(segments, style) {
+    // Tokenize honrando: \n forçado (forceBreak), NBSP preservado dentro da palavra,
+    // italic/bold por segment. Split usa só espaços comuns (' ', '\t') — NBSP fica colado.
+    const tokens = [];
+    for (const seg of segments) {
+      const rawText = applyTextTransform(seg.text || '', style.uppercase);
+      const lines = rawText.split('\n');
+      lines.forEach((line, lIdx) => {
+        const parts = line.split(/( +|\t+)/);
+        for (const part of parts) {
+          if (part) {
+            tokens.push({
+              text: part,
+              hot: !!seg.hot, hotYellow: !!seg.hotYellow,
+              italic: !!seg.italic, bold: !!seg.bold,
+              isWS: /^[ \t]+$/.test(part),
+            });
+          }
+        }
+        if (lIdx < lines.length - 1) tokens.push({ forceBreak: true });
+      });
+    }
+
+    return tokens;
+  }
+
+  function trimTrailingWhitespace(tokens) {
+    while (tokens.length && tokens[tokens.length - 1].isWS) tokens.pop();
+  }
+
+  function wrapTokensWithNativeLayout(tokens, maxW, style) {
+    // Canvas e navegador têm compositores tipográficos diferentes. Em fontes
+    // OpenType, diferenças subpixel podem quebrar uma palavra apenas no PNG.
+    // Este nó invisível reproduz a largura e a fonte do preview e fornece as
+    // mesmas linhas que a pessoa vê antes da exportação.
+    if (!document.body) return null;
+    const probe = document.createElement('div');
+    probe.setAttribute('aria-hidden', 'true');
+    probe.style.cssText = [
+      'position:fixed', 'left:-100000px', 'top:0', 'visibility:hidden',
+      'pointer-events:none', 'width:' + maxW + 'px', 'margin:0', 'padding:0',
+      'border:0', 'white-space:normal', 'overflow-wrap:normal', 'word-break:normal',
+      'font:' + style.fontSpec, 'line-height:' + style.lineHeight + 'px',
+      'letter-spacing:' + ((style.letterSpacing || 0) * style.size) + 'px',
+      'font-kerning:auto', 'font-variant-ligatures:normal'
+    ].join(';');
+    document.body.appendChild(probe);
+
+    try {
+      const lines = [];
+      let current = [];
+      let currentTop = null;
+      for (const tok of tokens) {
+        if (tok.forceBreak) {
+          trimTrailingWhitespace(current);
+          lines.push(current);
+          current = [];
+          currentTop = null;
+          probe.appendChild(document.createElement('br'));
+          continue;
+        }
+        const span = document.createElement('span');
+        span.textContent = tok.text;
+        span.style.font = withSegmentStyle(style, tok).fontSpec;
+        span.style.letterSpacing = ((style.letterSpacing || 0) * style.size) + 'px';
+        probe.appendChild(span);
+
+        // Espaço pendente pertence à linha anterior; o próximo termo visível
+        // revela se o navegador iniciou uma nova linha.
+        if (tok.isWS) {
+          if (current.length) current.push(tok);
+          continue;
+        }
+        const top = span.getBoundingClientRect().top;
+        if (currentTop !== null && Math.abs(top - currentTop) > 0.5) {
+          trimTrailingWhitespace(current);
+          lines.push(current);
+          current = [tok];
+        } else {
+          current.push(tok);
+        }
+        currentTop = top;
+      }
+      trimTrailingWhitespace(current);
+      if (current.length) lines.push(current);
+      return lines;
+    } finally {
+      probe.remove();
+    }
+  }
+
+  function wrapSegmentsIntoLines(ctx, segments, maxW, style) {
+    const tokens = tokenizeSegments(segments, style);
+    const nativeLines = wrapTokensWithNativeLayout(tokens, maxW, style);
+    if (nativeLines) return nativeLines;
+
+    // Fallback para um ambiente sem DOM: medição determinística pelo Canvas.
+    const out = [];
+    let cur = [];
+    let curW = 0;
+    for (const tok of tokens) {
+      if (tok.forceBreak) {
+        trimTrailingWhitespace(cur);
+        out.push(cur);
+        cur = [];
+        curW = 0;
+        continue;
+      }
+      applyStyleToCtx(ctx, withSegmentStyle(style, tok));
+      const tokW = ctx.measureText(tok.text).width;
+      if (tok.isWS) {
+        if (cur.length === 0) continue;
+        cur.push(tok);
+        curW += tokW;
+      } else {
+        if (curW + tokW > maxW && cur.length > 0) {
+          trimTrailingWhitespace(cur);
+          out.push(cur);
+          cur = [tok];
+          curW = tokW;
+        } else {
+          cur.push(tok);
+          curW += tokW;
+        }
+      }
+    }
+    if (cur.length) {
+      trimTrailingWhitespace(cur);
+      if (cur.length) out.push(cur);
+    }
+    return out;
+  }
+
+  function drawTextLine(ctx, words, x, baselineY, maxW, style, align) {
+    let lineW = 0;
+    for (const w of words) {
+      applyStyleToCtx(ctx, withSegmentStyle(style, w));
+      lineW += ctx.measureText(w.text).width;
+    }
+    let startX = x;
+    if (align === 'center') startX = x + (maxW - lineW) / 2;
+    else if (align === 'right') startX = x + maxW - lineW;
+
+    let cursorX = startX;
+    for (const word of words) {
+      applyStyleToCtx(ctx, withSegmentStyle(style, word));
+      const wW = ctx.measureText(word.text).width;
+      if (word.hot && word.text.trim()) {
+        // Os destaques mantêm as cores editoriais aprovadas em qualquer fundo.
+        ctx.fillStyle = word.hotYellow ? '#f8ce07' : '#d70611';
+        ctx.fillText(word.text, cursorX, baselineY);
+      } else {
+        ctx.fillStyle = style.color;
+        ctx.fillText(word.text, cursorX, baselineY);
+      }
+      cursorX += wW;
+    }
+  }
+
+  function drawHotWord(ctx, word, x, baselineY, wW, style) {
+    const padding = 14;
+    const rectH = style.size + 6;
+    const rectW = wW + padding * 2;
+    const rectX = x - padding;
+    const rectY = baselineY - style.size + 4;
+    ctx.save();
+    const cx = rectX + rectW / 2;
+    const cy = rectY + rectH / 2;
+    ctx.translate(cx, cy);
+    ctx.rotate(-2 * Math.PI / 180);
+    ctx.translate(-cx, -cy);
+    // Sombra preta offset 6/6 sem blur
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(rectX + 6, rectY + 6, rectW, rectH);
+    // Bloco
+    ctx.fillStyle = word.hotYellow ? '#f8ce07' : '#d70611';
+    ctx.fillRect(rectX, rectY, rectW, rectH);
+    // Texto (cor invertida quando amarelo)
+    ctx.fillStyle = word.hotYellow ? '#0B0B0B' : '#F5F2EA';
+    ctx.fillText(word.text, x, baselineY);
+    ctx.restore();
+  }
+
+  function buildBlockLayouts(ctx, blocks, zoneW, isCapa, contentFit = 1, textColor = null) {
+    return blocks.map(block => {
+      const style = resolveBlockStyle(block, isCapa, contentFit, textColor);
+      if (!style) return null;
+      const segments = parseHtmlSegments(block.html);
+      const lines = wrapSegmentsIntoLines(ctx, segments, zoneW, style);
+      return {
+        block,
+        style,
+        lines,
+        align: resolveBlockAlign(block, isCapa),
+        height: lines.length * style.lineHeight,
+      };
+    }).filter(Boolean);
+  }
+
+  function getStackHeight(blockLayouts, gap, inlineImageH) {
+    const itemCount = blockLayouts.length + (inlineImageH > 0 ? 1 : 0);
+    const textHeight = blockLayouts.reduce((total, layout) => total + layout.height, 0);
+    return textHeight + inlineImageH + Math.max(0, itemCount - 1) * gap;
+  }
+
+  function getFallbackContentFitScale(ctx, slideData, zoneW, zoneH, isCapa, gap) {
+    // O exportador deve respeitar o mesmo tamanho explícito do preview. Se o
+    // conteúdo exceder a zona, captureSlideAsBlob bloqueia a entrega usando a
+    // flag .content-overflow do preview, em vez de miniaturizar o texto.
+    return 1;
+  }
+
+  async function drawInlinePhoto(ctx, inlineImage, x, y, w, h, scale = 1) {
+    if (!inlineImage || !inlineImage.dataURL) return;
+    const img = await loadImage(inlineImage.dataURL);
+    if (!img) return;
+    const scaledW = w * scale;
+    const scaledH = h * scale;
+    const scaledX = x + (w - scaledW) / 2;
+    const scaledY = y + (h - scaledH) / 2;
+    const radius = 16;
+    ctx.save();
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(scaledX, scaledY, scaledW, scaledH, radius);
+    else {
+      ctx.moveTo(scaledX + radius, scaledY);
+      ctx.lineTo(scaledX + scaledW - radius, scaledY); ctx.quadraticCurveTo(scaledX + scaledW, scaledY, scaledX + scaledW, scaledY + radius);
+      ctx.lineTo(scaledX + scaledW, scaledY + scaledH - radius); ctx.quadraticCurveTo(scaledX + scaledW, scaledY + scaledH, scaledX + scaledW - radius, scaledY + scaledH);
+      ctx.lineTo(scaledX + radius, scaledY + scaledH); ctx.quadraticCurveTo(scaledX, scaledY + scaledH, scaledX, scaledY + scaledH - radius);
+      ctx.lineTo(scaledX, scaledY + radius); ctx.quadraticCurveTo(scaledX, scaledY, scaledX + radius, scaledY);
+    }
+    ctx.clip();
+    // Mantém a imagem inteira no quadro, sem crop.
+    const srcR = img.width / img.height;
+    const dstR = scaledW / scaledH;
+    let drawW = scaledW, drawH = scaledH, drawX = scaledX, drawY = scaledY;
+    if (srcR > dstR) {
+      drawH = scaledW / srcR;
+      drawY = scaledY + (scaledH - drawH) / 2;
+    } else {
+      drawW = scaledH * srcR;
+      drawX = scaledX + (scaledW - drawW) / 2;
+    }
+    ctx.drawImage(img, drawX, drawY, drawW, drawH);
+    ctx.restore();
+  }
+
+  async function drawBlocks(ctx, blocks, zoneX, zoneY, zoneW, zoneH, isCapa, gap, inlineImage, contentFit = 1, textColor = null) {
+    if (gap == null) gap = 36;
+    gap *= contentFit;
+    // Cada bloco é medido uma única vez. Assim, a altura reservada e a altura
+    // desenhada são idênticas mesmo quando há blocos com fontes/tamanhos distintos.
+    const blockLayouts = buildBlockLayouts(ctx, blocks, zoneW, isCapa, contentFit, textColor);
+    const baseInlineLayout = getInlineImageLayout(zoneW, zoneH, inlineImage);
+    const inlineLayout = Object.assign({}, baseInlineLayout, {
+      width: baseInlineLayout.width * contentFit,
+      height: baseInlineLayout.height * contentFit,
+      x: (zoneW - baseInlineLayout.width * contentFit) / 2,
+    });
+    const inlineImageH = inlineLayout.height;
+
+    function drawBlockAt(layout, cursorY) {
+      for (const line of layout.lines) {
+        const baselineY = cursorY + layout.style.size * 0.85;
+        drawTextLine(ctx, line, zoneX, baselineY, zoneW, layout.style, layout.align);
+        cursorY += layout.style.lineHeight;
+      }
+      return cursorY;
+    }
+
+    function drawBlocksFlow(startY) {
+      let cursorY = startY;
+      blockLayouts.forEach((layout, index) => {
+        cursorY = drawBlockAt(layout, cursorY);
+        if (index < blockLayouts.length - 1) cursorY += gap;
+      });
+    }
+
+    if (inlineImageH > 0) {
+      // A imagem participa da mesma pilha visual do preview. Isso permite que
+      // os controles de cima/baixo levem a copy para ambos os lados dela.
+      const items = blockLayouts.map(layout => ({ type: 'block', layout }));
+      items.splice(getInlineImagePosition(inlineImage, blockLayouts.length), 0, { type: 'image' });
+      let cursorY = zoneY;
+      for (let index = 0; index < items.length; index++) {
+        const item = items[index];
+        if (item.type === 'image') {
+          await drawInlinePhoto(ctx, inlineImage, zoneX + inlineLayout.x, cursorY, inlineLayout.width, inlineLayout.height, inlineLayout.scale);
+          cursorY += inlineImageH;
+        } else {
+          cursorY = drawBlockAt(item.layout, cursorY);
+        }
+        if (index < items.length - 1) cursorY += gap;
+      }
+      return;
+    }
+
+    // Sem inline-image: centraliza stack inteiro como antes
+    const stackH = getStackHeight(blockLayouts, gap, 0);
+    const cursorY = zoneY + (zoneH - stackH) / 2;
+    drawBlocksFlow(cursorY);
+  }
+
+  function drawFooter(ctx, w, h, footerVariant, slideNum, slideTotal) {
+    // Notas: zero footer. Bundas Polêmicas não tinha handle nem slide N/total.
+    // Função mantida vazia pra preservar a chamada em renderSlideToCanvas.
+    return;
+  }
+
+  function drawBrandMark(ctx, w, h) {
+    // No-op: brand-mark não existe no Notas.
+    return;
+  }
+
+  // Notas: sobrescreve drawFooter e drawLegibilityFilter pra serem no-op.
+  // Salvamos referências caso algum caminho legado dependa, mas no Notas não desenhamos.
+  function drawFooter_notesNoop() { return; }
+  function drawLegibilityFilter_notesNoop() { return; }
+
+  async function renderSlideToCanvas(canvas, slideData) {
+    // A composição usa a grade selecionada (1080×1350 ou 1080×1440), mas o PNG sai em 2× para
+    // preservar nitidez de tipografia e imagens em Telegram e Instagram.
+    const dpr = 2;
+    canvas.width = SLIDE_W * dpr;
+    canvas.height = SLIDE_H * dpr;
+    const ctx = canvas.getContext('2d', { alpha: false });
+    ctx.scale(dpr, dpr);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+
+    // 1. Background compartilhado pelo preview e pelo PNG.
+    ctx.fillStyle = getSlideBackgroundColor(slideData);
+    ctx.fillRect(0, 0, SLIDE_W, SLIDE_H);
+
+    // 2. Photo
+    // Notas: full-bleed photo (slideData.image) foi descontinuado.
+    // TUDO usa inline-photo proporcional (drawBlocks preserva o aspecto da fonte).
+
+    // 3. Legibility filter (per-slide fade)
+    drawLegibilityFilter(ctx, SLIDE_W, SLIDE_H, getEffectiveFade(slideData));
+
+    // 4. Body-zone unificado (mesma área pra capa e demais).
+    // Capa e não-capa usam o mesmo zone 180/180. A imagem preserva sua
+    // proporção original dentro da própria body-zone via drawBlocks.
+    const isCapa = slideData.isCapa;
+    const zoneX = 90;
+    const zoneTop = 180;
+    const zoneBottom = 180;
+    const zoneW = SLIDE_W - zoneX * 2;
+    const zoneH = SLIDE_H - zoneTop - zoneBottom;
+    const bz = slideData.bzTransform || { tx: 0, ty: 0, scale: 1 };
+    const gap = getEffectiveGap(slideData);
+    // O exportador recalcula o layout a partir do documento atual; não depende
+    // de dataset transitório do preview.
+    const contentFit = getFallbackContentFitScale(ctx, slideData, zoneW, zoneH, !!isCapa, gap);
+
+    ctx.save();
+    const cx = SLIDE_W / 2;
+    const cy = zoneTop + zoneH / 2;
+    ctx.translate(cx + bz.tx, cy + bz.ty);
+    ctx.scale(bz.scale, bz.scale);
+    ctx.translate(-cx, -cy);
+    await drawBlocks(ctx, slideData.blocks, zoneX, zoneTop, zoneW, zoneH, !!isCapa, gap, slideData.inlineImage, contentFit, getSlideTextColor(slideData));
+    ctx.restore();
+
+    // 5. Brand mark (linha dourada top-left)
+    drawBrandMark(ctx, SLIDE_W, SLIDE_H);
+
+    // 6. Footer (minimal: handle + slide num/total)
+    const _slideTotal = doc.slides.length;
+    const _slideNum = doc.slides.indexOf(slideData) + 1;
+    drawFooter(ctx, SLIDE_W, SLIDE_H, slideData.footerVariant, _slideNum, _slideTotal);
+
+    return canvas;
+  }
+
+  async function captureSlideAsBlob(stageIndex) {
+    const slideData = doc.slides[stageIndex];
+    if (!slideData) throw new Error('slide ' + (stageIndex + 1) + ' não existe');
+    // Pré-carrega TODAS as fontSpecs antes de qualquer measureText/fillText.
+    // Sem isso, a 1ª captura mede com face de fallback (estreita) e desenha com face real (larga).
+    await preloadCanvasFonts();
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    flushDOMToDoc();
+    refreshSlideContentFit(stageIndex);
+    const previewStage = document.querySelectorAll('.stage')[stageIndex];
+    if (previewStage && previewStage.querySelector('.body-zone.content-overflow')) {
+      throw new Error('o slide ' + (stageIndex + 1) + ' ultrapassa o canvas; reduza o texto, a imagem ou o espaçamento');
+    }
+    const canvas = document.createElement('canvas');
+    await renderSlideToCanvas(canvas, slideData);
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(b => b ? resolve(b) : reject(new Error('toBlob falhou')), 'image/png');
+    });
+  }
+
+  // ==== DOWNLOAD ALL PNGs ====
+  let deliveryBusy = false;
+  function setDeliveryBusy(active, ownerId) {
+    deliveryBusy = active;
+    ['btn-download-all', 'btn-download-current', 'btn-send-tg', 'btn-publish-ig'].forEach(id => {
+      const button = document.getElementById(id);
+      if (!button) return;
+      button.disabled = active;
+      button.setAttribute('aria-busy', String(active && id === ownerId));
+    });
+  }
+
+  function getActiveNotasSlideIndex() {
+    if (!doc || !Array.isArray(doc.slides) || doc.slides.length === 0) return null;
+    const index = typeof activeStageIndex === 'number' ? activeStageIndex : 0;
+    return Math.max(0, Math.min(index, doc.slides.length - 1));
+  }
+
+  async function downloadCurrentSlidePNG() {
+    if (deliveryBusy) return;
+    const index = getActiveNotasSlideIndex();
+    if (index === null) {
+      setSendStatus('Selecione um slide antes de exportar.', 'error');
+      return;
+    }
+    const wasSelected = getSelectedBlockEl();
+    setDeliveryBusy(true, 'btn-download-current');
+    setSendStatus('Capturando slide ' + (index + 1) + '…');
+    deselectBlock();
+    try {
+      const blob = await captureSlideAsBlob(index);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'slide-' + String(index + 1).padStart(2, '0') + '.png';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      setSendStatus('✓ Slide ' + (index + 1) + ' baixado em PNG.', 'success');
+    } catch (error) {
+      setSendStatus('✗ Erro ao gerar o slide ' + (index + 1) + ': ' + (error.message || error), 'error');
+    } finally {
+      if (wasSelected) selectBlock(wasSelected);
+      setDeliveryBusy(false, 'btn-download-current');
+    }
+  }
+
+  async function downloadAllPNGs() {
+    if (deliveryBusy) return;
+    const total = doc.slides.length;
+    setDeliveryBusy(true, 'btn-download-all');
+    setSendStatus('Capturando ' + total + ' slides…');
+    // Limpa seleção visual
+    const wasSelected = getSelectedBlockEl();
+    deselectBlock();
+    try {
+      const blobs = [];
+      for (let i = 0; i < total; i++) {
+        setSendStatus(`Capturando slide ${i + 1}/${total}…`);
+        blobs.push(await captureSlideAsBlob(i));
+      }
+      setSendStatus('Preparando ZIP com ' + total + ' PNGs…');
+      const res = await localApiFetch('/api/export/pngs', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ images_b64: await Promise.all(blobs.map(blobToB64NoPrefix)) }),
+      });
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        throw new Error(error.error || 'Falha ao preparar o ZIP');
+      }
+      const zip = await res.blob();
+      const url = URL.createObjectURL(zip);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'carrossel-pngs.zip';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setSendStatus('✓ ' + total + ' PNGs baixados em um ZIP.', 'success');
+    } catch (e) {
+      setSendStatus('✗ Erro ao gerar PNGs: ' + e.message, 'error');
+    } finally {
+      if (wasSelected) selectBlock(wasSelected);
+      setDeliveryBusy(false, 'btn-download-all');
+    }
+  }
+
+  // ==== SEND TO TELEGRAM ====
+  async function sendToTelegram() {
+    if (deliveryBusy) return;
+    setDeliveryBusy(true, 'btn-send-tg');
+    setSendStatus('Capturando ' + doc.slides.length + ' slides…');
+    const wasSelected = getSelectedBlockEl();
+    deselectBlock();
+
+    try {
+      const blobs = [];
+      for (let i = 0; i < doc.slides.length; i++) {
+        setSendStatus(`Capturando slide ${i + 1}/${doc.slides.length}…`);
+        try {
+          const b = await captureSlideAsBlob(i);
+          blobs.push(b);
+        } catch (capErr) {
+          console.error('[capture]', capErr);
+          throw new Error('Captura do slide ' + (i + 1) + ' falhou: ' + (capErr && capErr.message ? capErr.message : 'desconhecido'));
+        }
+      }
+
+      setSendStatus('Enviando ' + doc.slides.length + ' slides ao Telegram…');
+      const images_b64 = await Promise.all(blobs.map(blobToB64NoPrefix));
+      const caption = document.getElementById('ig-caption')?.value || '';
+      const res = await localApiFetch('/api/telegram/send', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ images_b64, caption }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) throw new Error(json.error || 'Falha no Telegram');
+      setSendStatus('✓ ' + doc.slides.length + ' slides enviados pro Telegram.', 'success');
+    } catch (e) {
+      console.error('[sendToTelegram]', e);
+      const msg = (e && e.message) ? e.message : (typeof e === 'string' ? e : 'erro desconhecido');
+      setSendStatus('✗ ' + msg, 'error');
+    } finally {
+      if (wasSelected) selectBlock(wasSelected);
+      setDeliveryBusy(false, 'btn-send-tg');
+    }
+  }
+
+  // ==== TELEGRAM MODAL ====
+  let telegramModalReturnFocus = null;
+  async function openTgModal() {
+    telegramModalReturnFocus = document.activeElement;
+    const modal = document.getElementById('tg-modal');
+    modal.classList.add('visible');
+    modal.setAttribute('aria-hidden', 'false');
+    document.getElementById('tg-cancel').focus();
+    const status = document.getElementById('tg-config-status');
+    try {
+      const response = await fetch('/api/telegram/status', { cache: 'no-store' });
+      const payload = await response.json();
+      status.textContent = payload.configured ? '✓ Telegram configurado neste computador.' : 'Telegram ainda não configurado neste computador.';
+    } catch (error) {
+      status.textContent = 'Não foi possível verificar a configuração local.';
+    }
+  }
+  function closeTgModal() {
+    const modal = document.getElementById('tg-modal');
+    modal.classList.remove('visible');
+    modal.setAttribute('aria-hidden', 'true');
+    if (telegramModalReturnFocus && telegramModalReturnFocus.focus) telegramModalReturnFocus.focus();
+  }
+  async function tgTestConnection() {
+    try {
+      const res = await localApiFetch('/api/telegram/test', { method: 'POST' });
+      const json = await res.json();
+      if (!res.ok || !json.ok) throw new Error(json.error || 'configuração inválida');
+      setSendStatus('✓ Telegram configurado e acessível.', 'success');
+    } catch (e) {
+      setSendStatus('✗ ' + e.message, 'error');
+    }
+  }
+
+  // ==== INSTAGRAM PUBLISH ====
+  async function blobToB64NoPrefix(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  async function publishInstagram() {
+    if (deliveryBusy) return;
+    const captionEl = document.getElementById('ig-caption');
+    const caption = captionEl ? captionEl.value.trim() : '';
+    if (!caption) {
+      setSendStatus('✗ Caption vazia. Preenche acima antes de publicar.', 'error');
+      return;
+    }
+    const total = doc.slides.length;
+    if (total < 2 || total > 10) {
+      setSendStatus('✗ Carrossel exige 2-10 slides. Atual: ' + total, 'error');
+      return;
+    }
+
+    const confirmMsg = `Publicar AGORA no @omatheusdelucca?\n\n${total} slides + caption (${caption.length} chars).\n\nIrreversível. Continuar?`;
+    if (!confirm(confirmMsg)) return;
+
+    setDeliveryBusy(true, 'btn-publish-ig');
+
+    setSendStatus(`Capturando ${total} slides…`);
+    const wasSelected = getSelectedBlockEl();
+    deselectBlock();
+
+    try {
+      const blobs = [];
+      for (let i = 0; i < total; i++) {
+        setSendStatus(`Capturando slide ${i + 1}/${total}…`);
+        const b = await captureSlideAsBlob(i);
+        blobs.push(b);
+      }
+      setSendStatus('Enviando pra Meta API… (pode levar 30-60s)');
+      const slides_b64 = await Promise.all(blobs.map(blobToB64NoPrefix));
+      const r = await localApiFetch('/api/publicar-instagram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slides_b64,
+          caption,
+          title: '{{TITLE}}'.replace(/\\"/g, '"'),
+        }),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        setSendStatus(`✅ Publicado @omatheusdelucca! Post ID: ${data.post_id}`, 'success');
+        alert(`Publicado com sucesso!\n\nPost ID: ${data.post_id}`);
+      } else {
+        const errMsg = data.error || 'desconhecido';
+        const detail = data.stderr ? `\n\n${data.stderr.slice(-500)}` : '';
+        setSendStatus('✗ Erro: ' + errMsg, 'error');
+        alert('Erro ao publicar:\n\n' + errMsg + detail);
+      }
+    } catch (e) {
+      console.error('[publishInstagram]', e);
+      setSendStatus('✗ ' + (e.message || e), 'error');
+    } finally {
+      if (wasSelected) selectBlock(wasSelected);
+      setDeliveryBusy(false, 'btn-publish-ig');
+    }
+  }
+
+  // ==== CAPTION PERSISTÊNCIA ====
+  function loadCaptionFromStorage() {
+    const captionEl = document.getElementById('ig-caption');
+    if (!captionEl) return;
+    const saved = localStorage.getItem(DOC_KEY + '-caption');
+    if (saved !== null) captionEl.value = saved;
+    captionEl.addEventListener('input', () => {
+      localStorage.setItem(DOC_KEY + '-caption', captionEl.value);
+      recordEditorMutation('caption');
+    });
+  }
+
+  const HUB_SESSION = {{HUB_SESSION}};
+  const HUB_SESSION_ID = '{{HUB_SESSION_ID}}';
+  const UI_THEME_STORAGE_KEY = 'carrossel-editor-ui-theme-v1';
+  let currentUiTheme = document.documentElement.dataset.uiTheme === 'dark' ? 'dark' : 'light';
+
+  function applyUiTheme() {
+    const dark = currentUiTheme === 'dark';
+    document.documentElement.dataset.uiTheme = currentUiTheme;
+    const button = document.getElementById('btn-ui-theme');
+    if (button) {
+      const action = dark ? 'Ativar interface clara' : 'Ativar interface escura';
+      button.setAttribute('aria-label', action);
+      button.setAttribute('title', action);
+      button.setAttribute('aria-pressed', String(dark));
+    }
+    const icon = document.getElementById('ui-theme-icon');
+    if (icon) icon.textContent = dark ? '☀' : '☾';
+  }
+
+  function toggleUiTheme() {
+    currentUiTheme = currentUiTheme === 'dark' ? 'light' : 'dark';
+    try { localStorage.setItem(UI_THEME_STORAGE_KEY, currentUiTheme); } catch (_) {}
+    applyUiTheme();
+  }
+
+  function configureHubSession() {
+    if (!HUB_SESSION) return;
+    const backButton = document.getElementById('btn-back-hub');
+    const publishButton = document.getElementById('btn-publish-ig');
+    backButton.hidden = false;
+    publishButton.hidden = true;
+    backButton.addEventListener('click', returnToHub);
+  }
+
+  function clearHubSessionStorage() {
+    for (const storage of [localStorage, sessionStorage]) {
+      for (let i = storage.length - 1; i >= 0; i--) {
+        const key = storage.key(i);
+        if (key === DOC_KEY || key?.startsWith(DOC_KEY + '-')) storage.removeItem(key);
+      }
+    }
+  }
+
+  async function returnToHub() {
+    if (!window.confirm('Descartar esta criação e voltar aos modelos?')) return;
+    try {
+      const response = await localApiFetch('/api/sessoes/' + encodeURIComponent(HUB_SESSION_ID), { method: 'DELETE' });
+      if (!response.ok) throw new Error('Não foi possível descartar esta criação.');
+      clearHubSessionStorage();
+      window.location.replace('/');
+    } catch (error) {
+      setSendStatus('✗ ' + error.message, 'error');
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    configureHubSession();
+    applyUiTheme();
+    loadCaptionFromStorage();
+    armEditorUndo();
+    const btnPub = document.getElementById('btn-publish-ig');
+    if (btnPub) btnPub.addEventListener('click', publishInstagram);
+    document.getElementById('btn-ui-theme').addEventListener('click', toggleUiTheme);
+    document.getElementById('btn-download-all').addEventListener('click', downloadAllPNGs);
+    document.getElementById('btn-download-current')?.addEventListener('click', downloadCurrentSlidePNG);
+    document.getElementById('btn-send-tg').addEventListener('click', sendToTelegram);
+    document.getElementById('btn-config-tg').addEventListener('click', openTgModal);
+    document.getElementById('tg-cancel').addEventListener('click', closeTgModal);
+    document.getElementById('tg-test').addEventListener('click', tgTestConnection);
+    document.getElementById('tg-modal').addEventListener('click', (e) => {
+      if (e.target.id === 'tg-modal') closeTgModal();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && document.getElementById('tg-modal').classList.contains('visible')) {
+        event.preventDefault();
+        closeTgModal();
+      }
+    });
+  });
+
+</script>
+
+<!-- imggen: gerador de imagens contextuais via gpt-image-2 (proxy local) -->
+<script>
+  window.MATHEUSAO_PECA_PATH = "{{PECA_PATH}}";
+  window.MATHEUSAO_DOC_KEY   = "{{DOC_KEY}}";
+</script>
+<script src="image-gen-client.js" defer></script>
+
+</body>
+</html>

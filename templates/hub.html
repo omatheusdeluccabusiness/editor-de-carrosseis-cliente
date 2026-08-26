@@ -215,6 +215,32 @@
       background: #1d1d1f;
     }
 
+    .preview-sheet--notes {
+      display: flex;
+      width: 176px;
+      aspect-ratio: 4 / 5;
+      flex-direction: column;
+      justify-content: center;
+      gap: 18px;
+      padding: 30px 20px;
+      background: #ffffff;
+    }
+
+    .notes-title-line,
+    .notes-body-line {
+      display: block;
+      height: 8px;
+      border-radius: 999px;
+      background: #222326;
+    }
+
+    .notes-title-line { height: 12px; }
+    .notes-title-line:nth-child(2) { width: 82%; }
+    .notes-copy { display: grid; gap: 8px; }
+    .notes-body-line { height: 6px; background: #5f6065; }
+    .notes-body-line:nth-child(2) { width: 89%; }
+    .notes-body-line:nth-child(3) { width: 66%; }
+
     .story-kicker {
       width: 34px;
       height: 3px;
@@ -430,6 +456,8 @@
       .preview-sheet--stories {
         width: 122px;
       }
+
+      .preview-sheet--notes { width: 154px; }
     }
 
     @media (max-width: 420px) {
@@ -530,11 +558,20 @@
             <span class="preview-line"></span>
           </span>
           <span class="tweet-rule"></span>`;
-      } else {
+      } else if (kind === 'stories') {
         sheet.innerHTML = `
           <span class="story-kicker"></span>
           <span class="story-copy"><span></span><span></span><span></span></span>
           <span class="story-footer"></span>`;
+      } else {
+        sheet.innerHTML = `
+          <span class="notes-title-line"></span>
+          <span class="notes-title-line"></span>
+          <span class="notes-copy">
+            <span class="notes-body-line"></span>
+            <span class="notes-body-line"></span>
+            <span class="notes-body-line"></span>
+          </span>`;
       }
 
       stage.appendChild(sheet);
