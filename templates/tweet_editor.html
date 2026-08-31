@@ -123,10 +123,10 @@
   }
   body.theme-dark .tweet-render {
     background: #000000; color: #E7E9EA;
-    --marker-yellow: rgba(172, 129, 0, 0.78);
-    --marker-pink: rgba(145, 35, 88, 0.76);
-    --marker-green: rgba(24, 108, 64, 0.78);
-    --marker-blue: rgba(16, 94, 132, 0.80);
+    --marker-yellow: rgba(255, 214, 10, 0.94);
+    --marker-pink: rgba(255, 100, 190, 0.92);
+    --marker-green: rgba(80, 220, 120, 0.90);
+    --marker-blue: rgba(64, 200, 255, 0.90);
   }
   body.theme-dark .tweet-render-wrap { background: #000000; }
 
@@ -194,12 +194,12 @@
     margin: 0;
     border-radius: 0;
     background-repeat: no-repeat;
-    background-size: 100% 0.88em;
-    background-position: 0 0.08em;
+    background-size: 100% 1.04em;
+    background-position: 0 0.02em;
     -webkit-box-decoration-break: clone;
     box-decoration-break: clone;
   }
-  body.theme-dark .tweet-render mark[data-highlight] { color: inherit; }
+  body.theme-dark .tweet-render mark[data-highlight] { color: #0F1419; }
   .tweet-render mark[data-highlight="yellow"] { background-image: linear-gradient(var(--marker-yellow), var(--marker-yellow)); }
   .tweet-render mark[data-highlight="pink"] { background-image: linear-gradient(var(--marker-pink), var(--marker-pink)); }
   .tweet-render mark[data-highlight="green"] { background-image: linear-gradient(var(--marker-green), var(--marker-green)); }
@@ -236,10 +236,10 @@
   .tweet-highlight-menu .marker-swatch[data-highlight-color="pink"] { background: rgba(255, 122, 200, 0.90); }
   .tweet-highlight-menu .marker-swatch[data-highlight-color="green"] { background: rgba(128, 226, 126, 0.90); }
   .tweet-highlight-menu .marker-swatch[data-highlight-color="blue"] { background: rgba(100, 216, 255, 0.90); }
-  body.theme-dark .tweet-highlight-menu .marker-swatch[data-highlight-color="yellow"] { background: rgba(172, 129, 0, 0.94); }
-  body.theme-dark .tweet-highlight-menu .marker-swatch[data-highlight-color="pink"] { background: rgba(145, 35, 88, 0.94); }
-  body.theme-dark .tweet-highlight-menu .marker-swatch[data-highlight-color="green"] { background: rgba(24, 108, 64, 0.94); }
-  body.theme-dark .tweet-highlight-menu .marker-swatch[data-highlight-color="blue"] { background: rgba(16, 94, 132, 0.96); }
+  body.theme-dark .tweet-highlight-menu .marker-swatch[data-highlight-color="yellow"] { background: rgba(255, 214, 10, 0.98); }
+  body.theme-dark .tweet-highlight-menu .marker-swatch[data-highlight-color="pink"] { background: rgba(255, 100, 190, 0.96); }
+  body.theme-dark .tweet-highlight-menu .marker-swatch[data-highlight-color="green"] { background: rgba(80, 220, 120, 0.96); }
+  body.theme-dark .tweet-highlight-menu .marker-swatch[data-highlight-color="blue"] { background: rgba(64, 200, 255, 0.96); }
   .tweet-highlight-menu .marker-clear {
     min-height: 28px; padding: 0 9px;
     border: 0; border-left: 1px solid rgba(210, 210, 215, 0.9);
@@ -675,10 +675,6 @@
         <div class="inspector-stack" style="margin-top:8px;">
           <button id="btn-theme" class="shell-button quiet">Fundo escuro</button>
         </div>
-      </section>
-      <section class="inspector-section">
-        <label class="inspector-title" for="ig-caption">Legenda</label>
-        <textarea id="ig-caption" class="caption-field" rows="7">{{CAPTION}}</textarea>
       </section>
       <section class="inspector-section">
         <span class="inspector-title">Entrega</span>
@@ -1528,10 +1524,10 @@
         blue: 'rgba(100, 216, 255, 0.76)'
       },
       dark: {
-        yellow: 'rgba(172, 129, 0, 0.78)',
-        pink: 'rgba(145, 35, 88, 0.76)',
-        green: 'rgba(24, 108, 64, 0.78)',
-        blue: 'rgba(16, 94, 132, 0.80)'
+        yellow: 'rgba(255, 214, 10, 0.94)',
+        pink: 'rgba(255, 100, 190, 0.92)',
+        green: 'rgba(80, 220, 120, 0.90)',
+        blue: 'rgba(64, 200, 255, 0.90)'
       }
     };
 
@@ -1946,9 +1942,10 @@
 
     function drawMarkerStroke(ctx, x, y, width, fontSize, color) {
       if (!color || width <= 0) return;
-      // Mesma faixa vertical do preview CSS: começa em 0.08em e mede 0.88em.
-      const top = y + fontSize * 0.08;
-      const height = fontSize * 0.88;
+      // Mesma faixa vertical do preview CSS: cobre o glifo com respiro mínimo,
+      // sem padding que alteraria largura ou quebra de linha.
+      const top = y + fontSize * 0.02;
+      const height = fontSize * 1.04;
       ctx.save();
       ctx.fillStyle = color;
       ctx.fillRect(x, top, width, height);
@@ -2064,7 +2061,7 @@
           const segmentWidth = ctx.measureText(seg.text).width;
           const markerColor = seg.highlight ? markerPalette[seg.highlight] : null;
           drawMarkerStroke(ctx, x, y, segmentWidth, fontSize, markerColor);
-          ctx.fillStyle = fg;
+          ctx.fillStyle = dark && seg.highlight ? '#0F1419' : fg;
           ctx.fillText(seg.text, x, y);
           x += segmentWidth;
         }

@@ -11,7 +11,7 @@
     document.documentElement.dataset.uiTheme = theme;
   })();
 </script>
-<title>Editor Bloco de Notas — {{TITLE}}</title>
+<title>Stories C/ Fundo — {{TITLE}}</title>
 <style>
   @font-face {
     font-family: 'Advercase';
@@ -52,7 +52,7 @@
   .stage {
     /* Responsivo: usa toda largura disponível até 540px (50% de 1080) */
     width: min(540px, calc(100vw - 64px));
-    aspect-ratio: var(--notes-aspect, 1080 / 1350);
+    aspect-ratio: var(--stories-aspect, 1080 / 1350);
     height: auto;
     overflow: hidden; border-radius: 8px;
     box-shadow: 0 14px 50px rgba(0, 0, 0, 0.6);
@@ -64,11 +64,11 @@
     /* Escala dinâmica: stageWidth / 1080. Aplicada via CSS calc usando --stage-w */
     transform: scale(var(--slide-scale, 0.5));
     transform-origin: top left;
-    width: var(--notes-w, 1080px); height: var(--notes-h, 1350px);
+    width: var(--stories-w, 1080px); height: var(--stories-h, 1350px);
   }
 
-  /* ================= BASE SLIDE (NOTES TEMPLATE 04) ================= */
-  .slide { position: relative; overflow: hidden; font-family: var(--notes-content-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif); color: #FFFFFF; background: var(--slide-background, #000000); }
+  /* ================= BASE SLIDE (STORIES TEMPLATE 04) ================= */
+  .slide { position: relative; overflow: hidden; font-family: var(--stories-content-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif); color: #FFFFFF; background: var(--slide-background, #000000); }
   .slide .photo { position: absolute; inset: 0; overflow: hidden; }
   .slide .photo-img {
     position: absolute; left: 0; top: 0;
@@ -80,14 +80,27 @@
     display: none;
   }
   .slide .photo-img.has-src { display: block; }
-  .slide.active .photo-img.has-src { cursor: grab; }
+  .slide.active .photo-img.has-src { cursor: zoom-in; }
+  body.space-held .slide.active .photo-img.has-src { cursor: grab; }
   .slide.active .photo-img.has-src.dragging { cursor: grabbing; }
-  /* Notas aesthetic: zero gradient, zero decoração.
-     Full-bleed photo (.photo) foi descontinuado — TUDO usa .inline-photo agora. */
-  .slide .photo::before, .slide .photo::after { content: none; }
-  .slide .photo { display: none !important; }
+  /* Cada foto da composição vive em uma moldura própria. O zoom e o pan
+     movem a foto dentro dessa moldura — nunca o recorte inteiro no canvas. */
+  .slide .photo-frame { position: absolute; overflow: hidden; contain: paint; isolation: isolate; z-index: 0; }
+  .slide .photo-frame .photo-img { display: block; }
+  .slide .photo.composition-split .composition-frame-first { left: 0; top: 0; width: 50%; height: 100%; }
+  .slide .photo.composition-split .composition-frame-second { left: 50%; top: 0; width: 50%; height: 100%; }
+  .slide .photo.composition-stack .composition-frame-first { left: 0; top: 0; width: 100%; height: 50%; }
+  .slide .photo.composition-stack .composition-frame-second { left: 0; top: 50%; width: 100%; height: 50%; }
+  /* Foto de fundo: ela ocupa o canvas inteiro e a camada preta dá controle
+     de atmosfera sem jamais comprometer o contraste das cartelas. */
+  .slide .photo { display: block !important; z-index: 0; background: #000; }
+  .slide .photo::before,
+  .slide .photo::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+  .slide .photo::before { background: rgba(0, 0, 0, var(--fade, .48)); }
+  .slide .photo::after { background: rgba(0, 0, 0, var(--fade-boost, 0)); }
+  .slide .photo-img { z-index: 0; }
 
-  /* Stamp e tag-strip não existem no Notas — escondidos via display:none.
+  /* Stamp e tag-strip não existem no Stories — escondidos via display:none.
      Mantidos no DOM pra compat com pipeline genérico. */
   .slide .stamp, .slide .tag-strip { display: none !important; }
 
@@ -102,10 +115,26 @@
     transform: translate(0px, 0px) scale(1);
     transition: outline 0.15s ease;
   }
-  /* Width 100% pra que align-left/center/right consigam aplicar text-align
-     no espaço completo do body-zone. NÃO forçar text-align aqui, pra não bloquear
-     as classes .align-left/.align-center/.align-right que vêm do block.align. */
+  /* Blocos soltos ocupam toda a zona. Cartelas, porém, podem abraçar a copy
+     e continuam centralizadas pelo próprio flex container. */
   .slide .body-zone > * { width: 100%; }
+
+  /* Cartelas tipográficas: propositalmente retas e editoriais, como nos
+     posters de referência. A seleção continua mostrando o contorno amarelo. */
+  .slide .body-zone > [data-block-id].editorial-card {
+    width: fit-content; max-width: 100%; align-self: center;
+    padding: .34em .48em .40em; background: #FAF9F5;
+    color: #0D0D0E !important; box-decoration-break: clone;
+  }
+  .slide .body-zone > [data-block-id].editorial-card-dark {
+    width: fit-content; max-width: 100%; align-self: center;
+    padding: .32em .48em .38em; background: #080808;
+    color: #FFFFFF !important;
+  }
+  .slide .body-zone > [data-block-id].editorial-card .hot,
+  .slide .body-zone > [data-block-id].editorial-card-dark .hot { background: none; }
+  .slide .body-zone > [data-block-id].editorial-card .hot { color: #d70611; }
+  .slide .body-zone > [data-block-id].editorial-card .hot.yellow { color: #b68800; }
 
   /* Layout pra slides com inline-image: a imagem permanece no topo e a copy
      começa logo abaixo, usando somente o gap configurado do slide. Assim não
@@ -140,11 +169,11 @@
   .slide [data-block-id] strong, .slide [data-block-id] b { font-weight: 700; }
   .slide [data-block-id] em, .slide [data-block-id] i { font-style: italic; }
 
-  /* Notas: cor de texto (foreground), sem highlight de fundo, sem rotação. */
+  /* Stories: cor de texto (foreground), sem highlight de fundo, sem rotação. */
   .hot { color: #d70611; background: none; padding: 0; display: inline; transform: none; box-shadow: none; }
   .hot.yellow { color: #f8ce07; background: none; }
 
-  /* Footer-bar não existe no Notas. Escondido via display:none pra preservar
+  /* Footer-bar não existe no Stories. Escondido via display:none pra preservar
      o DOM gerado pelo pipeline genérico. */
   .slide .footer-bar { display: none !important; }
 
@@ -175,10 +204,10 @@
     position: relative; z-index: 10;
     background: #1a1c1f;
     border: 1px solid #383b40;
-    border-radius: 10px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
-    padding: 6px;
-    display: flex; gap: 2px; align-items: center;
+    border-radius: 14px;
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.48);
+    padding: 12px;
+    display: flex; align-items: center;
     font-family: -apple-system, BlinkMacSystemFont, sans-serif;
     width: 100%; max-width: none;
     margin: 14px 0 18px;
@@ -194,19 +223,35 @@
   #block-toolbar.empty .tb-controls { display: none; }
   #block-toolbar:not(.empty) .tb-empty-state { display: none; }
   #block-toolbar .tb-controls {
-    display: flex; gap: 0; align-items: stretch;
-    flex-direction: column;
+    display: grid; gap: 10px; align-items: stretch;
     justify-content: flex-start;
     width: 100%;
   }
   #block-toolbar .tb-section {
-    display: flex; align-items: center; flex-wrap: wrap; gap: 7px;
-    width: 100%; padding: 9px 4px;
-    border-top: 1px solid rgba(255,255,255,.12);
+    display: grid; gap: 12px;
+    width: 100%; padding: 13px;
+    border: 1px solid rgba(255,255,255,.10);
+    border-radius: 10px;
+    background: rgba(255,255,255,.035);
   }
   #block-toolbar .tb-section:first-of-type {
-    padding-top: 2px;
-    border-top: 0;
+    padding: 0 2px 2px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+  #block-toolbar .tb-section-title {
+    color: rgba(245, 242, 234, .54);
+    font-size: 9px; font-weight: 800;
+    letter-spacing: .15em; line-height: 1;
+    text-transform: uppercase;
+  }
+  #block-toolbar .tb-section-heading {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  }
+  #block-toolbar .tb-align-group {
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px;
+    width: 100%;
   }
   #block-toolbar .tb-slide-chip {
     font-size: 10px; font-weight: 800;
@@ -219,9 +264,7 @@
     white-space: nowrap;
     line-height: 1;
   }
-  #block-toolbar .sub-sep {
-    display: none;
-  }
+  #block-toolbar .sub-sep, #block-toolbar .sep { display: none; }
 
   #bubble-menu {
     position: fixed; z-index: 1100;
@@ -240,7 +283,7 @@
   #block-toolbar button, #bubble-menu button {
     background: transparent; border: none;
     color: #f5f2ea;
-    padding: 8px 10px;
+    padding: 9px 10px;
     font-size: 11px; font-weight: 700;
     border-radius: 5px; cursor: pointer;
     font-family: inherit;
@@ -248,7 +291,7 @@
     letter-spacing: 0.04em;
     text-transform: uppercase;
     line-height: 1;
-    min-width: 30px;
+    min-width: 34px;
     transition: background 0.08s ease;
   }
   #block-toolbar button:hover, #bubble-menu button:hover {
@@ -259,25 +302,79 @@
   }
   #block-toolbar button.danger { color: #ff6b6b; }
   #block-toolbar button.danger:hover { background: rgba(255, 107, 107, 0.15); }
-  #block-toolbar .sep {
-    display: none;
+  #block-toolbar .tb-align-group button {
+    min-height: 34px;
+  }
+  #block-toolbar .tb-reset {
+    justify-self: start;
+    padding: 0;
+    min-width: auto;
+    color: rgba(245, 242, 234, .64);
+    font-size: 9px;
+    letter-spacing: .08em;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-transform: uppercase;
+  }
+  #block-toolbar .tb-reset:hover {
+    color: #F4C430;
+    background: transparent;
+  }
+  #block-toolbar .tb-choice-group {
+    display: grid; gap: 8px;
+  }
+  #block-toolbar .tb-choice-label {
+    color: rgba(245, 242, 234, .82);
+    font-size: 11px; font-weight: 700;
+  }
+  #block-toolbar .tb-card-choices {
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px;
+  }
+  #block-toolbar .tb-card-choices button {
+    min-width: 0;
+    min-height: 35px;
+    padding-inline: 6px;
+    font-size: 9px;
+  }
+  #block-toolbar .tb-block-actions {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px;
+  }
+  #block-toolbar .tb-block-actions button {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    min-width: 0; min-height: 36px;
+  }
+  #block-toolbar .tb-button-icon {
+    font-size: 14px; line-height: 1;
+  }
+  #block-toolbar .tb-button-label {
+    font-size: 9px; letter-spacing: .06em;
+  }
+  #block-toolbar .tb-action-divider {
+    height: 1px; width: 100%; background: rgba(255,255,255,.09);
   }
   /* Sliders com rótulos explícitos para uso sem conhecimento técnico. */
   #block-toolbar .tb-slider-group {
-    display: flex; align-items: center; gap: 5px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "label value"
+      "slider slider";
+    align-items: center; column-gap: 10px; row-gap: 7px;
     padding: 0;
     width: 100%;
   }
   #block-toolbar .tb-slider-label {
-    font-size: 10px; font-weight: 700;
-    color: rgba(245, 242, 234, 0.76);
+    grid-area: label;
+    font-size: 11px; font-weight: 700;
+    color: rgba(245, 242, 234, 0.84);
     letter-spacing: 0.01em;
     white-space: nowrap;
     line-height: 1;
   }
   #block-toolbar input[type="range"] {
     -webkit-appearance: none; appearance: none;
-    flex: 1; min-width: 56px; width: auto; height: 3px;
+    grid-area: slider;
+    min-width: 0; width: 100%; height: 4px;
     background: rgba(245, 242, 234, 0.18);
     border-radius: 2px;
     cursor: pointer; outline: none;
@@ -285,21 +382,22 @@
   }
   #block-toolbar input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none; appearance: none;
-    width: 12px; height: 12px; border-radius: 50%;
+    width: 14px; height: 14px; border-radius: 50%;
     background: #F4C430; cursor: grab; border: none;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   }
   #block-toolbar input[type="range"]::-moz-range-thumb {
-    width: 12px; height: 12px; border-radius: 50%;
+    width: 14px; height: 14px; border-radius: 50%;
     background: #F4C430; cursor: grab; border: none;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   }
   #block-toolbar input[type="range"]:active::-webkit-slider-thumb { cursor: grabbing; }
   #block-toolbar input[type="range"]:active::-moz-range-thumb { cursor: grabbing; }
   #block-toolbar .tb-slider-val {
-    font-size: 9px; font-weight: 700;
-    color: rgba(245, 242, 234, 0.7);
-    min-width: 36px; text-align: left;
+    grid-area: value;
+    font-size: 11px; font-weight: 800;
+    color: rgba(245, 242, 234, 0.8);
+    min-width: 42px; text-align: right;
     font-variant-numeric: tabular-nums;
     line-height: 1;
   }
@@ -435,7 +533,7 @@
   .modal-card .actions button.primary:hover { background: #1B86B5; }
   .image-composer-card { width: min(660px, calc(100vw - 32px)); }
   .image-composer-card .sub { color: rgba(245,242,234,.66); font-size: 12px; line-height: 1.5; margin: -5px 0 14px; }
-  .image-composer-mode { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 14px 0; }
+  .image-composer-mode { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 14px 0; }
   .image-composer-mode button { border: 1px solid #464a50; border-radius: 8px; background: #16181b; color: #f5f2ea; padding: 11px 12px; text-align: left; font: inherit; cursor: pointer; }
   .image-composer-mode button strong { display: block; font-size: 13px; }
   .image-composer-mode button small { display: block; margin-top: 3px; color: rgba(245,242,234,.58); line-height: 1.35; }
@@ -447,6 +545,10 @@
   .image-composer-slot label { height: 154px; margin: 0; display: flex; align-items: center; justify-content: center; color: rgba(245,242,234,.7); cursor: pointer; font-weight: 600; }
   .image-composer-slot.has-image label { position: absolute; right: 8px; bottom: 8px; height: auto; padding: 6px 9px; border-radius: 6px; background: rgba(0,0,0,.74); color: #fff; font-size: 11px; }
   .image-composer-slot input { display: none; }
+  .image-composer-slots.is-stacked { grid-template-columns: 1fr; gap: 8px; }
+  .image-composer-slots.is-stacked .image-composer-slot { min-height: 104px; }
+  .image-composer-slots.is-stacked .image-composer-slot img,
+  .image-composer-slots.is-stacked .image-composer-slot label { height: 104px; }
   .image-composer-tools { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 10px; }
   .image-composer-tools p { margin: 0; color: rgba(245,242,234,.58); font-size: 11px; line-height: 1.35; }
   .image-composer-tools .btn { padding: 7px 10px; }
@@ -473,9 +575,10 @@
   /* Marca decorativa: removida permanentemente do tema Ostentação (Matheus 2026-05-06) */
   .slide .brand-mark { display: none; }
 
-  /* Reduz fortemente o gradient de legibilidade (não tem foto em cima) */
-  .slide .photo::before { display: none; }
-  .slide .photo::after { display: none; }
+  /* Neste template a foto ocupa o fundo: a camada de escurecimento precisa
+     permanecer visível para o controle "Escurecer foto" refletir no canvas. */
+  .slide .photo::before,
+  .slide .photo::after { display: block; }
 
   /* Footer minimal: fundo escuro, texto cinza claro */
   .slide .footer-bar {
@@ -497,8 +600,8 @@
   }
   .slide .footer-bar.dark .footer-tag { color: rgba(245, 240, 232, 0.4); }
 
-  /* ============ NOTES TEMPLATE OVERRIDES ============
-     Mantém o Notas limpo: texto branco, alinhamento configurável e destaque
+  /* ============ STORIES TEMPLATE OVERRIDES ============
+     Mantém o Stories limpo: texto branco, alinhamento configurável e destaque
      somente por cor. */
   .slide .h-display { color: #FFFFFF; }
   .slide .h-display.accent { color: #FFFFFF; }
@@ -507,26 +610,26 @@
 
   /* Cada slide define o próprio contraste a partir da cor escolhida. */
   .slide.light-background,
-  .slide.light-background[class*="bg-"] { color: #2A2A2C !important; }
+  .slide.light-background[class*="bg-"] { color: #0B0B0B !important; }
   .slide.light-background .h-display,
   .slide.light-background .h-display.accent,
   .slide.light-background .h-display.tiny,
   .slide.light-background .cta-final .h-display.smaller,
-  .slide.light-background.capa .h-display { color: #2A2A2C !important; }
+  .slide.light-background.capa .h-display { color: #0B0B0B !important; }
   .slide.light-background .body,
   .slide.light-background .body.italic,
   .slide.light-background .body.big,
   .slide.light-background .body.lede,
   .slide.light-background.capa .body,
   .slide.light-background.capa .body.lede,
-  .slide.light-background.capa .body.big { color: #2A2A2C !important; }
+  .slide.light-background.capa .body.big { color: #0B0B0B !important; }
 
-  /* Capa Notas: NÃO sobrescreve fonte. Posicionamento e tamanho coerentes com
+  /* Capa Stories: NÃO sobrescreve fonte. Posicionamento e tamanho coerentes com
      a regra .slide.capa que eu defini lá em cima (image top, text bottom). */
   .slide.capa .body.lede,
   .slide.capa .body.big,
   .slide.capa .body {
-    font-family: var(--notes-content-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+    font-family: var(--stories-content-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
     font-style: normal;
     font-weight: 400;
     color: #FFFFFF;
@@ -636,10 +739,10 @@
     --ui-blue-soft: rgba(0, 122, 255, 0.10);
     --ui-danger: #FF3B30;
     --ui-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", Inter, sans-serif;
-    --notes-content-font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif;
-    --notes-w: 1080px;
-    --notes-h: 1350px;
-    --notes-aspect: 1080 / 1350;
+    --stories-content-font: 'Advercase', Georgia, serif;
+    --stories-w: 1080px;
+    --stories-h: 1350px;
+    --stories-aspect: 1080 / 1350;
   }
   html[data-ui-theme="dark"] {
     color-scheme: dark;
@@ -830,77 +933,14 @@
 
 
 
-  /* ================= BLOCO DE NOTAS =================
-     A linguagem visual é uma folha editorial minimalista: texto à esquerda,
-     margens generosas e ritmo de leitura. Mantém o motor dos Stories intacto. */
-  .notes-editor { background: #eef0f3; color: #171719; }
-  .notes-editor .top .sub,
-  .notes-editor .slide-label,
-  .notes-editor .slide-mood { color: rgba(23, 23, 25, .55); }
-  .notes-editor .stage {
-    border-radius: 0;
-    background: #fff;
-    box-shadow: 0 22px 60px rgba(22, 24, 29, .14), 0 2px 8px rgba(22, 24, 29, .08);
-  }
-  .notes-editor .stage.active { outline-color: #e3b515; }
-  .notes-editor .slide {
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", sans-serif;
-  }
-  .notes-editor .slide .body-zone {
-    top: 265px;
-    bottom: 170px;
-    left: 92px;
-    right: 92px;
-    justify-content: center;
-    align-items: stretch;
-    text-align: left;
-    gap: var(--content-fit-gap, var(--block-gap, 46px));
-  }
-  .notes-editor .slide.capa .body-zone { top: 245px; bottom: 210px; }
-  .notes-editor .slide .body-zone > [data-block-id] { text-align: left !important; }
-  .notes-editor .slide .h-display,
-  .notes-editor .slide .h-display.smaller,
-  .notes-editor .slide .h-display.tiny {
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", "Segoe UI", sans-serif;
-    font-size: 76px;
-    line-height: 1.12;
-    letter-spacing: -0.04em;
-    font-weight: 720;
-  }
-  .notes-editor .slide .body,
-  .notes-editor .slide .body.lede,
-  .notes-editor .slide .body.big,
-  .notes-editor .slide .body.italic {
-    max-width: none;
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", sans-serif;
-    font-size: 45px;
-    line-height: 1.31;
-    letter-spacing: -0.022em;
-    font-weight: 400;
-  }
-  .notes-editor .slide .body.italic { font-style: italic; }
-  /* A capa nasce como manchete: os blocos de texto mantêm a mesma edição,
-     mas recebe peso de título no preview e na exportação. */
-  .notes-editor .slide.capa .body { font-weight: 700; }
-  .notes-editor .slide .inline-photo { border-radius: 18px; }
-  .notes-editor .slide .hot { color: #b51d21; }
-  .notes-editor .slide .hot.yellow { color: #b07800; }
-  .notes-editor [contenteditable="true"]:focus {
-    background: rgba(255, 213, 0, .11);
-    box-shadow: 0 0 0 3px rgba(227, 181, 21, .42);
-  }
-  .notes-editor .body-zone [data-block-id].selected { outline-color: #e3b515; }
-  @media (max-width: 700px) {
-    .notes-editor .slide .body-zone { top: 230px; bottom: 140px; left: 74px; right: 74px; }
-  }
 </style>
 </head>
-<body class="notes-editor">
+<body>
 
 <header class="app-header">
   <div class="app-identity">
-    <div class="app-kicker">Editor de carrosséis · Bloco de Notas</div>
-    <h1>Bloco de Notas</h1>
+    <div class="app-kicker">Editor de carrosséis · Foto editorial</div>
+    <h1>Stories C/ Fundo</h1>
     <div class="doc-meta">{{N_SLIDES}} slides · 1080×1350 · @omatheusdelucca</div>
   </div>
   <div class="app-actions">
@@ -946,31 +986,30 @@
     <section class="inspector-section">
       <span class="inspector-title">Documento</span>
       <div class="inspector-stack">
-        <label class="sr-only" for="notes-typography">Tipografia do carrossel</label>
-        <select id="notes-typography" class="typeface-select" aria-label="Tipografia do carrossel">
-          <option value="sans">Sem serifa</option>
+        <label class="sr-only" for="stories-typography">Tipografia do carrossel</label>
+        <select id="stories-typography" class="typeface-select" aria-label="Tipografia do carrossel">
           <option value="advercase">Advercase</option>
         </select>
         <div class="ratio-segmented" role="group" aria-label="Proporção da edição e exportação">
-          <button type="button" data-notes-ratio="4:5" title="1080 × 1350 pixels">4:5 <small>1080 × 1350</small></button>
-          <button type="button" data-notes-ratio="3:4" title="1080 × 1440 pixels">3:4 <small>1080 × 1440</small></button>
+          <button type="button" data-stories-ratio="4:5" title="1080 × 1350 pixels">4:5 <small>1080 × 1350</small></button>
+          <button type="button" data-stories-ratio="3:4" title="1080 × 1440 pixels">3:4 <small>1080 × 1440</small></button>
         </div>
       </div>
     </section>
     <section class="inspector-section">
-      <span class="inspector-title">Fundo de todos os slides</span>
+      <span class="inspector-title">Fundo sem foto</span>
       <div id="global-background-palette" class="background-palette" role="group" aria-label="Cor padrão dos slides">
         <button class="background-swatch" type="button" data-background-color="#000000" style="--swatch-color:#000000" aria-label="Preto"></button>
-        <button class="background-swatch" type="button" data-background-color="#fafaf7" style="--swatch-color:#fafaf7" aria-label="Branco suave"></button>
+        <button class="background-swatch" type="button" data-background-color="#ffffff" style="--swatch-color:#ffffff" aria-label="Branco"></button>
         <button class="background-swatch" type="button" data-background-color="#cc0001" style="--swatch-color:#cc0001" aria-label="Vermelho"></button>
       </div>
-      <p class="background-help">Nos slides à esquerda, escolha uma cor para sobrescrever apenas aquele slide. Clique novamente na cor individual ativa para voltar ao padrão.</p>
+      <p class="background-help">A foto preenche o canvas. Estas cores aparecem apenas quando o slide ainda não tem imagem de fundo.</p>
     </section>
     <section class="inspector-section">
-      <span class="inspector-title">Imagem do slide ativo</span>
+      <span class="inspector-title">Foto de fundo do slide ativo</span>
       <div class="inspector-stack">
-        <button id="btn-add-inline" class="shell-button quiet" type="button">Adicionar imagem</button>
-        <button id="btn-remove-inline" class="shell-button quiet">Remover imagem</button>
+        <button id="btn-add-inline" class="shell-button quiet" type="button">Adicionar ou colar foto</button>
+        <button id="btn-remove-inline" class="shell-button quiet">Remover foto de fundo</button>
       </div>
     </section>
     <section class="inspector-section">
@@ -994,25 +1033,26 @@
 
 <div id="send-status" class="send-status" style="display:none;"></div>
 
-<div id="notes-image-composer-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="notes-image-composer-title" aria-hidden="true">
+<div id="stories-image-composer-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="stories-image-composer-title" aria-hidden="true">
   <div class="modal-card image-composer-card" tabindex="-1">
-    <h2 id="notes-image-composer-title">Adicionar imagem</h2>
-    <p class="sub">Use uma foto única ou monte duas fotos no mesmo quadro 16:9. A montagem é criada localmente e já entra pronta no slide.</p>
+    <h2 id="stories-image-composer-title">Adicionar imagem</h2>
+    <p class="sub">A imagem cobre todo o canvas. Use uma foto única ou crie uma montagem horizontal ou vertical no formato selecionado.</p>
     <div class="image-composer-mode" role="group" aria-label="Formato da imagem">
-      <button type="button" data-image-composer-mode="single" class="is-active"><strong>Imagem única</strong><small>Usa uma foto como hoje.</small></button>
-      <button type="button" data-image-composer-mode="split"><strong>Duas fotos lado a lado</strong><small>Duas metades verticais preenchendo o quadro.</small></button>
+      <button type="button" data-image-composer-mode="single" class="is-active"><strong>Foto única</strong><small>Preenche o fundo do slide.</small></button>
+      <button type="button" data-image-composer-mode="split"><strong>Lado a lado</strong><small>Uma foto em cada metade vertical.</small></button>
+      <button type="button" data-image-composer-mode="stack"><strong>Uma sobre a outra</strong><small>Foto em cima e foto embaixo.</small></button>
     </div>
     <div class="image-composer-slots">
-      <div class="image-composer-slot" id="notes-image-slot-left" tabindex="0"><img id="notes-image-preview-left" alt="Primeira foto da montagem"><label for="notes-image-file-left">Adicionar primeira foto ou cole aqui<input id="notes-image-file-left" type="file" accept="image/*"></label></div>
-      <div class="image-composer-slot" id="notes-image-slot-right" tabindex="0"><img id="notes-image-preview-right" alt="Segunda foto da montagem"><label for="notes-image-file-right">Adicionar segunda foto ou cole aqui<input id="notes-image-file-right" type="file" accept="image/*"></label></div>
+      <div class="image-composer-slot" id="stories-image-slot-left" tabindex="0"><img id="stories-image-preview-left" alt="Primeira foto da montagem"><label for="stories-image-file-left"><span id="stories-image-slot-left-label">Adicionar primeira foto ou cole aqui</span><input id="stories-image-file-left" type="file" accept="image/*"></label></div>
+      <div class="image-composer-slot" id="stories-image-slot-right" tabindex="0"><img id="stories-image-preview-right" alt="Segunda foto da montagem"><label for="stories-image-file-right"><span id="stories-image-slot-right-label">Adicionar segunda foto ou cole aqui</span><input id="stories-image-file-right" type="file" accept="image/*"></label></div>
     </div>
     <div class="image-composer-tools">
-      <p id="notes-image-composer-help">Escolha a foto que entrará no slide.</p>
-      <button class="btn" id="notes-image-composer-swap" type="button" hidden>Trocar lados</button>
+      <p id="stories-image-composer-help">Escolha a foto que entrará no slide.</p>
+      <button class="btn" id="stories-image-composer-swap" type="button" hidden>Trocar lados</button>
     </div>
     <div class="actions">
-      <button class="btn" id="notes-image-composer-cancel" type="button">Cancelar</button>
-      <button class="btn primary" id="notes-image-composer-apply" type="button" disabled>Usar imagem</button>
+      <button class="btn" id="stories-image-composer-cancel" type="button">Cancelar</button>
+      <button class="btn primary" id="stories-image-composer-apply" type="button" disabled>Usar imagem</button>
     </div>
   </div>
 </div>
@@ -1037,19 +1077,17 @@
 <div id="block-toolbar" class="empty">
   <span class="tb-empty-state">Clique num bloco de texto pra editar</span>
   <div class="tb-controls">
-    <span class="tb-slide-chip" id="tb-slide-tag">slide ?</span>
-
-    <span class="sep"></span>
-
-    <div class="tb-section" title="Alinhamento do bloco">
-      <button data-align="left"   title="Alinhar à esquerda">⬅</button>
-      <button data-align="center" title="Centralizar">●</button>
-      <button data-align="right"  title="Alinhar à direita">➡</button>
+    <div class="tb-section tb-section--header" title="Alinhamento do bloco">
+      <span class="tb-slide-chip" id="tb-slide-tag">slide ?</span>
+      <div class="tb-align-group" aria-label="Alinhamento do texto">
+        <button data-align="left"   title="Alinhar à esquerda" aria-label="Alinhar à esquerda">⬅</button>
+        <button data-align="center" title="Centralizar" aria-label="Centralizar texto">●</button>
+        <button data-align="right"  title="Alinhar à direita" aria-label="Alinhar à direita">➡</button>
+      </div>
     </div>
 
-    <span class="sep"></span>
-
-    <div class="tb-section">
+    <div class="tb-section tb-section--typography">
+      <span class="tb-section-title">Tipografia</span>
       <div class="tb-slider-group" title="Altura entre linhas do bloco">
         <span class="tb-slider-label">Entrelinhas</span>
         <input type="range" id="tb-line-height" min="30" max="200" step="1" aria-label="Altura entre linhas" />
@@ -1065,35 +1103,41 @@
         <input type="range" id="tb-font-size" min="20" max="140" step="1" aria-label="Tamanho da fonte" />
         <span class="tb-slider-val" id="tb-font-size-val">52px</span>
       </div>
-      <button data-action="spacing-reset" title="Restaurar tamanho e espaçamento do texto">↺</button>
+      <button class="tb-reset" data-action="spacing-reset" title="Restaurar tamanho e espaçamento do texto">↺ Restaurar tipografia</button>
     </div>
 
-    <span class="sep"></span>
-
-    <div class="tb-section">
+    <div class="tb-section tb-section--appearance">
+      <span class="tb-section-title">Foto e cartela</span>
       <div class="tb-slider-group" title="Escurecer a foto de fundo">
         <span class="tb-slider-label">Escurecer foto</span>
-        <input type="range" id="tb-fade" min="0" max="2" step="0.05" aria-label="Intensidade do filtro" />
-        <span class="tb-slider-val" id="tb-fade-val">100%</span>
+        <input type="range" id="tb-fade" min="0" max="1" step="0.01" aria-label="Escurecimento da foto de fundo" />
+        <span class="tb-slider-val" id="tb-fade-val">48%</span>
       </div>
-      <button data-action="fade-reset" title="Restaurar fade 100%">↺</button>
-      <span class="sub-sep"></span>
+      <button class="tb-reset" data-action="fade-reset" title="Restaurar escurecimento padrão">↺ Restaurar foto</button>
+      <div class="tb-choice-group" title="Fundo atrás do bloco de texto">
+        <span class="tb-choice-label">Cartela do texto</span>
+        <div class="tb-card-choices" role="group" aria-label="Escolha a cartela do texto">
+          <button data-card="none" title="Texto sem cartela">Sem fundo</button>
+          <button data-card="light" title="Cartela clara com texto preto">Clara</button>
+          <button data-card="dark" title="Cartela preta com texto branco">Preta</button>
+        </div>
+      </div>
       <div class="tb-slider-group" title="Espaço vertical entre blocos do slide">
         <span class="tb-slider-label">Espaço entre blocos</span>
         <input type="range" id="tb-gap" min="0" max="80" step="1" aria-label="Espaço entre blocos" />
         <span class="tb-slider-val" id="tb-gap-val">36px</span>
       </div>
-      <button data-action="gap-reset" title="Restaurar gap padrão (36px)">↺</button>
+      <button class="tb-reset" data-action="gap-reset" title="Restaurar gap padrão (36px)">↺ Restaurar espaço</button>
     </div>
 
-    <span class="sep"></span>
-
-    <div class="tb-section" title="Ações no bloco">
-      <button data-action="up"     title="Mover pra cima (Cmd+Shift+↑)">↑</button>
-      <button data-action="down"   title="Mover pra baixo (Cmd+Shift+↓)">↓</button>
-      <span class="sub-sep"></span>
-      <button data-action="add"    title="Adicionar bloco abaixo">+</button>
-      <button data-action="delete" class="danger" title="Apagar bloco">✕</button>
+    <div class="tb-section tb-section--actions" title="Ações no bloco">
+      <span class="tb-section-title">Organizar bloco</span>
+      <div class="tb-block-actions">
+        <button data-action="up" title="Mover pra cima (Cmd+Shift+↑)"><span class="tb-button-icon">↑</span><span class="tb-button-label">Subir</span></button>
+        <button data-action="down" title="Mover pra baixo (Cmd+Shift+↓)"><span class="tb-button-icon">↓</span><span class="tb-button-label">Descer</span></button>
+        <button data-action="add" title="Adicionar bloco abaixo"><span class="tb-button-icon">+</span><span class="tb-button-label">Novo bloco</span></button>
+        <button data-action="delete" class="danger" title="Apagar bloco"><span class="tb-button-icon">✕</span><span class="tb-button-label">Excluir</span></button>
+      </div>
     </div>
   </div>
 </div>
@@ -1117,11 +1161,11 @@
 
   // ==== STATE ====
   let doc = null;
-  let initialNotasDocument = null;
+  let initialStoriesDocument = null;
   let activeStageIndex = null;
   let selectedBlockId = null;
   let selectedSlideIdx = null;
-  const NOTES_RATIO_HEIGHTS = { '4:5': 1350, '3:4': 1440 };
+  const STORIES_RATIO_HEIGHTS = { '4:5': 1350, '3:4': 1440 };
 
   // ==== HELPERS ====
   function uid() { return 'b_' + Math.random().toString(36).slice(2, 8); }
@@ -1147,7 +1191,7 @@
   // ==== UNDO GLOBAL DO DOCUMENTO ====
   const UNDO_LIMIT = 50;
   const UNDO_STORAGE_KEY = DOC_KEY + '-undo-v1';
-  let notesUndoController = null;
+  let storiesUndoController = null;
 
   function createUndoController(options) {
     let undoStack = [];
@@ -1226,7 +1270,7 @@
     return { arm, record, checkpoint, undo, resetBaseline };
   }
 
-  function captureNotasSnapshot() {
+  function captureStoriesSnapshot() {
     const snapshotDoc = JSON.parse(JSON.stringify(doc || { version: 6, slides: [] }));
     document.querySelectorAll('[data-block-id]').forEach((blockEl) => {
       const slideIndex = getStageIndex(blockEl);
@@ -1243,7 +1287,7 @@
     };
   }
 
-  function restoreNotasSnapshot(snapshot) {
+  function restoreStoriesSnapshot(snapshot) {
     if (!snapshot || !snapshot.document || !Array.isArray(snapshot.document.slides)) return;
     const structureChanged = doc.slides.length !== snapshot.document.slides.length;
     doc = JSON.parse(JSON.stringify(snapshot.document));
@@ -1266,7 +1310,7 @@
       typeof activeStageIndex === 'number' ? activeStageIndex : 0,
       Math.max(0, doc.slides.length - 1)
     );
-    setNotasTypography(snapshot.typography || 'sans', { persist: false, record: false });
+    setStoriesTypography('advercase', { persist: false, record: false });
     const captionEl = document.getElementById('ig-caption');
     if (captionEl) captionEl.value = snapshot.caption || '';
     renderAll();
@@ -1274,26 +1318,26 @@
   }
 
   function recordEditorMutation(reason) {
-    if (notesUndoController) notesUndoController.record(reason);
+    if (storiesUndoController) storiesUndoController.record(reason);
   }
 
   function pushCurrentUndoSnapshot() {
-    if (notesUndoController) notesUndoController.checkpoint();
+    if (storiesUndoController) storiesUndoController.checkpoint();
   }
 
   function undoEditorAction() {
-    if (!notesUndoController || !notesUndoController.undo()) return false;
+    if (!storiesUndoController || !storiesUndoController.undo()) return false;
     setUndoFeedback('Ação desfeita');
     return true;
   }
 
   function armEditorUndo() {
-    notesUndoController = createUndoController({
+    storiesUndoController = createUndoController({
       storageKey: UNDO_STORAGE_KEY,
-      captureSnapshot: captureNotasSnapshot,
-      restoreSnapshot: restoreNotasSnapshot
+      captureSnapshot: captureStoriesSnapshot,
+      restoreSnapshot: restoreStoriesSnapshot
     });
-    notesUndoController.arm();
+    storiesUndoController.arm();
   }
 
   function setUndoFeedback(message) {
@@ -1311,6 +1355,8 @@
     let cls = block.kind;
     if (block.variant && block.variant !== 'default') cls += ' ' + block.variant;
     if (block.align) cls += ' align-' + block.align;
+    if (block.card === 'light') cls += ' editorial-card';
+    if (block.card === 'dark') cls += ' editorial-card-dark';
     return cls;
   }
 
@@ -1399,32 +1445,20 @@
     applySpacingToNode(node, block, 1);
   }
 
-  // ==== FADE PER-SLIDE (intensidade do filtro de legibilidade) ====
-  // slide.fade é multiplicador 0..2 (default 1). Afeta o `.slide .photo::before`
-  // via CSS var --fade. Canvas multiplica os alphas dos rgba no drawLegibilityFilter.
+  // ==== ESCURECIMENTO PER-SLIDE DA FOTO DE FUNDO ====
+  // Valor 0..1: zero preserva a foto e 1 cria uma camada preta plena.
   function getEffectiveFade(slide) {
-    return (slide && slide.fade != null) ? slide.fade : 1;
+    return (slide && slide.fade != null) ? slide.fade : 0.48;
   }
   function applyFadeToSlide(slideEl, fade) {
-    if (fade == null || fade === 1) {
-      slideEl.style.removeProperty('--fade');
-      slideEl.style.removeProperty('--fade-boost');
-      return;
-    }
-    // Canal 1: opacity do ::before (gradient principal). CSS clampa em 1.0.
-    slideEl.style.setProperty('--fade', String(Math.min(1, fade)));
-    // Canal 2: camada preta extra no ::after, proporcional ao excesso acima de 1.0.
-    if (fade > 1) {
-      const boost = Math.min(1, fade - 1);
-      slideEl.style.setProperty('--fade-boost', String(boost));
-    } else {
-      slideEl.style.removeProperty('--fade-boost');
-    }
+    const opacity = Math.max(0, Math.min(1, Number(fade)));
+    slideEl.style.setProperty('--fade', String(opacity));
+    slideEl.style.removeProperty('--fade-boost');
   }
 
   // ==== GAP PER-SLIDE (espaço vertical entre blocos do body-zone) ====
   function getEffectiveGap(slide) {
-    // Notas: gap default 36px (mais respiro entre blocos com PT Serif 52-64px).
+    // Stories: gap default 36px (mais respiro entre blocos com PT Serif 52-64px).
     return (slide && slide.gap != null) ? slide.gap : 36;
   }
   function applyGapToSlide(slideEl, gap) {
@@ -1467,7 +1501,9 @@
         if (cls.includes('align-center')) align = 'center';
         else if (cls.includes('align-right')) align = 'right';
         else if (cls.includes('align-left')) align = 'left';
-        const block = { id: uid(), kind, variant, html, align };
+        // A cartela clara é a assinatura visual deste template. Cada bloco
+        // pode depois virar texto solto ou cartela preta pelo painel.
+        const block = { id: uid(), kind, variant, html, align, card: 'light' };
         // Defaults de diagramação declarados no HTML (override do variant)
         const lhAttr = el.getAttribute('data-line-height');
         const lsAttr = el.getAttribute('data-letter-spacing');
@@ -1487,22 +1523,23 @@
         image: legacyImg[sIdx] || null,
         inlineImage: legacyInline[sIdx] || null,
       };
-      const fadeAttr = slideEl.getAttribute('data-fade');
-      if (fadeAttr) slideData.fade = parseFloat(fadeAttr);
+      // O Stories original trazia fade=1 nos elementos-base. Aqui o padrão é
+      // 48%, suficiente para criar clima sem apagar completamente a foto.
+      slideData.fade = 0.48;
       const gapAttr = slideEl.getAttribute('data-gap');
       if (gapAttr) slideData.gap = parseFloat(gapAttr);
       slides.push(slideData);
     });
 
-    return { version: 13, typography: 'sans', ratio: '4:5', backgroundColor: '#fafaf7', slides };
+    return { version: 14, typography: 'advercase', ratio: '4:5', backgroundColor: '#000000', slides };
   }
 
-  function createBlankNotasDocument() {
-    const source = initialNotasDocument || buildDocFromDOM({ useLegacy: false });
+  function createBlankStoriesDocument() {
+    const source = initialStoriesDocument || buildDocFromDOM({ useLegacy: false });
     const blank = JSON.parse(JSON.stringify(source));
-    blank.version = 13;
-    blank.typography = doc && doc.typography === 'advercase' ? 'advercase' : 'sans';
-    blank.ratio = normalizeNotasRatio(doc && doc.ratio);
+    blank.version = 14;
+    blank.typography = 'advercase';
+    blank.ratio = normalizeStoriesRatio(doc && doc.ratio);
     blank.backgroundColor = getGlobalBackgroundColor();
     blank.slides.forEach((slide, slideIndex) => {
       slide.id = 's' + (slideIndex + 1);
@@ -1519,7 +1556,7 @@
     const confirmation = 'Você quer reiniciar esse template e começar outro do zero? Se sim, certifique-se de ter exportado os slides antes';
     if (!confirm(confirmation)) return;
     pushCurrentUndoSnapshot();
-    doc = createBlankNotasDocument();
+    doc = createBlankStoriesDocument();
     safeSet(DOC_KEY, doc);
     safeSet(DOC_KEY + '-caption', '');
     localStorage.removeItem(LEGACY_TEXT_KEY);
@@ -1568,7 +1605,7 @@
     }
     if (d.version < 9) d.version = 9;
     if (d.version < 10) {
-      d.backgroundColor = '#fafaf7';
+      d.backgroundColor = '#000000';
       d.slides.forEach(s => { delete s.backgroundColor; });
       d.version = 10;
     }
@@ -1600,12 +1637,16 @@
       d.ratio = '4:5';
       d.version = 13;
     }
+    if (d.version < 14) {
+      d.slides.forEach(s => s.blocks.forEach(b => { if (!b.card) b.card = 'light'; }));
+      d.version = 14;
+    }
     d.backgroundColor = normalizeBackgroundColor(d.backgroundColor);
-    d.ratio = normalizeNotasRatio(d.ratio);
+    d.ratio = normalizeStoriesRatio(d.ratio);
     d.slides.forEach(s => {
       if (s.backgroundColor != null) s.backgroundColor = normalizeBackgroundColor(s.backgroundColor);
     });
-    d.typography = d.typography === 'advercase' ? 'advercase' : 'sans';
+    d.typography = 'advercase';
     return d;
   }
 
@@ -1615,12 +1656,7 @@
       // Garante campo align em blocos antigos
       saved.slides.forEach(s => {
         s.blocks.forEach(b => { if (!b.align) b.align = s.isCapa ? 'center' : 'left'; });
-        // Migração v4→v5: full-bleed image (slideData.image) descontinuado.
-        // Se slide tem image mas não tem inlineImage, migra como inline-photo.
-        if (s.image && s.image.dataURL && !s.inlineImage) {
-          s.inlineImage = { dataURL: s.image.dataURL };
-          delete s.image;
-        }
+        // Neste template, `image` é intencionalmente a foto full-bleed.
       });
       doc = migrateDoc(saved);
       // A ordem visual é derivada exclusivamente do documento. Reconstruir
@@ -1630,7 +1666,7 @@
       // Só renderiza após todos os stages do documento existirem. Antes, um
       // slide recém-criado podia elevar doc.slides para 11 enquanto o DOM
       // ainda tinha os 10 estágios do HTML de origem.
-      setNotasTypography(doc.typography || 'sans', { persist: false, record: false });
+      setStoriesTypography('advercase', { persist: false, record: false });
       try {
         const pending = Number(sessionStorage.getItem(DOC_KEY + '-pending-active-slide'));
         sessionStorage.removeItem(DOC_KEY + '-pending-active-slide');
@@ -1642,8 +1678,8 @@
       return;
     }
     doc = buildDocFromDOM();
-    doc.version = 13;
-    setNotasTypography('sans', { persist: false, record: false });
+    doc.version = 14;
+    setStoriesTypography('advercase', { persist: false, record: false });
     saveDoc();
   }
 
@@ -1691,7 +1727,7 @@
       isCTA: false,
       footerVariant: 'default',
       blocks: [
-        { id: uid(), kind: 'body', variant: 'lede', html: 'adicione aqui a sua copy', align: 'left' }
+        { id: uid(), kind: 'body', variant: 'lede', html: 'adicione aqui a sua copy', align: 'center', card: 'light' }
       ],
       bzTransform: { tx: 0, ty: 0, scale: 1 },
       image: null,
@@ -1725,14 +1761,14 @@
     location.reload();
   }
 
-  // ==== TIPOGRAFIA E FUNDOS (Notas) ====
+  // ==== TIPOGRAFIA E FUNDOS (Stories) ====
   const SLIDE_BACKGROUND_COLORS = [
     { value: '#000000', label: 'Preto' },
-    { value: '#fafaf7', label: 'Branco suave' },
+    { value: '#ffffff', label: 'Branco' },
     { value: '#cc0001', label: 'Vermelho' },
   ];
-  const DEFAULT_SLIDE_BACKGROUND = '#fafaf7';
-  const NOTES_TYPEFACES = {
+  const DEFAULT_SLIDE_BACKGROUND = '#000000';
+  const STORIES_TYPEFACES = {
     sans: {
       cssFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif',
       canvasFamily: '"SF Pro Display", "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif',
@@ -1742,26 +1778,26 @@
       canvasFamily: 'Advercase, Georgia, "Times New Roman", serif',
     },
   };
-  function getNotasTypeface() {
-    const typography = doc && NOTES_TYPEFACES[doc.typography] ? doc.typography : 'sans';
-    return NOTES_TYPEFACES[typography];
+  function getStoriesTypeface() {
+    const typography = doc && STORIES_TYPEFACES[doc.typography] ? doc.typography : 'advercase';
+    return STORIES_TYPEFACES[typography];
   }
-  function normalizeNotasRatio(ratio) {
-    return NOTES_RATIO_HEIGHTS[ratio] ? ratio : '4:5';
+  function normalizeStoriesRatio(ratio) {
+    return STORIES_RATIO_HEIGHTS[ratio] ? ratio : '4:5';
   }
-  function getNotasHeight() {
-    return NOTES_RATIO_HEIGHTS[normalizeNotasRatio(doc && doc.ratio)];
+  function getStoriesHeight() {
+    return STORIES_RATIO_HEIGHTS[normalizeStoriesRatio(doc && doc.ratio)];
   }
-  function applyNotasRatio(options = {}) {
+  function applyStoriesRatio(options = {}) {
     const { render = true } = options;
-    const ratio = normalizeNotasRatio(doc && doc.ratio);
-    const height = NOTES_RATIO_HEIGHTS[ratio];
+    const ratio = normalizeStoriesRatio(doc && doc.ratio);
+    const height = STORIES_RATIO_HEIGHTS[ratio];
     SLIDE_H = height;
-    document.documentElement.style.setProperty('--notes-w', SLIDE_W + 'px');
-    document.documentElement.style.setProperty('--notes-h', height + 'px');
-    document.documentElement.style.setProperty('--notes-aspect', SLIDE_W + ' / ' + height);
-    document.querySelectorAll('[data-notes-ratio]').forEach(button => {
-      const active = button.dataset.notesRatio === ratio;
+    document.documentElement.style.setProperty('--stories-w', SLIDE_W + 'px');
+    document.documentElement.style.setProperty('--stories-h', height + 'px');
+    document.documentElement.style.setProperty('--stories-aspect', SLIDE_W + ' / ' + height);
+    document.querySelectorAll('[data-stories-ratio]').forEach(button => {
+      const active = button.dataset.storiesRatio === ratio;
       button.classList.toggle('is-active', active);
       button.setAttribute('aria-pressed', String(active));
     });
@@ -1769,21 +1805,21 @@
     updateSlideScale();
     if (render && typeof renderAll === 'function') renderAll();
   }
-  function setNotasRatio(nextRatio) {
-    const ratio = normalizeNotasRatio(nextRatio);
-    if (!doc || ratio === normalizeNotasRatio(doc.ratio)) return;
+  function setStoriesRatio(nextRatio) {
+    const ratio = normalizeStoriesRatio(nextRatio);
+    if (!doc || ratio === normalizeStoriesRatio(doc.ratio)) return;
     doc.ratio = ratio;
     safeSet(DOC_KEY, doc);
-    applyNotasRatio();
+    applyStoriesRatio();
     recordEditorMutation('ratio');
   }
-  function setNotasTypography(nextTypography, options = {}) {
-    const typography = NOTES_TYPEFACES[nextTypography] ? nextTypography : 'sans';
+  function setStoriesTypography(nextTypography, options = {}) {
+    const typography = 'advercase';
     const { persist = true, record = true } = options;
     if (!doc) return;
     doc.typography = typography;
-    document.documentElement.style.setProperty('--notes-content-font', getNotasTypeface().cssFamily);
-    const selector = document.getElementById('notes-typography');
+    document.documentElement.style.setProperty('--stories-content-font', getStoriesTypeface().cssFamily);
+    const selector = document.getElementById('stories-typography');
     if (selector) selector.value = typography;
     if (persist) safeSet(DOC_KEY, doc);
     if (record) recordEditorMutation('typography');
@@ -1804,10 +1840,10 @@
       : getGlobalBackgroundColor();
   }
   function isLightSlideBackground(slideData) {
-    return getSlideBackgroundColor(slideData) === '#fafaf7';
+    return getSlideBackgroundColor(slideData) === '#ffffff';
   }
   function getSlideTextColor(slideData) {
-    return isLightSlideBackground(slideData) ? '#2A2A2C' : '#FFFFFF';
+    return isLightSlideBackground(slideData) ? '#0B0B0B' : '#FFFFFF';
   }
   function applySlideBackground(slideEl, slideData) {
     if (!slideEl) return;
@@ -1961,24 +1997,75 @@
   function getPhotoImg(slideEl) {
     const photo = slideEl.querySelector('.photo');
     if (!photo) return null;
-    let img = photo.querySelector('.photo-img');
+    let img = photo.querySelector('.photo-img.single-photo, .photo-img:not(.composition-photo)');
     if (!img) {
       img = document.createElement('img');
-      img.className = 'photo-img';
+      img.className = 'photo-img single-photo';
       photo.insertBefore(img, photo.firstChild);
+    }
+    img.classList.add('single-photo');
+    return img;
+  }
+  function isStoriesPhotoComposition(payload) {
+    return !!(payload && payload.kind === 'composition' && payload.mode && payload.photos && payload.photos.first && payload.photos.second);
+  }
+  function getCompositionPhotoImg(photo, slot) {
+    let frame = photo.querySelector('.photo-frame.composition-frame-' + slot);
+    if (!frame) {
+      frame = document.createElement('div');
+      frame.className = 'photo-frame composition-frame composition-frame-' + slot;
+      photo.appendChild(frame);
+    }
+    let img = frame.querySelector('.photo-img.composition-' + slot);
+    if (!img) {
+      img = document.createElement('img');
+      img.className = 'photo-img composition-photo composition-' + slot;
+      img.dataset.compositionSlot = slot;
+      frame.appendChild(img);
     }
     return img;
   }
+  function clearCompositionPhotoImages(photo) {
+    // Compatibilidade com composições renderizadas antes das molduras: remove
+    // tanto as imagens antigas soltas quanto as novas molduras completas.
+    photo.querySelectorAll('.photo-frame.composition-frame').forEach(frame => frame.remove());
+    photo.querySelectorAll('.photo-img.composition-photo').forEach(img => img.remove());
+    photo.classList.remove('composition-split', 'composition-stack');
+  }
+  function applyCompositionToSlide(slideEl, payload) {
+    const photo = slideEl.querySelector('.photo');
+    if (!photo || !isStoriesPhotoComposition(payload)) return;
+    const single = getPhotoImg(slideEl);
+    single.classList.remove('has-src');
+    single.removeAttribute('src');
+    clearCompositionPhotoImages(photo);
+    photo.classList.add('composition-' + payload.mode);
+    ['first', 'second'].forEach(slot => {
+      const source = payload.photos[slot];
+      const img = getCompositionPhotoImg(photo, slot);
+      img.src = source.dataURL;
+      img.classList.add('has-src');
+      applyTransformToImg(img, source.tx || 0, source.ty || 0, source.scale || 1);
+    });
+  }
   function applyImageToSlide(slideEl, payload) {
+    if (isStoriesPhotoComposition(payload)) {
+      applyCompositionToSlide(slideEl, payload);
+      return;
+    }
     const img = getPhotoImg(slideEl);
     if (!img) return;
     if (!payload || !payload.dataURL) return;
+    const photo = slideEl.querySelector('.photo');
+    if (photo) clearCompositionPhotoImages(photo);
     img.src = payload.dataURL;
     img.classList.add('has-src');
     applyTransformToImg(img, payload.tx || 0, payload.ty || 0, payload.scale || 1);
   }
   function clearImageFromSlide(slideEl) {
-    const img = slideEl.querySelector('.photo-img');
+    const photo = slideEl.querySelector('.photo');
+    if (photo) clearCompositionPhotoImages(photo);
+    const img = slideEl.querySelector('.photo-img.single-photo');
     if (img) {
       img.classList.remove('has-src');
       img.removeAttribute('src');
@@ -2311,7 +2398,10 @@
     fitBodyZoneContent(bodyZone);
     applyTransformToBz(bodyZone, slideData.bzTransform.tx || 0, slideData.bzTransform.ty || 0, slideData.bzTransform.scale || 1);
 
-    if (slideData.image && slideData.image.dataURL) {
+    // Composições guardam as duas fontes em `photos`, não em `dataURL`.
+    // Mantê-las neste ramo evita que uma nova renderização limpe a foto e
+    // deixe o slide com o fundo preto.
+    if (slideData.image && (slideData.image.dataURL || isStoriesPhotoComposition(slideData.image))) {
       applyImageToSlide(slideEl, slideData.image);
     } else {
       clearImageFromSlide(slideEl);
@@ -2337,9 +2427,9 @@
     });
   }
 
-  let notesRailDragIndex = null;
+  let storiesRailDragIndex = null;
 
-  function moveNotasSlide(fromIndex, targetIndex, placeAfter) {
+  function moveStoriesSlide(fromIndex, targetIndex, placeAfter) {
     flushDOMToDoc();
     if (!Number.isInteger(fromIndex) || !Number.isInteger(targetIndex)) return;
     let insertAt = targetIndex + (placeAfter ? 1 : 0);
@@ -2389,19 +2479,19 @@
         if (wrap) wrap.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
       });
       item.addEventListener('dragstart', (event) => {
-        notesRailDragIndex = index;
+        storiesRailDragIndex = index;
         control.classList.add('is-dragging');
         event.dataTransfer.effectAllowed = 'move';
         event.dataTransfer.setData('text/plain', String(index));
       });
       item.addEventListener('dragend', () => {
-        notesRailDragIndex = null;
+        storiesRailDragIndex = null;
         document.querySelectorAll('.rail-slide-control').forEach(node => {
           node.classList.remove('is-dragging', 'drop-before', 'drop-after');
         });
       });
       control.addEventListener('dragover', (event) => {
-        if (notesRailDragIndex === null || notesRailDragIndex === index) return;
+        if (storiesRailDragIndex === null || storiesRailDragIndex === index) return;
         event.preventDefault();
         const rect = control.getBoundingClientRect();
         const placeAfter = event.clientY > rect.top + rect.height / 2;
@@ -2413,10 +2503,10 @@
         if (!control.contains(event.relatedTarget)) control.classList.remove('drop-before', 'drop-after');
       });
       control.addEventListener('drop', (event) => {
-        if (notesRailDragIndex === null) return;
+        if (storiesRailDragIndex === null) return;
         event.preventDefault();
         const rect = control.getBoundingClientRect();
-        moveNotasSlide(notesRailDragIndex, index, event.clientY > rect.top + rect.height / 2);
+        moveStoriesSlide(storiesRailDragIndex, index, event.clientY > rect.top + rect.height / 2);
       });
       control.appendChild(item);
 
@@ -2458,7 +2548,7 @@
     const count = doc && Array.isArray(doc.slides) ? doc.slides.length : 0;
     document.querySelectorAll('.rail-count').forEach(node => { node.textContent = count + ' telas'; });
     document.querySelectorAll('.doc-meta').forEach(node => {
-      node.textContent = count + ' slides · 1080×' + getNotasHeight() + ' · @omatheusdelucca';
+      node.textContent = count + ' slides · 1080×' + getStoriesHeight() + ' · @omatheusdelucca';
     });
   }
 
@@ -2524,6 +2614,12 @@
       btn.classList.toggle('active', active);
       btn.setAttribute('aria-pressed', String(active));
     });
+    const card = ctx.block.card || 'light';
+    blockToolbar.querySelectorAll('[data-card]').forEach(btn => {
+      const active = btn.dataset.card === card;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-pressed', String(active));
+    });
     // Ajuste fino: tamanho, altura entre linhas e espaçamento entre caracteres.
     const eff = getEffectiveSpacing(ctx.block);
     const fsInput = document.getElementById('tb-font-size');
@@ -2555,7 +2651,7 @@
       const fade = getEffectiveFade(ctx.slideData);
       fadeInput.value = fade;
       fadeVal.textContent = Math.round(fade * 100) + '%';
-      fadeVal.classList.toggle('is-override', fade !== 1);
+      fadeVal.classList.toggle('is-override', fade !== 0.48);
     }
     // Gap slider (per-slide)
     const gapInput = document.getElementById('tb-gap');
@@ -2575,6 +2671,19 @@
       const blockEl = getSelectedBlockEl();
       if (!blockEl) return;
       setBlockAlign(blockEl, btn.dataset.align);
+    });
+  });
+
+  blockToolbar.querySelectorAll('[data-card]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const ctx = getBlockContext(getSelectedBlockEl());
+      if (!ctx) return;
+      ctx.block.card = btn.dataset.card;
+      saveDoc();
+      renderSlide(ctx.sIdx);
+      const replacement = document.querySelector(`[data-block-id="${ctx.block.id}"]`);
+      if (replacement) selectBlock(replacement);
     });
   });
 
@@ -2702,7 +2811,7 @@
         const v = parseFloat(e.target.value);
         ctx.slideData.fade = v;
         fadeVal.textContent = Math.round(v * 100) + '%';
-        fadeVal.classList.toggle('is-override', v !== 1);
+        fadeVal.classList.toggle('is-override', v !== 0.48);
         const slideEl = document.querySelectorAll('.stage')[ctx.sIdx].querySelector('.slide');
         applyFadeToSlide(slideEl, v);
         saveDoc();
@@ -2717,7 +2826,7 @@
           if (!ctx) return;
           delete ctx.slideData.fade;
           const slideEl = document.querySelectorAll('.stage')[ctx.sIdx].querySelector('.slide');
-          applyFadeToSlide(slideEl, 1);
+          applyFadeToSlide(slideEl, 0.48);
           saveDoc();
           updateToolbarState();
         });
@@ -3068,9 +3177,9 @@
   });
 
   // ==== IMAGE / BODY-ZONE ====
-  const notesImageComposer = { targetSlide: null, leftDataURL: null, rightDataURL: null, mode: 'single', activeSlot: 'left' };
+  const storiesImageComposer = { targetSlide: null, leftDataURL: null, rightDataURL: null, mode: 'single', activeSlot: 'left' };
 
-  function readNotasImageBlob(blob) {
+  function readStoriesImageBlob(blob) {
     return new Promise((resolve, reject) => {
       if (!blob || !blob.type || !blob.type.startsWith('image/')) {
         reject(new Error('Arquivo não é uma imagem.'));
@@ -3083,48 +3192,21 @@
     });
   }
 
-  function loadNotasComposerImage(dataURL) {
-    return new Promise((resolve, reject) => {
-      const image = new Image();
-      image.onload = () => resolve(image);
-      image.onerror = () => reject(new Error('Não foi possível carregar uma das fotos.'));
-      image.src = dataURL;
-    });
-  }
-
-  function drawNotasCoverImage(context, image, x, y, width, height) {
-    const sourceRatio = image.naturalWidth / image.naturalHeight;
-    const targetRatio = width / height;
-    let sx = 0, sy = 0, sw = image.naturalWidth, sh = image.naturalHeight;
-    if (sourceRatio > targetRatio) {
-      sw = image.naturalHeight * targetRatio;
-      sx = (image.naturalWidth - sw) / 2;
-    } else {
-      sh = image.naturalWidth / targetRatio;
-      sy = (image.naturalHeight - sh) / 2;
-    }
-    context.drawImage(image, sx, sy, sw, sh, x, y, width, height);
-  }
-
-  async function composeNotasSplitImage(leftDataURL, rightDataURL) {
-    const [left, right] = await Promise.all([loadNotasComposerImage(leftDataURL), loadNotasComposerImage(rightDataURL)]);
-    const canvas = document.createElement('canvas');
-    canvas.width = 1600; canvas.height = 900;
-    const context = canvas.getContext('2d');
-    context.imageSmoothingEnabled = true;
-    context.imageSmoothingQuality = 'high';
-    drawNotasCoverImage(context, left, 0, 0, 800, 900);
-    drawNotasCoverImage(context, right, 800, 0, 800, 900);
-    return canvas.toDataURL('image/jpeg', 0.92);
-  }
-
-  function renderNotasImageComposer() {
-    const state = notesImageComposer;
-    const modal = document.getElementById('notes-image-composer-modal');
-    const needsTwo = state.mode === 'split';
+  function renderStoriesImageComposer() {
+    const state = storiesImageComposer;
+    const modal = document.getElementById('stories-image-composer-modal');
+    const needsTwo = state.mode !== 'single';
+    const isStacked = state.mode === 'stack';
+    const firstLabel = isStacked ? 'Adicionar foto de cima ou cole aqui' : 'Adicionar primeira foto ou cole aqui';
+    const secondLabel = isStacked ? 'Adicionar foto de baixo ou cole aqui' : 'Adicionar segunda foto ou cole aqui';
+    document.getElementById('stories-image-slot-left-label').textContent = firstLabel;
+    document.getElementById('stories-image-slot-right-label').textContent = secondLabel;
+    document.getElementById('stories-image-preview-left').alt = isStacked ? 'Foto superior da montagem' : 'Primeira foto da montagem';
+    document.getElementById('stories-image-preview-right').alt = isStacked ? 'Foto inferior da montagem' : 'Segunda foto da montagem';
+    document.querySelector('.image-composer-slots').classList.toggle('is-stacked', isStacked && needsTwo);
     [['left', state.leftDataURL], ['right', state.rightDataURL]].forEach(([side, dataURL]) => {
-      const slot = document.getElementById('notes-image-slot-' + side);
-      const preview = document.getElementById('notes-image-preview-' + side);
+      const slot = document.getElementById('stories-image-slot-' + side);
+      const preview = document.getElementById('stories-image-preview-' + side);
       if (!slot || !preview) return;
       slot.classList.toggle('has-image', !!dataURL);
       if (dataURL) preview.src = dataURL;
@@ -3132,90 +3214,93 @@
       if (side === 'right') slot.hidden = !needsTwo;
     });
     modal.querySelectorAll('[data-image-composer-mode]').forEach(button => button.classList.toggle('is-active', button.dataset.imageComposerMode === state.mode));
-    document.getElementById('notes-image-composer-swap').hidden = !needsTwo || !state.leftDataURL || !state.rightDataURL;
-    document.getElementById('notes-image-composer-help').textContent = needsTwo
-      ? (!state.leftDataURL ? 'Adicione ou cole a primeira foto. Depois, faça o mesmo na segunda metade.' : !state.rightDataURL ? 'Agora adicione ou cole a segunda foto. Ctrl+V entra diretamente neste quadro.' : 'Cada foto ocupa metade do quadro, com recorte central automático.')
+    const swapButton = document.getElementById('stories-image-composer-swap');
+    swapButton.hidden = !needsTwo || !state.leftDataURL || !state.rightDataURL;
+    swapButton.textContent = isStacked ? 'Trocar posições' : 'Trocar lados';
+    document.getElementById('stories-image-composer-help').textContent = needsTwo
+      ? (!state.leftDataURL ? (isStacked ? 'Adicione ou cole a foto de cima. Depois, faça o mesmo na metade inferior.' : 'Adicione ou cole a primeira foto. Depois, faça o mesmo na metade da direita.') : !state.rightDataURL ? (isStacked ? 'Agora adicione ou cole a foto de baixo. Ctrl+V entra diretamente neste quadro.' : 'Agora adicione ou cole a segunda foto. Ctrl+V entra diretamente neste quadro.') : (isStacked ? 'Cada foto ocupa metade vertical do canvas, com recorte central automático.' : 'Cada foto ocupa metade lateral do canvas, com recorte central automático.'))
       : 'Adicione uma foto ou pressione Ctrl+V para colar a imagem que entrará no slide.';
-    document.getElementById('notes-image-composer-apply').disabled = !state.leftDataURL || (needsTwo && !state.rightDataURL);
+    document.getElementById('stories-image-composer-apply').disabled = !state.leftDataURL || (needsTwo && !state.rightDataURL);
   }
 
-  function closeNotasImageComposer() {
-    const modal = document.getElementById('notes-image-composer-modal');
+  function closeStoriesImageComposer() {
+    const modal = document.getElementById('stories-image-composer-modal');
     modal.classList.remove('visible');
     modal.setAttribute('aria-hidden', 'true');
-    notesImageComposer.targetSlide = null;
-    notesImageComposer.leftDataURL = null;
-    notesImageComposer.rightDataURL = null;
-    notesImageComposer.mode = 'single';
-    notesImageComposer.activeSlot = 'left';
+    storiesImageComposer.targetSlide = null;
+    storiesImageComposer.leftDataURL = null;
+    storiesImageComposer.rightDataURL = null;
+    storiesImageComposer.mode = 'single';
+    storiesImageComposer.activeSlot = 'left';
   }
 
-  async function openNotasImageComposer(stageIndex, initialBlob = null) {
+  async function openStoriesImageComposer(stageIndex, initialBlob = null) {
     const targetSlide = doc.slides[stageIndex];
     if (!targetSlide) return;
-    notesImageComposer.targetSlide = targetSlide;
-    notesImageComposer.leftDataURL = null;
-    notesImageComposer.rightDataURL = null;
-    notesImageComposer.mode = 'single';
-    notesImageComposer.activeSlot = 'left';
-    const modal = document.getElementById('notes-image-composer-modal');
+    storiesImageComposer.targetSlide = targetSlide;
+    storiesImageComposer.leftDataURL = null;
+    storiesImageComposer.rightDataURL = null;
+    storiesImageComposer.mode = 'single';
+    storiesImageComposer.activeSlot = 'left';
+    const modal = document.getElementById('stories-image-composer-modal');
     modal.classList.add('visible');
     modal.setAttribute('aria-hidden', 'false');
-    renderNotasImageComposer();
+    renderStoriesImageComposer();
     modal.querySelector('.modal-card').focus();
     if (!initialBlob) return;
     try {
-      notesImageComposer.leftDataURL = await readNotasImageBlob(initialBlob);
-      if (notesImageComposer.targetSlide !== targetSlide) return;
-      renderNotasImageComposer();
+      storiesImageComposer.leftDataURL = await readStoriesImageBlob(initialBlob);
+      if (storiesImageComposer.targetSlide !== targetSlide) return;
+      renderStoriesImageComposer();
     } catch (error) {
       setSendStatus('✗ ' + (error.message || error), 'error');
     }
   }
 
-  async function setNotasImageComposerSlot(side, file) {
+  async function setStoriesImageComposerSlot(side, file) {
     try {
-      notesImageComposer[side + 'DataURL'] = await readNotasImageBlob(file);
-      renderNotasImageComposer();
+      storiesImageComposer[side + 'DataURL'] = await readStoriesImageBlob(file);
+      renderStoriesImageComposer();
     } catch (error) {
       setSendStatus('✗ ' + (error.message || error), 'error');
     }
   }
 
-  async function applyNotasImageComposer() {
-    const { targetSlide, leftDataURL, rightDataURL, mode } = notesImageComposer;
+  async function applyStoriesImageComposer() {
+    const { targetSlide, leftDataURL, rightDataURL, mode } = storiesImageComposer;
     const stageIndex = doc.slides.indexOf(targetSlide);
-    if (stageIndex < 0 || !leftDataURL || (mode === 'split' && !rightDataURL)) return;
-    const applyButton = document.getElementById('notes-image-composer-apply');
+    if (stageIndex < 0 || !leftDataURL || (mode !== 'single' && !rightDataURL)) return;
+    const applyButton = document.getElementById('stories-image-composer-apply');
     applyButton.disabled = true;
     applyButton.textContent = 'Preparando…';
     try {
-      const dataURL = mode === 'split' ? await composeNotasSplitImage(leftDataURL, rightDataURL) : leftDataURL;
       if (doc.slides.indexOf(targetSlide) !== stageIndex) return;
-      const committed = await commitInlineImage(stageIndex, dataURL);
+      const committed = mode === 'single'
+        ? await commitFullBleedImage(stageIndex, leftDataURL)
+        : await commitFullBleedComposition(stageIndex, mode, leftDataURL, rightDataURL);
       if (!committed) throw new Error('O slide mudou antes que a imagem fosse aplicada. Tente novamente.');
-      closeNotasImageComposer();
+      closeStoriesImageComposer();
     } catch (error) {
       setSendStatus('✗ ' + (error.message || error), 'error');
     } finally {
       applyButton.textContent = 'Usar imagem';
-      if (document.getElementById('notes-image-composer-modal').classList.contains('visible')) renderNotasImageComposer();
+      if (document.getElementById('stories-image-composer-modal').classList.contains('visible')) renderStoriesImageComposer();
     }
   }
 
-  function setupNotasImageComposer() {
-    const modal = document.getElementById('notes-image-composer-modal');
+  function setupStoriesImageComposer() {
+    const modal = document.getElementById('stories-image-composer-modal');
     modal.querySelectorAll('[data-image-composer-mode]').forEach(button => button.addEventListener('click', () => {
-      notesImageComposer.mode = button.dataset.imageComposerMode;
-      renderNotasImageComposer();
+      storiesImageComposer.mode = button.dataset.imageComposerMode;
+      renderStoriesImageComposer();
     }));
-    ['left', 'right'].forEach(side => document.getElementById('notes-image-file-' + side).addEventListener('change', event => {
+    ['left', 'right'].forEach(side => document.getElementById('stories-image-file-' + side).addEventListener('change', event => {
       const file = event.target.files && event.target.files[0];
       event.target.value = '';
-      if (file) setNotasImageComposerSlot(side, file);
+      if (file) setStoriesImageComposerSlot(side, file);
     }));
-    ['left', 'right'].forEach(side => document.getElementById('notes-image-slot-' + side).addEventListener('mousedown', () => {
-      notesImageComposer.activeSlot = side;
+    ['left', 'right'].forEach(side => document.getElementById('stories-image-slot-' + side).addEventListener('mousedown', () => {
+      storiesImageComposer.activeSlot = side;
     }));
     document.addEventListener('paste', event => {
       if (!modal.classList.contains('visible')) return;
@@ -3223,17 +3308,17 @@
       if (!imageItem) return;
       event.preventDefault();
       event.stopPropagation();
-      const side = notesImageComposer.mode === 'split' && (notesImageComposer.activeSlot === 'right' || (notesImageComposer.leftDataURL && !notesImageComposer.rightDataURL)) ? 'right' : 'left';
-      notesImageComposer.activeSlot = side;
-      setNotasImageComposerSlot(side, imageItem.getAsFile());
+      const side = storiesImageComposer.mode !== 'single' && (storiesImageComposer.activeSlot === 'right' || (storiesImageComposer.leftDataURL && !storiesImageComposer.rightDataURL)) ? 'right' : 'left';
+      storiesImageComposer.activeSlot = side;
+      setStoriesImageComposerSlot(side, imageItem.getAsFile());
     }, true);
-    document.getElementById('notes-image-composer-swap').addEventListener('click', () => {
-      [notesImageComposer.leftDataURL, notesImageComposer.rightDataURL] = [notesImageComposer.rightDataURL, notesImageComposer.leftDataURL];
-      renderNotasImageComposer();
+    document.getElementById('stories-image-composer-swap').addEventListener('click', () => {
+      [storiesImageComposer.leftDataURL, storiesImageComposer.rightDataURL] = [storiesImageComposer.rightDataURL, storiesImageComposer.leftDataURL];
+      renderStoriesImageComposer();
     });
-    document.getElementById('notes-image-composer-cancel').addEventListener('click', closeNotasImageComposer);
-    document.getElementById('notes-image-composer-apply').addEventListener('click', applyNotasImageComposer);
-    modal.addEventListener('mousedown', event => { if (event.target === modal) closeNotasImageComposer(); });
+    document.getElementById('stories-image-composer-cancel').addEventListener('click', closeStoriesImageComposer);
+    document.getElementById('stories-image-composer-apply').addEventListener('click', applyStoriesImageComposer);
+    modal.addEventListener('mousedown', event => { if (event.target === modal) closeStoriesImageComposer(); });
   }
 
   function normalizeInlineImageDataURL(dataURL, image) {
@@ -3261,6 +3346,45 @@
     const slideEl = stage.querySelector('.slide');
     applyImageToSlide(slideEl, slideData.image);
     flash(slideEl);
+  }
+  async function commitFullBleedImage(stageIndex, dataURL) {
+    const targetSlide = doc.slides[stageIndex];
+    if (!targetSlide) return false;
+    const image = await loadImage(dataURL);
+    if (doc.slides[stageIndex] !== targetSlide) return false;
+    const normalized = normalizeInlineImageDataURL(dataURL, image);
+    targetSlide.image = { dataURL: normalized.dataURL, tx: 0, ty: 0, scale: 1 };
+    targetSlide.inlineImage = null;
+    saveDoc();
+    renderSlide(stageIndex);
+    flash(document.querySelectorAll('.stage')[stageIndex].querySelector('.slide'));
+    return true;
+  }
+  async function commitFullBleedComposition(stageIndex, mode, firstDataURL, secondDataURL) {
+    const targetSlide = doc.slides[stageIndex];
+    if (!targetSlide || !['split', 'stack'].includes(mode)) return false;
+    const [firstImage, secondImage] = await Promise.all([
+      loadImage(firstDataURL),
+      loadImage(secondDataURL),
+    ]);
+    if (doc.slides[stageIndex] !== targetSlide || !firstImage || !secondImage) return false;
+    const [first, second] = [
+      normalizeInlineImageDataURL(firstDataURL, firstImage),
+      normalizeInlineImageDataURL(secondDataURL, secondImage),
+    ];
+    targetSlide.image = {
+      kind: 'composition',
+      mode,
+      photos: {
+        first: { dataURL: first.dataURL, tx: 0, ty: 0, scale: 1 },
+        second: { dataURL: second.dataURL, tx: 0, ty: 0, scale: 1 },
+      },
+    };
+    targetSlide.inlineImage = null;
+    saveDoc();
+    renderSlide(stageIndex);
+    flash(document.querySelectorAll('.stage')[stageIndex].querySelector('.slide'));
+    return true;
   }
   const inlineImageCommitRevisions = new Map();
   async function commitInlineImage(stageIndex, dataURL) {
@@ -3296,18 +3420,31 @@
     saveDoc();
     renderSlide(stageIndex);
   }
-  // Notas: TUDO vira inline-image proporcional.
-  // Full-bleed photo (slideData.image) foi descontinuado pra Notas
-  // pra simplificar layout e evitar overflow de texto longo.
+  function clearBackgroundImage(stageIndex) {
+    const slideData = doc.slides[stageIndex];
+    if (!slideData) return;
+    slideData.image = null;
+    saveDoc();
+    renderSlide(stageIndex);
+  }
   function commitImageRouted(stageIndex, dataURL) {
-    commitInlineImage(stageIndex, dataURL);
+    return commitFullBleedImage(stageIndex, dataURL);
   }
   function persistImageTransform(stageIndex, img) {
     const state = getImgState(img);
-    if (!doc.slides[stageIndex].image) return;
-    doc.slides[stageIndex].image.tx = state.tx;
-    doc.slides[stageIndex].image.ty = state.ty;
-    doc.slides[stageIndex].image.scale = state.scale;
+    const image = doc.slides[stageIndex].image;
+    if (!image) return;
+    if (isStoriesPhotoComposition(image)) {
+      const slot = img.dataset.compositionSlot;
+      if (!slot || !image.photos[slot]) return;
+      image.photos[slot].tx = state.tx;
+      image.photos[slot].ty = state.ty;
+      image.photos[slot].scale = state.scale;
+    } else {
+      image.tx = state.tx;
+      image.ty = state.ty;
+      image.scale = state.scale;
+    }
     saveDoc();
   }
   function persistBzTransform(stageIndex, bz) {
@@ -3347,17 +3484,17 @@
       toolbarDock.append(blockToolbar);
     }
 
-    initialNotasDocument = buildDocFromDOM({ useLegacy: false });
+    initialStoriesDocument = buildDocFromDOM({ useLegacy: false });
     loadOrInitDoc();
-    applyNotasRatio({ render: false });
-    const typographySelector = document.getElementById('notes-typography');
+    applyStoriesRatio({ render: false });
+    const typographySelector = document.getElementById('stories-typography');
     if (typographySelector) {
       typographySelector.addEventListener('change', (event) => {
-        setNotasTypography(event.target.value);
+        setStoriesTypography(event.target.value);
       });
     }
-    document.querySelectorAll('[data-notes-ratio]').forEach(button => {
-      button.addEventListener('click', () => setNotasRatio(button.dataset.notesRatio));
+    document.querySelectorAll('[data-stories-ratio]').forEach(button => {
+      button.addEventListener('click', () => setStoriesRatio(button.dataset.storiesRatio));
     });
     document.querySelectorAll('#global-background-palette [data-background-color]').forEach(button => {
       button.addEventListener('click', () => setGlobalBackgroundColor(button.dataset.backgroundColor));
@@ -3368,9 +3505,14 @@
 
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Shift') document.body.classList.add('shift-held');
+      if (e.code === 'Space' && !e.target.isContentEditable && !/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) {
+        e.preventDefault();
+        document.body.classList.add('space-held');
+      }
     });
     window.addEventListener('keyup', (e) => {
       if (e.key === 'Shift') document.body.classList.remove('shift-held');
+      if (e.code === 'Space') document.body.classList.remove('space-held');
     });
 
     const stages = document.querySelectorAll('.stage');
@@ -3387,7 +3529,9 @@
     stages.forEach((stage, i) => {
       const slideEl = stage.querySelector('.slide');
       const bodyZone = slideEl.querySelector('.body-zone');
-      const photoImg = getPhotoImg(slideEl);
+      const photoLayer = slideEl.querySelector('.photo');
+      photoLayer.title = 'Foto: use a roda para zoom, botão do meio ou Espaço + arrastar para mover e duplo clique para restaurar.';
+      getPhotoImg(slideEl);
 
       stage.addEventListener('click', (e) => {
         // Não deseleciona se o click foi num bloco (handled separately)
@@ -3419,18 +3563,46 @@
         }
       });
 
-      let imgDragging = false, imgDragStart = null;
+      let imgDragging = false, imgDragStart = null, draggingImage = null;
       let bzDragging = false, bzDragStart = null;
 
-      photoImg.addEventListener('mousedown', (e) => {
-        if (e.shiftKey) return;
-        if (!photoImg.classList.contains('has-src')) return;
+      function getPhotoAtPointer(e) {
+        const visibleImages = Array.from(photoLayer.querySelectorAll('.photo-img.has-src'));
+        if (visibleImages.length === 1) return visibleImages[0];
+        const rect = stage.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        if (photoLayer.classList.contains('composition-stack')) {
+          return photoLayer.querySelector(y < rect.height / 2 ? '.composition-first' : '.composition-second');
+        }
+        if (photoLayer.classList.contains('composition-split')) {
+          return photoLayer.querySelector(x < rect.width / 2 ? '.composition-first' : '.composition-second');
+        }
+        return null;
+      }
+
+      slideEl.addEventListener('mousedown', (e) => {
+        const isSpaceDrag = e.button === 0 && document.body.classList.contains('space-held');
+        const isMiddleDrag = e.button === 1;
+        if (!isMiddleDrag && !isSpaceDrag) return;
         if (!slideEl.classList.contains('active')) return;
+        const imageTarget = getPhotoAtPointer(e);
+        if (!imageTarget) return;
         e.preventDefault();
+        e.stopImmediatePropagation();
         imgDragging = true;
-        photoImg.classList.add('dragging');
-        const state = getImgState(photoImg);
+        draggingImage = imageTarget;
+        draggingImage.classList.add('dragging');
+        const state = getImgState(draggingImage);
         imgDragStart = { x: e.clientX, y: e.clientY, tx: state.tx, ty: state.ty, scale: state.scale };
+      }, true);
+
+      photoLayer.addEventListener('dblclick', (e) => {
+        const imageTarget = e.target.closest('.photo-img.has-src');
+        if (!imageTarget || !slideEl.classList.contains('active')) return;
+        e.preventDefault();
+        applyTransformToImg(imageTarget, 0, 0, 1);
+        persistImageTransform(i, imageTarget);
       });
 
       slideEl.addEventListener('mousedown', (e) => {
@@ -3446,9 +3618,10 @@
 
       window.addEventListener('mousemove', (e) => {
         if (imgDragging && imgDragStart) {
-          const dx = (e.clientX - imgDragStart.x) * SCALE_INV;
-          const dy = (e.clientY - imgDragStart.y) * SCALE_INV;
-          applyTransformToImg(photoImg, imgDragStart.tx + dx, imgDragStart.ty + dy, imgDragStart.scale);
+          const coordinateScale = SLIDE_W / Math.max(1, stage.getBoundingClientRect().width);
+          const dx = (e.clientX - imgDragStart.x) * coordinateScale;
+          const dy = (e.clientY - imgDragStart.y) * coordinateScale;
+          applyTransformToImg(draggingImage, imgDragStart.tx + dx, imgDragStart.ty + dy, imgDragStart.scale);
         }
         if (bzDragging && bzDragStart) {
           const dx = (e.clientX - bzDragStart.x) * SCALE_INV;
@@ -3469,8 +3642,9 @@
       window.addEventListener('mouseup', () => {
         if (imgDragging) {
           imgDragging = false;
-          photoImg.classList.remove('dragging');
-          persistImageTransform(i, photoImg);
+          draggingImage.classList.remove('dragging');
+          persistImageTransform(i, draggingImage);
+          draggingImage = null;
         }
         if (bzDragging) {
           bzDragging = false;
@@ -3489,13 +3663,15 @@
           const newScale = Math.max(0.4, Math.min(2.5, state.scale + delta));
           applyTransformToBz(bodyZone, state.tx, state.ty, newScale);
           persistBzTransform(i, bodyZone);
-        } else if (photoImg.classList.contains('has-src')) {
+        } else {
+          const imageTarget = getPhotoAtPointer(e);
+          if (!imageTarget) return;
           e.preventDefault();
-          const state = getImgState(photoImg);
+          const state = getImgState(imageTarget);
           const delta = -e.deltaY * 0.0015;
           const newScale = Math.max(1.0, Math.min(5.0, state.scale + delta));
-          applyTransformToImg(photoImg, state.tx, state.ty, newScale);
-          persistImageTransform(i, photoImg);
+          applyTransformToImg(imageTarget, state.tx, state.ty, newScale);
+          persistImageTransform(i, imageTarget);
         }
       }, { passive: false });
     });
@@ -3532,13 +3708,13 @@
       renderAll();
     });
 
-    setupNotasImageComposer();
+    setupStoriesImageComposer();
     document.getElementById('btn-add-inline')?.addEventListener('click', () => {
       if (activeStageIndex === null) {
         alert('Clica primeiro no slide onde a imagem deve entrar.');
         return;
       }
-      openNotasImageComposer(activeStageIndex);
+      openStoriesImageComposer(activeStageIndex);
     });
     const btnRemoveInline = document.getElementById('btn-remove-inline');
     if (btnRemoveInline) {
@@ -3547,7 +3723,7 @@
           alert('Clica primeiro no slide cuja imagem deve ser removida.');
           return;
         }
-        clearInlineImage(activeStageIndex);
+        clearBackgroundImage(activeStageIndex);
       });
     }
     document.getElementById('btn-reset-text').addEventListener('click', () => {
@@ -3568,7 +3744,7 @@
       if (item.type && item.type.startsWith('image/')) {
         e.preventDefault();
         const blob = item.getAsFile();
-        openNotasImageComposer(activeStageIndex, blob);
+        openStoriesImageComposer(activeStageIndex, blob);
         break;
       }
     }
@@ -3612,8 +3788,8 @@
     'body:italic':        { fontSpec: 'italic 400 48px ' + PTS_REG, size: 48, lineHeight: 58, color: '#FFFFFF', letterSpacing: 0 },
   };
 
-  function withNotasTypeface(fontSpec) {
-    return fontSpec.replace(PTS_BOLD, getNotasTypeface().canvasFamily);
+  function withStoriesTypeface(fontSpec) {
+    return fontSpec.replace(PTS_BOLD, getStoriesTypeface().canvasFamily);
   }
 
   function applyStyleToCtx(ctx, style) {
@@ -3662,10 +3838,8 @@
     if (!baseStyle) return null;
     // Mantém no Canvas a mesma compensação proporcional usada no preview.
     let size = baseStyle.size;
-    let fontSpec = withNotasTypeface(baseStyle.fontSpec);
+    let fontSpec = withStoriesTypeface(baseStyle.fontSpec);
     let lineHeight = baseStyle.lineHeight;
-    const coverHeadline = isCapa && block.kind === 'body';
-    if (coverHeadline) fontSpec = fontSpec.replace(/\b400\b/, '700');
     if (block.fontSize != null) {
       size = block.fontSize;
       fontSpec = fontSpec.replace(/(\b\d+(?:\.\d+)?)px\b/, size + 'px');
@@ -3817,22 +3991,24 @@
   }
 
   function drawLegibilityFilter(ctx, w, h, fade) {
-    // Tema Ostentação: sem foto, sem fade gradient. Mantém função vazia pra compatibilidade.
-    return;
+    const opacity = Math.max(0, Math.min(1, Number(fade) || 0));
+    if (!opacity) return;
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,' + opacity + ')';
+    ctx.fillRect(0, 0, w, h);
+    ctx.restore();
   }
 
-  async function drawPhoto(ctx, imageData, w, h) {
-    if (!imageData || !imageData.dataURL) return;
-    const img = await loadImage(imageData.dataURL);
-    if (!img) return;
+  function drawPhotoInFrame(ctx, img, imageData, x, y, w, h) {
+    if (!img || !imageData) return;
     const tx = imageData.tx || 0;
     const ty = imageData.ty || 0;
     const scale = imageData.scale || 1;
     // object-fit: cover base
     const imgRatio = img.width / img.height;
-    const slideRatio = w / h;
+    const frameRatio = w / h;
     let baseW, baseH;
-    if (imgRatio > slideRatio) {
+    if (imgRatio > frameRatio) {
       baseH = h;
       baseW = baseH * imgRatio;
     } else {
@@ -3843,15 +4019,38 @@
     const drawW = baseW * scale;
     const drawH = baseH * scale;
     // Center then translate
-    const drawX = (w - drawW) / 2 + tx;
-    const drawY = (h - drawH) / 2 + ty;
+    const drawX = x + (w - drawW) / 2 + tx;
+    const drawY = y + (h - drawH) / 2 + ty;
     ctx.save();
-    // Clip to slide bounds
+    // Cada foto fica limitada ao seu próprio quadro, inclusive em composição.
     ctx.beginPath();
-    ctx.rect(0, 0, w, h);
+    ctx.rect(x, y, w, h);
     ctx.clip();
     ctx.drawImage(img, drawX, drawY, drawW, drawH);
     ctx.restore();
+  }
+
+  async function drawPhoto(ctx, imageData, w, h) {
+    if (!imageData) return;
+    if (isStoriesPhotoComposition(imageData)) {
+      const [first, second] = await Promise.all([
+        loadImage(imageData.photos.first.dataURL),
+        loadImage(imageData.photos.second.dataURL),
+      ]);
+      if (imageData.mode === 'stack') {
+        const halfHeight = h / 2;
+        drawPhotoInFrame(ctx, first, imageData.photos.first, 0, 0, w, halfHeight);
+        drawPhotoInFrame(ctx, second, imageData.photos.second, 0, halfHeight, w, halfHeight);
+      } else {
+        const halfWidth = w / 2;
+        drawPhotoInFrame(ctx, first, imageData.photos.first, 0, 0, halfWidth, h);
+        drawPhotoInFrame(ctx, second, imageData.photos.second, halfWidth, 0, halfWidth, h);
+      }
+      return;
+    }
+    if (!imageData.dataURL) return;
+    const img = await loadImage(imageData.dataURL);
+    drawPhotoInFrame(ctx, img, imageData, 0, 0, w, h);
   }
 
   function applyTextTransform(text, uppercase) {
@@ -3991,12 +4190,15 @@
     return out;
   }
 
+  function measureTextLineWidth(ctx, words, style) {
+    return words.reduce((width, word) => {
+      applyStyleToCtx(ctx, withSegmentStyle(style, word));
+      return width + ctx.measureText(word.text).width;
+    }, 0);
+  }
+
   function drawTextLine(ctx, words, x, baselineY, maxW, style, align) {
-    let lineW = 0;
-    for (const w of words) {
-      applyStyleToCtx(ctx, withSegmentStyle(style, w));
-      lineW += ctx.measureText(w.text).width;
-    }
+    const lineW = measureTextLineWidth(ctx, words, style);
     let startX = x;
     if (align === 'center') startX = x + (maxW - lineW) / 2;
     else if (align === 'right') startX = x + maxW - lineW;
@@ -4041,18 +4243,40 @@
     ctx.restore();
   }
 
+  function getEditorialCard(block) {
+    return block && (block.card === 'light' || block.card === 'dark') ? block.card : 'none';
+  }
+
   function buildBlockLayouts(ctx, blocks, zoneW, isCapa, contentFit = 1, textColor = null) {
     return blocks.map(block => {
-      const style = resolveBlockStyle(block, isCapa, contentFit, textColor);
+      const card = getEditorialCard(block);
+      const style = resolveBlockStyle(block, isCapa, contentFit,
+        card === 'light' ? '#0D0D0E' : card === 'dark' ? '#FFFFFF' : textColor);
       if (!style) return null;
       const segments = parseHtmlSegments(block.html);
-      const lines = wrapSegmentsIntoLines(ctx, segments, zoneW, style);
+      // A cartela acompanha o ritmo da fonte: reduzir o texto também reduz
+      // sua folga interna, em vez de manter um retângulo desproporcional.
+      const paddingX = card === 'none' ? 0 : style.size * 0.48;
+      const paddingTop = card === 'none' ? 0 : style.size * (card === 'light' ? 0.34 : 0.32);
+      const paddingBottom = card === 'none' ? 0 : style.size * (card === 'light' ? 0.40 : 0.38);
+      const contentW = zoneW - paddingX * 2;
+      const lines = wrapSegmentsIntoLines(ctx, segments, contentW, style);
+      const widestLine = lines.reduce((widest, line) => Math.max(widest, measureTextLineWidth(ctx, line, style)), 0);
+      const cardWidth = card === 'none' ? zoneW : Math.min(zoneW, widestLine + paddingX * 2);
+      const textWidth = card === 'none' ? contentW : Math.max(0, cardWidth - paddingX * 2);
       return {
         block,
         style,
         lines,
+        card,
+        paddingX,
+        paddingTop,
+        paddingBottom,
+        contentW,
+        cardWidth,
+        textWidth,
         align: resolveBlockAlign(block, isCapa),
-        height: lines.length * style.lineHeight,
+        height: lines.length * style.lineHeight + paddingTop + paddingBottom,
       };
     }).filter(Boolean);
   }
@@ -4120,12 +4344,20 @@
     const inlineImageH = inlineLayout.height;
 
     function drawBlockAt(layout, cursorY) {
+      const cardX = zoneX + (zoneW - layout.cardWidth) / 2;
+      if (layout.card !== 'none') {
+        ctx.save();
+        ctx.fillStyle = layout.card === 'light' ? '#FAF9F5' : '#080808';
+        ctx.fillRect(cardX, cursorY, layout.cardWidth, layout.height);
+        ctx.restore();
+      }
+      cursorY += layout.paddingTop;
       for (const line of layout.lines) {
         const baselineY = cursorY + layout.style.size * 0.85;
-        drawTextLine(ctx, line, zoneX, baselineY, zoneW, layout.style, layout.align);
+        drawTextLine(ctx, line, cardX + layout.paddingX, baselineY, layout.textWidth, layout.style, layout.align);
         cursorY += layout.style.lineHeight;
       }
-      return cursorY;
+      return cursorY + layout.paddingBottom;
     }
 
     function drawBlocksFlow(startY) {
@@ -4162,20 +4394,20 @@
   }
 
   function drawFooter(ctx, w, h, footerVariant, slideNum, slideTotal) {
-    // Notas: zero footer. Bundas Polêmicas não tinha handle nem slide N/total.
+    // Stories: zero footer. Bundas Polêmicas não tinha handle nem slide N/total.
     // Função mantida vazia pra preservar a chamada em renderSlideToCanvas.
     return;
   }
 
   function drawBrandMark(ctx, w, h) {
-    // No-op: brand-mark não existe no Notas.
+    // No-op: brand-mark não existe no Stories.
     return;
   }
 
-  // Notas: sobrescreve drawFooter e drawLegibilityFilter pra serem no-op.
-  // Salvamos referências caso algum caminho legado dependa, mas no Notas não desenhamos.
-  function drawFooter_notesNoop() { return; }
-  function drawLegibilityFilter_notesNoop() { return; }
+  // Stories: sobrescreve drawFooter e drawLegibilityFilter pra serem no-op.
+  // Salvamos referências caso algum caminho legado dependa, mas no Stories não desenhamos.
+  function drawFooter_storiesNoop() { return; }
+  function drawLegibilityFilter_storiesNoop() { return; }
 
   async function renderSlideToCanvas(canvas, slideData) {
     // A composição usa a grade selecionada (1080×1350 ou 1080×1440), mas o PNG sai em 2× para
@@ -4192,9 +4424,8 @@
     ctx.fillStyle = getSlideBackgroundColor(slideData);
     ctx.fillRect(0, 0, SLIDE_W, SLIDE_H);
 
-    // 2. Photo
-    // Notas: full-bleed photo (slideData.image) foi descontinuado.
-    // TUDO usa inline-photo proporcional (drawBlocks preserva o aspecto da fonte).
+    // 2. Foto full-bleed, exatamente como no preview.
+    await drawPhoto(ctx, slideData.image, SLIDE_W, SLIDE_H);
 
     // 3. Legibility filter (per-slide fade)
     drawLegibilityFilter(ctx, SLIDE_W, SLIDE_H, getEffectiveFade(slideData));
@@ -4266,7 +4497,7 @@
     });
   }
 
-  function getActiveNotasSlideIndex() {
+  function getActiveStoriesSlideIndex() {
     if (!doc || !Array.isArray(doc.slides) || doc.slides.length === 0) return null;
     const index = typeof activeStageIndex === 'number' ? activeStageIndex : 0;
     return Math.max(0, Math.min(index, doc.slides.length - 1));
@@ -4274,7 +4505,7 @@
 
   async function downloadCurrentSlidePNG() {
     if (deliveryBusy) return;
-    const index = getActiveNotasSlideIndex();
+    const index = getActiveStoriesSlideIndex();
     if (index === null) {
       setSendStatus('Selecione um slide antes de exportar.', 'error');
       return;

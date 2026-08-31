@@ -215,6 +215,41 @@
       background: #1d1d1f;
     }
 
+    .preview-sheet--stories-fundo {
+      display: flex;
+      width: 142px;
+      aspect-ratio: 4 / 5;
+      position: relative;
+      overflow: hidden;
+      align-items: center;
+      justify-content: center;
+      background:
+        linear-gradient(rgba(0,0,0,.42), rgba(0,0,0,.72)),
+        linear-gradient(150deg, #8a6a51 0 37%, #2d241f 37% 59%, #807d72 59% 100%);
+    }
+    .preview-sheet--stories-fundo::before {
+      content: '';
+      position: absolute;
+      width: 185px;
+      height: 185px;
+      border: 1px solid rgba(255,255,255,.46);
+      transform: rotate(38deg);
+      top: -88px;
+      right: -66px;
+    }
+    .fundo-card,
+    .fundo-card-small {
+      position: relative;
+      z-index: 1;
+      display: block;
+      width: 112px;
+      min-height: 28px;
+      background: #faf9f5;
+      box-shadow: 0 6px 20px rgba(0,0,0,.22);
+    }
+    .fundo-card { margin-top: 36px; }
+    .fundo-card-small { position: absolute; bottom: 26px; width: 88px; min-height: 13px; background: #070707; }
+
     .preview-sheet--notes {
       display: flex;
       width: 176px;
@@ -563,6 +598,10 @@
           <span class="story-kicker"></span>
           <span class="story-copy"><span></span><span></span><span></span></span>
           <span class="story-footer"></span>`;
+      } else if (kind === 'stories-fundo') {
+        sheet.innerHTML = `
+          <span class="fundo-card"></span>
+          <span class="fundo-card-small"></span>`;
       } else {
         sheet.innerHTML = `
           <span class="notes-title-line"></span>

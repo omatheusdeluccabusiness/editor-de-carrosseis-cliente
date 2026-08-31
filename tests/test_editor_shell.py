@@ -590,6 +590,22 @@ class EditorShellTest(unittest.TestCase):
         )
         self.assertIn("contain: paint;", html)
 
+    def test_stories_background_clips_each_composition_photo_in_its_own_frame(self) -> None:
+        html = (PROJECT_ROOT / "templates" / "stories_background_editor.html").read_text(
+            encoding="utf-8"
+        )
+        required = (
+            ".photo-frame { position: absolute; overflow: hidden;",
+            "composition-frame-first",
+            "composition-frame-second",
+            "function getCompositionPhotoImg(photo, slot)",
+            "frame.appendChild(img);",
+            "function clearCompositionPhotoImages(photo)",
+            "photo.querySelectorAll('.photo-frame.composition-frame').forEach(frame => frame.remove());",
+        )
+        for marker in required:
+            self.assertIn(marker, html)
+
 
 if __name__ == "__main__":
     unittest.main()

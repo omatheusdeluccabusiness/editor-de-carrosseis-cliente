@@ -107,16 +107,28 @@ class TweetHighlightsTest(unittest.TestCase):
     def test_marker_never_changes_copy_metrics_and_canvas_matches_its_band(self) -> None:
         self.assertIn("padding: 0;", self.html)
         self.assertIn("margin: 0;", self.html)
-        self.assertIn("background-size: 100% 0.88em;", self.html)
-        self.assertIn("background-position: 0 0.08em;", self.html)
+        self.assertIn("background-size: 100% 1.04em;", self.html)
+        self.assertIn("background-position: 0 0.02em;", self.html)
         canvas_top = re.search(r"const top = y \+ fontSize \* ([0-9.]+);", self.html)
         canvas_height = re.search(r"const height = fontSize \* ([0-9.]+);", self.html)
 
         self.assertIsNotNone(canvas_top)
         self.assertIsNotNone(canvas_height)
-        self.assertAlmostEqual(float(canvas_top.group(1)), 0.08)
-        self.assertAlmostEqual(float(canvas_height.group(1)), 0.88)
+        self.assertAlmostEqual(float(canvas_top.group(1)), 0.02)
+        self.assertAlmostEqual(float(canvas_height.group(1)), 1.04)
         self.assertIn("ctx.fillRect(x, top, width, height);", self.html)
+
+    def test_dark_highlights_use_luminous_markers_and_dark_text(self) -> None:
+        required = (
+            "body.theme-dark .tweet-render mark[data-highlight] { color: #0F1419; }",
+            "yellow: 'rgba(255, 214, 10, 0.94)'",
+            "pink: 'rgba(255, 100, 190, 0.92)'",
+            "green: 'rgba(80, 220, 120, 0.90)'",
+            "blue: 'rgba(64, 200, 255, 0.90)'",
+            "ctx.fillStyle = dark && seg.highlight ? '#0F1419' : fg;",
+        )
+        for marker in required:
+            self.assertIn(marker, self.html)
 
     def test_highlight_application_clears_native_selection_and_records_undo(self) -> None:
         required = (

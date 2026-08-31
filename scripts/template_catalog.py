@@ -39,6 +39,10 @@ TEMPLATE_CATALOG = {
         "stories", "Stories", "Narrativa vertical em tela cheia.", "4:5", 10,
         PROJECT_ROOT / "templates" / "stories_editor.html", "stories", True,
     ),
+    "stories-fundo": TemplateDefinition(
+        "stories-fundo", "Stories C/ Fundo", "Foto full-bleed com cartelas editoriais.", "4:5", 10,
+        PROJECT_ROOT / "templates" / "stories_background_editor.html", "stories-fundo", True,
+    ),
     "notes": TemplateDefinition(
         "notes", "Bloco de Notas", "Texto editorial com estética de nota.", "4:5", 10,
         PROJECT_ROOT / "templates" / "notes_editor.html", "notes", True,

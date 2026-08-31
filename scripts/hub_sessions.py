@@ -45,7 +45,7 @@ def refresh_hub_session(session_id: str, editor_dir: Path) -> HubSession:
     Manter esse id permite atualizar o HTML após uma evolução do template sem
     descartar copy, imagens ou preferências já salvas no navegador.
     """
-    match = re.fullmatch(r"hub-(tweet|stories|notes)-[0-9a-f]{12}", session_id)
+    match = re.fullmatch(r"hub-(tweet|stories|stories-fundo|notes)-[0-9a-f]{12}", session_id)
     if not match:
         raise ValueError("Identificador de sessão inválido.")
     return _generate_hub_session(match.group(1), session_id, editor_dir)

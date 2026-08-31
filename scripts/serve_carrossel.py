@@ -362,7 +362,7 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
         if name.endswith('.html'):
             target = (Path(DIR) / name).resolve()
             if target.parent == Path(DIR).resolve() and target.is_file():
-                session_match = re.fullmatch(r'hub-(tweet|stories|notes)-[0-9a-f]{12}\.html', name)
+                session_match = re.fullmatch(r'hub-(tweet|stories|stories-fundo|notes)-[0-9a-f]{12}\.html', name)
                 if session_match and hub_session_needs_refresh(target, session_match.group(1)):
                     # Sessões do Hub preservam estado no DOC_KEY. Regenerar o
                     # HTML com o mesmo id atualiza a interface ao recarregar
@@ -449,7 +449,7 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
         if self._reject_unauthorized_mutation():
             return
         path = urllib.parse.urlparse(self.path).path
-        match = re.fullmatch(r'/api/sessoes/(hub-(?:tweet|stories|notes)-[0-9a-f]{12})', path)
+        match = re.fullmatch(r'/api/sessoes/(hub-(?:tweet|stories|stories-fundo|notes)-[0-9a-f]{12})', path)
         if not match:
             self._send_json(404, {'error': 'sessao_invalida'})
             return

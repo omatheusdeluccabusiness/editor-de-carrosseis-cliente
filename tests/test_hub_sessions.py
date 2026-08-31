@@ -33,6 +33,15 @@ class HubSessionsTest(unittest.TestCase):
 
         self.assertIn("10 slides", html)
 
+    def test_generated_background_stories_session_uses_editorial_background_template(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            session = create_hub_session("stories-fundo", Path(tmp))
+            html = session.path.read_text(encoding="utf-8")
+
+        self.assertIn("Stories C/ Fundo", html)
+        self.assertIn("commitFullBleedImage", html)
+        self.assertIn("data-card=\"light\"", html)
+
     def test_generated_notes_session_uses_notes_template(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             session = create_hub_session("notes", Path(tmp))
