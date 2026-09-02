@@ -78,6 +78,8 @@
     transform: translate(0px, 0px) scale(1);
     user-select: none; -webkit-user-drag: none;
     display: none;
+    filter: grayscale(var(--photo-grayscale, 0));
+    transition: filter 160ms ease;
   }
   .slide .photo-img.has-src { display: block; }
   .slide.active .photo-img.has-src { cursor: zoom-in; }
@@ -93,12 +95,56 @@
   .slide .photo.composition-stack .composition-frame-second { left: 0; top: 50%; width: 100%; height: 50%; }
   /* Foto de fundo: ela ocupa o canvas inteiro e a camada preta dá controle
      de atmosfera sem jamais comprometer o contraste das cartelas. */
-  .slide .photo { display: block !important; z-index: 0; background: #000; }
+  .slide .photo { display: block !important; z-index: 0; background: transparent; }
   .slide .photo::before,
-  .slide .photo::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+  .slide .photo::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 2; }
   .slide .photo::before { background: rgba(0, 0, 0, var(--fade, .48)); }
+  .slide .photo:not(.has-background-image)::before { background: transparent; }
   .slide .photo::after { background: rgba(0, 0, 0, var(--fade-boost, 0)); }
   .slide .photo-img { z-index: 0; }
+  /* Tratamento editorial opcional: o centro fica limpo, enquanto a periferia
+     gira em arcos ao redor do foco, com vinheta e uma textura fina de filme. */
+  .slide .photo.has-halo-grain::before {
+    background:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.92' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.30'/%3E%3C/svg%3E"),
+      rgba(0, 0, 0, var(--fade, .48));
+    background-blend-mode: soft-light, normal;
+  }
+  .slide .photo.has-halo-grain::after {
+    background: transparent;
+  }
+  .slide .photo-radial-effect {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    pointer-events: none;
+  }
+  .slide .photo-focus-marker {
+    position: absolute;
+    left: var(--photo-focus-x, 50%);
+    top: var(--photo-focus-y, 43%);
+    width: 54px;
+    height: 54px;
+    z-index: 5;
+    display: none;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    border: 3px solid #F4C430;
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px rgba(0,0,0,.75), 0 4px 20px rgba(0,0,0,.45);
+  }
+  .slide .photo-focus-marker::before,
+  .slide .photo-focus-marker::after {
+    content: '';
+    position: absolute;
+    background: #F4C430;
+  }
+  .slide .photo-focus-marker::before { left: 50%; top: -11px; bottom: -11px; width: 2px; transform: translateX(-50%); }
+  .slide .photo-focus-marker::after { top: 50%; left: -11px; right: -11px; height: 2px; transform: translateY(-50%); }
+  .slide .photo.is-picking-focus .photo-focus-marker { display: block; }
+  .slide .photo.is-picking-focus { cursor: crosshair; }
 
   /* Stamp e tag-strip não existem no Stories — escondidos via display:none.
      Mantidos no DOM pra compat com pipeline genérico. */
@@ -166,7 +212,7 @@
   .slide .body.italic { font-style: italic; color: #FFFFFF; font-size: 48px; }
   .slide .body.big { font-size: 60px; line-height: 70px; font-weight: 400; }
   .slide .body.lede { font-size: 56px; line-height: 68px; font-weight: 400; color: #FFFFFF; }
-  .slide [data-block-id] strong, .slide [data-block-id] b { font-weight: 700; }
+  .slide [data-block-id] strong, .slide [data-block-id] b { font-weight: var(--stories-inline-bold-weight, 700); }
   .slide [data-block-id] em, .slide [data-block-id] i { font-style: italic; }
 
   /* Stories: cor de texto (foreground), sem highlight de fundo, sem rotação. */
@@ -330,6 +376,24 @@
   #block-toolbar .tb-card-choices {
     display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px;
   }
+  #block-toolbar .tb-card-choices--two {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  #block-toolbar .tb-card-choices--two button {
+    padding-inline: 10px;
+    font-size: 10px;
+  }
+  #block-toolbar .photo-effect-settings {
+    display: grid;
+    gap: 10px;
+    padding-top: 2px;
+    transition: opacity 140ms ease;
+  }
+  #block-toolbar .photo-effect-settings.is-disabled {
+    opacity: .38;
+    pointer-events: none;
+  }
   #block-toolbar .tb-card-choices button {
     min-width: 0;
     min-height: 35px;
@@ -416,8 +480,12 @@
   /* Block selecionado (persistente até clicar fora) */
   .body-zone [data-block-id] {
     border-radius: 4px;
+    transform: translateY(var(--block-offset-y, 0px));
     transition: outline 0.1s ease;
+    will-change: transform;
   }
+  body.shift-held .stage.active .body-zone [data-block-id] { cursor: ns-resize; }
+  .body-zone [data-block-id].block-dragging { cursor: ns-resize; }
   .body-zone [data-block-id]:hover:not(.selected):not(:focus) {
     outline: 2px solid rgba(244, 196, 48, 0.3);
     outline-offset: 4px;
@@ -864,7 +932,7 @@
   .background-help { margin-top: 10px; color: var(--ui-text-secondary); font-size: 11px; line-height: 1.35; }
   .rail-actions { display: grid; gap: 7px; padding-top: 14px; margin-top: 14px; border-top: 1px solid rgba(210,210,215,.72); }
   .rail-actions .shell-button { width: 100%; min-height: 34px; padding: 0 10px; font-size: 12px; }
-  .editor-stage { min-width: 0; padding: 24px clamp(24px, 4vw, 64px) 72px; background: var(--ui-canvas); }
+  .editor-stage { min-width: 0; padding: 24px clamp(24px, 4vw, 64px) 72px; background: var(--ui-canvas); overflow-anchor: none; }
   .stage-intro { max-width: 680px; margin: 0 auto 16px; display: flex; align-items: end; justify-content: space-between; gap: 20px; }
   .stage-kicker { color: var(--ui-text); font-weight: 600; }
   .stage-intro p { margin-top: 4px; color: var(--ui-text-secondary); font-size: 12px; }
@@ -988,6 +1056,7 @@
       <div class="inspector-stack">
         <label class="sr-only" for="stories-typography">Tipografia do carrossel</label>
         <select id="stories-typography" class="typeface-select" aria-label="Tipografia do carrossel">
+          <option value="sans">Sem serifa</option>
           <option value="advercase">Advercase</option>
         </select>
         <div class="ratio-segmented" role="group" aria-label="Proporção da edição e exportação">
@@ -1114,6 +1183,34 @@
         <span class="tb-slider-val" id="tb-fade-val">48%</span>
       </div>
       <button class="tb-reset" data-action="fade-reset" title="Restaurar escurecimento padrão">↺ Restaurar foto</button>
+      <div class="tb-choice-group" title="Aplicar preto e branco à foto de fundo deste slide">
+        <span class="tb-choice-label">Cor da foto</span>
+        <div class="tb-card-choices tb-card-choices--two" role="group" aria-label="Cor da foto de fundo">
+          <button data-photo-tone="color" title="Manter a foto colorida">Colorida</button>
+          <button data-photo-tone="grayscale" title="Converter a foto para preto e branco">Preto e branco</button>
+        </div>
+      </div>
+      <div class="tb-choice-group" title="Tratamento visual aplicado somente à foto de fundo deste slide">
+        <span class="tb-choice-label">Efeito da foto</span>
+        <div class="tb-card-choices tb-card-choices--two" role="group" aria-label="Efeito da foto de fundo">
+          <button data-photo-effect="clean" title="Foto sem tratamento adicional">Normal</button>
+          <button data-photo-effect="halo-grain" title="Borrado circular em torno do foco, com vinheta e grão sutil">Borrado radial</button>
+        </div>
+      </div>
+      <div class="photo-effect-settings">
+        <div class="tb-slider-group" title="Força da rotação centrífuga nas bordas">
+          <span class="tb-slider-label">Força do vortex</span>
+          <input type="range" id="tb-photo-effect-strength" min="0" max="100" step="1" aria-label="Força do borrado radial" />
+          <span class="tb-slider-val" id="tb-photo-effect-strength-val">82%</span>
+        </div>
+        <div class="tb-slider-group" title="Tamanho da região central preservada sem desfoque">
+          <span class="tb-slider-label">Área nítida</span>
+          <input type="range" id="tb-photo-effect-radius" min="10" max="80" step="1" aria-label="Tamanho da área nítida" />
+          <span class="tb-slider-val" id="tb-photo-effect-radius-val">45%</span>
+        </div>
+        <button class="tb-reset" data-action="photo-effect-focus" title="Clique e depois marque o assunto principal na foto">◎ Definir ponto focal</button>
+        <button class="tb-reset" data-action="photo-effect-reset" title="Restaurar intensidade, área nítida e foco">↺ Restaurar efeito</button>
+      </div>
       <div class="tb-choice-group" title="Fundo atrás do bloco de texto">
         <span class="tb-choice-label">Cartela do texto</span>
         <div class="tb-card-choices" role="group" aria-label="Escolha a cartela do texto">
@@ -1165,6 +1262,7 @@
   let activeStageIndex = null;
   let selectedBlockId = null;
   let selectedSlideIdx = null;
+  let photoFocusPickingStage = null;
   const STORIES_RATIO_HEIGHTS = { '4:5': 1350, '3:4': 1440 };
 
   // ==== HELPERS ====
@@ -1310,7 +1408,7 @@
       typeof activeStageIndex === 'number' ? activeStageIndex : 0,
       Math.max(0, doc.slides.length - 1)
     );
-    setStoriesTypography('advercase', { persist: false, record: false });
+    setStoriesTypography(snapshot.typography || 'advercase', { persist: false, record: false });
     const captionEl = document.getElementById('ig-caption');
     if (captionEl) captionEl.value = snapshot.caption || '';
     renderAll();
@@ -1393,14 +1491,23 @@
 
   // ==== SPACING HELPERS (line-height + letter-spacing por bloco) ====
   const ADVERCASE_DEFAULT_LETTER_SPACING = 0.015;
+  // Preset compartilhado para a fonte sem serifa em todos os templates Stories.
+  const SANS_DEFAULT_BLOCK_CONFIG = Object.freeze({
+    fontSize: 62,
+    lineHeight: 59,
+    letterSpacing: -0.035,
+  });
 
   function getTypefaceDefaultLetterSpacing(baseLetterSpacing) {
     return doc && doc.typography === 'advercase'
       ? ADVERCASE_DEFAULT_LETTER_SPACING
-      : baseLetterSpacing;
+      : SANS_DEFAULT_BLOCK_CONFIG.letterSpacing;
   }
 
   function getVariantBaseSpacing(kind, variant) {
+    if (!doc || doc.typography !== 'advercase') {
+      return { ...SANS_DEFAULT_BLOCK_CONFIG };
+    }
     const key = kind + ':' + variant;
     const base = (typeof VARIANT_STYLES !== 'undefined') ? VARIANT_STYLES[key] : null;
     if (base) return { lineHeight: base.lineHeight, letterSpacing: base.letterSpacing || 0, fontSize: base.size };
@@ -1434,6 +1541,26 @@
     node.style.fontSize = (eff.fontSize * contentFit) + 'px';
     node.style.lineHeight = (eff.lineHeight * contentFit) + 'px';
     node.style.letterSpacing = eff.letterSpacing + 'em';
+    applyBlockVerticalOffsetToNode(node, getBlockVerticalOffset(block));
+  }
+
+  function getBlockVerticalOffset(block) {
+    const value = Number(block && block.offsetY);
+    return Number.isFinite(value) ? Math.max(-650, Math.min(650, value)) : 0;
+  }
+  function applyBlockVerticalOffsetToNode(node, offsetY) {
+    if (!node) return;
+    node.style.setProperty('--block-offset-y', Math.round(offsetY) + 'px');
+    node.dataset.offsetY = String(Math.round(offsetY));
+  }
+  function persistBlockVerticalOffset(blockEl) {
+    const ctx = getBlockContext(blockEl);
+    if (!ctx) return;
+    const offsetY = getBlockVerticalOffset({ offsetY: blockEl.dataset.offsetY });
+    if (offsetY) ctx.block.offsetY = offsetY;
+    else delete ctx.block.offsetY;
+    saveDoc();
+    refreshSlideContentFit(ctx.sIdx);
   }
 
   function applyLiveSpacingToNode(node, block) {
@@ -1454,6 +1581,156 @@
     const opacity = Math.max(0, Math.min(1, Number(fade)));
     slideEl.style.setProperty('--fade', String(opacity));
     slideEl.style.removeProperty('--fade-boost');
+  }
+  function getPhotoTone(slide) {
+    return slide && slide.photoTone === 'grayscale' ? 'grayscale' : 'color';
+  }
+  function applyPhotoToneToSlide(slideEl, tone) {
+    const photo = slideEl.querySelector('.photo');
+    if (!photo) return;
+    photo.style.setProperty('--photo-grayscale', tone === 'grayscale' ? '1' : '0');
+  }
+  function getPhotoEffect(slide) {
+    return slide && slide.photoEffect === 'halo-grain' ? 'halo-grain' : 'clean';
+  }
+  function getPhotoEffectStrength(slide) {
+    const value = Number(slide && slide.photoEffectStrength);
+    return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0.82;
+  }
+  function getPhotoEffectRadius(slide) {
+    const value = Number(slide && slide.photoEffectRadius);
+    return Number.isFinite(value) ? Math.max(0.1, Math.min(0.8, value)) : 0.45;
+  }
+  function getPhotoEffectFocus(slide) {
+    const x = Number(slide && slide.photoEffectFocusX);
+    const y = Number(slide && slide.photoEffectFocusY);
+    return {
+      x: Number.isFinite(x) ? Math.max(0, Math.min(1, x)) : 0.5,
+      y: Number.isFinite(y) ? Math.max(0, Math.min(1, y)) : 0.43,
+    };
+  }
+  function applyPhotoEffectToSlide(slideEl, effect) {
+    const photo = slideEl.querySelector('.photo');
+    if (!photo) return;
+    photo.classList.toggle('has-halo-grain', effect === 'halo-grain');
+    if (effect !== 'halo-grain') {
+      const canvas = photo.querySelector('.photo-radial-effect');
+      if (canvas) canvas.remove();
+    }
+  }
+  function applyPhotoEffectFocusToSlide(slideEl, slide) {
+    const photo = slideEl.querySelector('.photo');
+    if (!photo) return;
+    const focus = getPhotoEffectFocus(slide);
+    photo.style.setProperty('--photo-focus-x', (focus.x * 100) + '%');
+    photo.style.setProperty('--photo-focus-y', (focus.y * 100) + '%');
+    let marker = photo.querySelector('.photo-focus-marker');
+    if (!marker) {
+      marker = document.createElement('span');
+      marker.className = 'photo-focus-marker';
+      marker.setAttribute('aria-hidden', 'true');
+      photo.appendChild(marker);
+    }
+  }
+  function setPhotoFocusPicking(stageIndex) {
+    photoFocusPickingStage = Number.isInteger(stageIndex) ? stageIndex : null;
+    document.querySelectorAll('.stage').forEach((stage, index) => {
+      const photo = stage.querySelector('.photo');
+      if (photo) photo.classList.toggle('is-picking-focus', index === photoFocusPickingStage);
+    });
+    const button = blockToolbar && blockToolbar.querySelector('[data-action="photo-effect-focus"]');
+    if (button) {
+      const active = photoFocusPickingStage !== null;
+      button.classList.toggle('active', active);
+      button.textContent = active ? '◎ Clique no assunto da foto' : '◎ Definir ponto focal';
+    }
+  }
+
+  const photoEffectPreviewRevisions = new WeakMap();
+  const pendingPhotoEffectPreviewFrames = new Map();
+
+  function scalePhotoPayloadForEffect(imageData, factor) {
+    if (!imageData) return null;
+    if (isStoriesPhotoComposition(imageData)) {
+      const scaled = {
+        kind: 'composition',
+        mode: imageData.mode,
+        photos: {},
+      };
+      ['first', 'second'].forEach(slot => {
+        const photo = imageData.photos[slot];
+        scaled.photos[slot] = {
+          dataURL: photo.dataURL,
+          tx: (photo.tx || 0) * factor,
+          ty: (photo.ty || 0) * factor,
+          scale: photo.scale || 1,
+        };
+      });
+      return scaled;
+    }
+    return {
+      dataURL: imageData.dataURL,
+      tx: (imageData.tx || 0) * factor,
+      ty: (imageData.ty || 0) * factor,
+      scale: imageData.scale || 1,
+    };
+  }
+
+  async function renderPhotoEffectPreview(slideEl, slideData) {
+    if (!slideEl || !slideData) return;
+    const photo = slideEl.querySelector('.photo');
+    if (!photo) return;
+    applyPhotoEffectToSlide(slideEl, getPhotoEffect(slideData));
+    let canvas = photo.querySelector('.photo-radial-effect');
+    if (getPhotoEffect(slideData) !== 'halo-grain' || !hasStoriesBackgroundImage(slideData)) {
+      if (canvas) canvas.remove();
+      return;
+    }
+    if (!canvas) {
+      canvas = document.createElement('canvas');
+      canvas.className = 'photo-radial-effect';
+      canvas.setAttribute('aria-hidden', 'true');
+      photo.appendChild(canvas);
+    }
+    const revision = (photoEffectPreviewRevisions.get(canvas) || 0) + 1;
+    photoEffectPreviewRevisions.set(canvas, revision);
+    const previewScale = 0.5;
+    const previewW = Math.round(SLIDE_W * previewScale);
+    const previewH = Math.round(SLIDE_H * previewScale);
+    const buffer = document.createElement('canvas');
+    buffer.width = previewW;
+    buffer.height = previewH;
+    await drawHaloGrainEffect(
+      buffer.getContext('2d'),
+      scalePhotoPayloadForEffect(slideData.image, previewScale),
+      previewW,
+      previewH,
+      getPhotoTone(slideData),
+      slideData.id,
+      {
+        includeGrain: false,
+        strength: getPhotoEffectStrength(slideData),
+        radius: getPhotoEffectRadius(slideData),
+        focus: getPhotoEffectFocus(slideData),
+      }
+    );
+    if (photoEffectPreviewRevisions.get(canvas) !== revision || !canvas.isConnected) return;
+    canvas.width = previewW;
+    canvas.height = previewH;
+    const context = canvas.getContext('2d');
+    context.clearRect(0, 0, previewW, previewH);
+    context.drawImage(buffer, 0, 0);
+  }
+
+  function schedulePhotoEffectPreview(stageIndex) {
+    if (pendingPhotoEffectPreviewFrames.has(stageIndex)) return;
+    const frame = requestAnimationFrame(() => {
+      pendingPhotoEffectPreviewFrames.delete(stageIndex);
+      const slideEl = document.querySelectorAll('.stage')[stageIndex]?.querySelector('.slide');
+      const slideData = doc && doc.slides ? doc.slides[stageIndex] : null;
+      renderPhotoEffectPreview(slideEl, slideData);
+    });
+    pendingPhotoEffectPreviewFrames.set(stageIndex, frame);
   }
 
   // ==== GAP PER-SLIDE (espaço vertical entre blocos do body-zone) ====
@@ -1531,14 +1808,14 @@
       slides.push(slideData);
     });
 
-    return { version: 14, typography: 'advercase', ratio: '4:5', backgroundColor: '#000000', slides };
+    return { version: 15, typography: 'advercase', ratio: '4:5', backgroundColor: '#000000', slides };
   }
 
   function createBlankStoriesDocument() {
     const source = initialStoriesDocument || buildDocFromDOM({ useLegacy: false });
     const blank = JSON.parse(JSON.stringify(source));
-    blank.version = 14;
-    blank.typography = 'advercase';
+    blank.version = 15;
+    blank.typography = doc && doc.typography === 'sans' ? 'sans' : 'advercase';
     blank.ratio = normalizeStoriesRatio(doc && doc.ratio);
     blank.backgroundColor = getGlobalBackgroundColor();
     blank.slides.forEach((slide, slideIndex) => {
@@ -1641,12 +1918,16 @@
       d.slides.forEach(s => s.blocks.forEach(b => { if (!b.card) b.card = 'light'; }));
       d.version = 14;
     }
+    if (d.version < 15) {
+      // v15: preserva a família escolhida e libera o preset sem serifa.
+      d.version = 15;
+    }
     d.backgroundColor = normalizeBackgroundColor(d.backgroundColor);
     d.ratio = normalizeStoriesRatio(d.ratio);
     d.slides.forEach(s => {
       if (s.backgroundColor != null) s.backgroundColor = normalizeBackgroundColor(s.backgroundColor);
     });
-    d.typography = 'advercase';
+    d.typography = d.typography === 'sans' ? 'sans' : 'advercase';
     return d;
   }
 
@@ -1666,7 +1947,7 @@
       // Só renderiza após todos os stages do documento existirem. Antes, um
       // slide recém-criado podia elevar doc.slides para 11 enquanto o DOM
       // ainda tinha os 10 estágios do HTML de origem.
-      setStoriesTypography('advercase', { persist: false, record: false });
+      setStoriesTypography(doc.typography || 'advercase', { persist: false, record: false });
       try {
         const pending = Number(sessionStorage.getItem(DOC_KEY + '-pending-active-slide'));
         sessionStorage.removeItem(DOC_KEY + '-pending-active-slide');
@@ -1678,7 +1959,7 @@
       return;
     }
     doc = buildDocFromDOM();
-    doc.version = 14;
+    doc.version = 15;
     setStoriesTypography('advercase', { persist: false, record: false });
     saveDoc();
   }
@@ -1772,15 +2053,20 @@
     sans: {
       cssFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif',
       canvasFamily: '"SF Pro Display", "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif',
+      inlineBoldWeight: 600,
     },
     advercase: {
       cssFamily: 'Advercase, Georgia, "Times New Roman", serif',
       canvasFamily: 'Advercase, Georgia, "Times New Roman", serif',
+      inlineBoldWeight: 700,
     },
   };
   function getStoriesTypeface() {
     const typography = doc && STORIES_TYPEFACES[doc.typography] ? doc.typography : 'advercase';
     return STORIES_TYPEFACES[typography];
+  }
+  function getStoriesInlineBoldWeight() {
+    return getStoriesTypeface().inlineBoldWeight || 700;
   }
   function normalizeStoriesRatio(ratio) {
     return STORIES_RATIO_HEIGHTS[ratio] ? ratio : '4:5';
@@ -1814,11 +2100,12 @@
     recordEditorMutation('ratio');
   }
   function setStoriesTypography(nextTypography, options = {}) {
-    const typography = 'advercase';
+    const typography = STORIES_TYPEFACES[nextTypography] ? nextTypography : 'advercase';
     const { persist = true, record = true } = options;
     if (!doc) return;
     doc.typography = typography;
     document.documentElement.style.setProperty('--stories-content-font', getStoriesTypeface().cssFamily);
+    document.documentElement.style.setProperty('--stories-inline-bold-weight', String(getStoriesInlineBoldWeight()));
     const selector = document.getElementById('stories-typography');
     if (selector) selector.value = typography;
     if (persist) safeSet(DOC_KEY, doc);
@@ -2009,6 +2296,10 @@
   function isStoriesPhotoComposition(payload) {
     return !!(payload && payload.kind === 'composition' && payload.mode && payload.photos && payload.photos.first && payload.photos.second);
   }
+  function hasStoriesBackgroundImage(slideData) {
+    const image = slideData && slideData.image;
+    return !!(image && (image.dataURL || isStoriesPhotoComposition(image)));
+  }
   function getCompositionPhotoImg(photo, slot) {
     let frame = photo.querySelector('.photo-frame.composition-frame-' + slot);
     if (!frame) {
@@ -2039,6 +2330,7 @@
     single.classList.remove('has-src');
     single.removeAttribute('src');
     clearCompositionPhotoImages(photo);
+    photo.classList.add('has-background-image');
     photo.classList.add('composition-' + payload.mode);
     ['first', 'second'].forEach(slot => {
       const source = payload.photos[slot];
@@ -2058,13 +2350,17 @@
     if (!payload || !payload.dataURL) return;
     const photo = slideEl.querySelector('.photo');
     if (photo) clearCompositionPhotoImages(photo);
+    if (photo) photo.classList.add('has-background-image');
     img.src = payload.dataURL;
     img.classList.add('has-src');
     applyTransformToImg(img, payload.tx || 0, payload.ty || 0, payload.scale || 1);
   }
   function clearImageFromSlide(slideEl) {
     const photo = slideEl.querySelector('.photo');
-    if (photo) clearCompositionPhotoImages(photo);
+    if (photo) {
+      clearCompositionPhotoImages(photo);
+      photo.classList.remove('has-background-image');
+    }
     const img = slideEl.querySelector('.photo-img.single-photo');
     if (img) {
       img.classList.remove('has-src');
@@ -2401,7 +2697,7 @@
     // Composições guardam as duas fontes em `photos`, não em `dataURL`.
     // Mantê-las neste ramo evita que uma nova renderização limpe a foto e
     // deixe o slide com o fundo preto.
-    if (slideData.image && (slideData.image.dataURL || isStoriesPhotoComposition(slideData.image))) {
+    if (hasStoriesBackgroundImage(slideData)) {
       applyImageToSlide(slideEl, slideData.image);
     } else {
       clearImageFromSlide(slideEl);
@@ -2412,6 +2708,10 @@
       footerEl.classList.toggle('dark', slideData.footerVariant === 'dark');
     }
     applyFadeToSlide(slideEl, getEffectiveFade(slideData));
+    applyPhotoToneToSlide(slideEl, getPhotoTone(slideData));
+    applyPhotoEffectToSlide(slideEl, getPhotoEffect(slideData));
+    applyPhotoEffectFocusToSlide(slideEl, slideData);
+    schedulePhotoEffectPreview(sIdx);
   }
 
   function renderAll() {
@@ -2565,13 +2865,31 @@
   }
 
   // ==== BLOCK INPUT (text edit) ====
+  function preserveStageViewportPosition(stageIndex, operation) {
+    const stage = document.querySelectorAll('.stage')[stageIndex];
+    const topBefore = stage ? stage.getBoundingClientRect().top : null;
+    operation();
+    // Contenteditable pode pedir que o navegador reposicione a página quando
+    // uma linha é criada. Mantemos o próprio canvas no mesmo ponto da viewport.
+    const stabilize = () => {
+      if (topBefore === null || !stage || !stage.isConnected) return;
+      const delta = stage.getBoundingClientRect().top - topBefore;
+      if (Math.abs(delta) > 0.5) window.scrollBy(0, delta);
+    };
+    requestAnimationFrame(() => {
+      stabilize();
+      requestAnimationFrame(stabilize);
+    });
+  }
   function onBlockInput(e) {
     const blockEl = e.currentTarget;
     const ctx = getBlockContext(blockEl);
     if (!ctx) return;
-    ctx.block.html = sanitizeBlockHtml(blockEl.innerHTML);
-    saveDoc();
-    refreshSlideContentFit(ctx.sIdx);
+    preserveStageViewportPosition(ctx.sIdx, () => {
+      ctx.block.html = sanitizeBlockHtml(blockEl.innerHTML);
+      saveDoc();
+      refreshSlideContentFit(ctx.sIdx);
+    });
   }
 
   // ==== SELECTION MODEL ====
@@ -2620,6 +2938,34 @@
       btn.classList.toggle('active', active);
       btn.setAttribute('aria-pressed', String(active));
     });
+    const photoTone = getPhotoTone(ctx.slideData);
+    blockToolbar.querySelectorAll('[data-photo-tone]').forEach(btn => {
+      const active = btn.dataset.photoTone === photoTone;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-pressed', String(active));
+    });
+    const photoEffect = getPhotoEffect(ctx.slideData);
+    blockToolbar.querySelectorAll('[data-photo-effect]').forEach(btn => {
+      const active = btn.dataset.photoEffect === photoEffect;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-pressed', String(active));
+    });
+    const effectSettings = blockToolbar.querySelector('.photo-effect-settings');
+    if (effectSettings) effectSettings.classList.toggle('is-disabled', photoEffect !== 'halo-grain');
+    const effectStrength = getPhotoEffectStrength(ctx.slideData);
+    const effectStrengthInput = document.getElementById('tb-photo-effect-strength');
+    const effectStrengthVal = document.getElementById('tb-photo-effect-strength-val');
+    if (effectStrengthInput && effectStrengthVal) {
+      effectStrengthInput.value = Math.round(effectStrength * 100);
+      effectStrengthVal.textContent = Math.round(effectStrength * 100) + '%';
+    }
+    const effectRadius = getPhotoEffectRadius(ctx.slideData);
+    const effectRadiusInput = document.getElementById('tb-photo-effect-radius');
+    const effectRadiusVal = document.getElementById('tb-photo-effect-radius-val');
+    if (effectRadiusInput && effectRadiusVal) {
+      effectRadiusInput.value = Math.round(effectRadius * 100);
+      effectRadiusVal.textContent = Math.round(effectRadius * 100) + '%';
+    }
     // Ajuste fino: tamanho, altura entre linhas e espaçamento entre caracteres.
     const eff = getEffectiveSpacing(ctx.block);
     const fsInput = document.getElementById('tb-font-size');
@@ -2686,6 +3032,86 @@
       if (replacement) selectBlock(replacement);
     });
   });
+
+  blockToolbar.querySelectorAll('[data-photo-tone]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const ctx = getBlockContext(getSelectedBlockEl());
+      if (!ctx) return;
+      ctx.slideData.photoTone = btn.dataset.photoTone;
+      const slideEl = document.querySelectorAll('.stage')[ctx.sIdx].querySelector('.slide');
+      applyPhotoToneToSlide(slideEl, ctx.slideData.photoTone);
+      schedulePhotoEffectPreview(ctx.sIdx);
+      saveDoc();
+      updateToolbarState();
+    });
+  });
+
+  blockToolbar.querySelectorAll('[data-photo-effect]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const ctx = getBlockContext(getSelectedBlockEl());
+      if (!ctx) return;
+      ctx.slideData.photoEffect = btn.dataset.photoEffect;
+      const slideEl = document.querySelectorAll('.stage')[ctx.sIdx].querySelector('.slide');
+      applyPhotoEffectToSlide(slideEl, ctx.slideData.photoEffect);
+      schedulePhotoEffectPreview(ctx.sIdx);
+      saveDoc();
+      updateToolbarState();
+    });
+  });
+
+  (function wirePhotoEffectControls() {
+    const strengthInput = document.getElementById('tb-photo-effect-strength');
+    const strengthVal = document.getElementById('tb-photo-effect-strength-val');
+    const radiusInput = document.getElementById('tb-photo-effect-radius');
+    const radiusVal = document.getElementById('tb-photo-effect-radius-val');
+    [strengthInput, radiusInput].filter(Boolean).forEach(input => {
+      ['mousedown', 'click', 'keydown'].forEach(eventName => input.addEventListener(eventName, event => event.stopPropagation()));
+    });
+    function selectedContext() {
+      return getBlockContext(getSelectedBlockEl());
+    }
+    if (strengthInput) strengthInput.addEventListener('input', event => {
+      const ctx = selectedContext();
+      if (!ctx) return;
+      ctx.slideData.photoEffectStrength = Number(event.target.value) / 100;
+      strengthVal.textContent = event.target.value + '%';
+      schedulePhotoEffectPreview(ctx.sIdx);
+      saveDoc();
+    });
+    if (radiusInput) radiusInput.addEventListener('input', event => {
+      const ctx = selectedContext();
+      if (!ctx) return;
+      ctx.slideData.photoEffectRadius = Number(event.target.value) / 100;
+      radiusVal.textContent = event.target.value + '%';
+      schedulePhotoEffectPreview(ctx.sIdx);
+      saveDoc();
+    });
+    const focusButton = blockToolbar.querySelector('[data-action="photo-effect-focus"]');
+    if (focusButton) focusButton.addEventListener('click', event => {
+      event.preventDefault();
+      const ctx = selectedContext();
+      if (!ctx || getPhotoEffect(ctx.slideData) !== 'halo-grain') return;
+      setPhotoFocusPicking(photoFocusPickingStage === ctx.sIdx ? null : ctx.sIdx);
+    });
+    const resetButton = blockToolbar.querySelector('[data-action="photo-effect-reset"]');
+    if (resetButton) resetButton.addEventListener('click', event => {
+      event.preventDefault();
+      const ctx = selectedContext();
+      if (!ctx) return;
+      delete ctx.slideData.photoEffectStrength;
+      delete ctx.slideData.photoEffectRadius;
+      delete ctx.slideData.photoEffectFocusX;
+      delete ctx.slideData.photoEffectFocusY;
+      const slideEl = document.querySelectorAll('.stage')[ctx.sIdx].querySelector('.slide');
+      applyPhotoEffectFocusToSlide(slideEl, ctx.slideData);
+      setPhotoFocusPicking(null);
+      schedulePhotoEffectPreview(ctx.sIdx);
+      saveDoc();
+      updateToolbarState();
+    });
+  })();
 
   // ==== SPACING SLIDERS ====
   (function wireSpacingSliders() {
@@ -3345,6 +3771,7 @@
     const stage = document.querySelectorAll('.stage')[stageIndex];
     const slideEl = stage.querySelector('.slide');
     applyImageToSlide(slideEl, slideData.image);
+    schedulePhotoEffectPreview(stageIndex);
     flash(slideEl);
   }
   async function commitFullBleedImage(stageIndex, dataURL) {
@@ -3473,7 +3900,7 @@
     const SCALE_INV = 1 / STAGE_SCALE;
     const shortcutModifier = /Mac|iPhone|iPad/.test(navigator.platform || '') ? '⌘' : 'Ctrl+';
     const shortcutHint = document.querySelector('.stage-shortcut');
-    if (shortcutHint) shortcutHint.textContent = 'Shift + arrastar conjunto · ' + shortcutModifier + 'V imagem';
+    if (shortcutHint) shortcutHint.textContent = 'Shift + arrastar texto · Shift + vazio: conjunto · ' + shortcutModifier + 'V imagem';
     document.querySelectorAll('[title*="Cmd+"]').forEach(node => {
       node.title = node.title.replaceAll('Cmd+', shortcutModifier);
     });
@@ -3533,6 +3960,23 @@
       photoLayer.title = 'Foto: use a roda para zoom, botão do meio ou Espaço + arrastar para mover e duplo clique para restaurar.';
       getPhotoImg(slideEl);
 
+      slideEl.addEventListener('click', (event) => {
+        if (photoFocusPickingStage !== i) return;
+        if (!hasStoriesBackgroundImage(doc.slides[i])) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        const rect = slideEl.getBoundingClientRect();
+        const focusX = Math.max(0, Math.min(1, (event.clientX - rect.left) / Math.max(1, rect.width)));
+        const focusY = Math.max(0, Math.min(1, (event.clientY - rect.top) / Math.max(1, rect.height)));
+        doc.slides[i].photoEffectFocusX = focusX;
+        doc.slides[i].photoEffectFocusY = focusY;
+        applyPhotoEffectFocusToSlide(slideEl, doc.slides[i]);
+        setPhotoFocusPicking(null);
+        schedulePhotoEffectPreview(i);
+        saveDoc();
+        updateToolbarState();
+      }, true);
+
       stage.addEventListener('click', (e) => {
         // Não deseleciona se o click foi num bloco (handled separately)
         if (e.target.closest && e.target.closest('[data-block-id]')) return;
@@ -3564,6 +4008,7 @@
       });
 
       let imgDragging = false, imgDragStart = null, draggingImage = null;
+      let blockDragging = false, blockDragStart = null, draggingBlock = null;
       let bzDragging = false, bzDragStart = null;
 
       function getPhotoAtPointer(e) {
@@ -3603,12 +4048,26 @@
         e.preventDefault();
         applyTransformToImg(imageTarget, 0, 0, 1);
         persistImageTransform(i, imageTarget);
+        schedulePhotoEffectPreview(i);
       });
 
       slideEl.addEventListener('mousedown', (e) => {
         if (!e.shiftKey) return;
         if (!slideEl.classList.contains('active')) return;
-        if (e.target.isContentEditable) return;
+        const targetBlock = e.target.closest && e.target.closest('[data-block-id]');
+        if (targetBlock) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          selectBlock(targetBlock);
+          blockDragging = true;
+          draggingBlock = targetBlock;
+          draggingBlock.classList.add('block-dragging');
+          blockDragStart = {
+            y: e.clientY,
+            offsetY: getBlockVerticalOffset(getBlockContext(targetBlock).block),
+          };
+          return;
+        }
         e.preventDefault();
         e.stopPropagation();
         bzDragging = true;
@@ -3622,6 +4081,14 @@
           const dx = (e.clientX - imgDragStart.x) * coordinateScale;
           const dy = (e.clientY - imgDragStart.y) * coordinateScale;
           applyTransformToImg(draggingImage, imgDragStart.tx + dx, imgDragStart.ty + dy, imgDragStart.scale);
+          schedulePhotoEffectPreview(i);
+        }
+        if (blockDragging && blockDragStart && draggingBlock) {
+          const coordinateScale = SLIDE_W / Math.max(1, stage.getBoundingClientRect().width);
+          const deltaY = (e.clientY - blockDragStart.y) * coordinateScale;
+          let offsetY = Math.max(-650, Math.min(650, blockDragStart.offsetY + deltaY));
+          if (Math.abs(offsetY) < 18) offsetY = 0;
+          applyBlockVerticalOffsetToNode(draggingBlock, offsetY);
         }
         if (bzDragging && bzDragStart) {
           const dx = (e.clientX - bzDragStart.x) * SCALE_INV;
@@ -3645,6 +4112,12 @@
           draggingImage.classList.remove('dragging');
           persistImageTransform(i, draggingImage);
           draggingImage = null;
+        }
+        if (blockDragging) {
+          blockDragging = false;
+          draggingBlock.classList.remove('block-dragging');
+          persistBlockVerticalOffset(draggingBlock);
+          draggingBlock = null;
         }
         if (bzDragging) {
           bzDragging = false;
@@ -3672,6 +4145,7 @@
           const newScale = Math.max(1.0, Math.min(5.0, state.scale + delta));
           applyTransformToImg(imageTarget, state.tx, state.ty, newScale);
           persistImageTransform(i, imageTarget);
+          schedulePhotoEffectPreview(i);
         }
       }, { passive: false });
     });
@@ -3837,14 +4311,15 @@
     let baseStyle = VARIANT_STYLES[styleKey];
     if (!baseStyle) return null;
     // Mantém no Canvas a mesma compensação proporcional usada no preview.
-    let size = baseStyle.size;
+    const baseSpacing = getVariantBaseSpacing(block.kind, block.variant);
+    let size = baseSpacing.fontSize;
     let fontSpec = withStoriesTypeface(baseStyle.fontSpec);
-    let lineHeight = baseStyle.lineHeight;
+    let lineHeight = baseSpacing.lineHeight;
     if (block.fontSize != null) {
       size = block.fontSize;
       fontSpec = fontSpec.replace(/(\b\d+(?:\.\d+)?)px\b/, size + 'px');
       if (block.lineHeight == null) {
-        lineHeight = Math.round(size * (baseStyle.lineHeight / baseStyle.size));
+        lineHeight = Math.round(size * (baseSpacing.lineHeight / baseSpacing.fontSize));
       }
     }
     if (block.lineHeight != null) {
@@ -3860,7 +4335,7 @@
       color: textColor || baseStyle.color,
       letterSpacing: (block.letterSpacing != null)
         ? block.letterSpacing
-        : getTypefaceDefaultLetterSpacing(baseStyle.letterSpacing),
+        : getTypefaceDefaultLetterSpacing(baseSpacing.letterSpacing),
     });
   }
   function resolveBlockAlign(block, isCapa) {
@@ -3972,7 +4447,7 @@
     }
     if (seg.bold) {
       fontSpec = fontSpec.replace(/(^|\s)((?:italic\s+)?)(\d{3})(\s+\d+px\b)/, (_, p1, p2, w, p4) => {
-        const newW = Math.max(parseInt(w, 10), 700);
+        const newW = Math.max(parseInt(w, 10), getStoriesInlineBoldWeight());
         return p1 + p2 + newW + p4;
       });
     }
@@ -4051,6 +4526,192 @@
     if (!imageData.dataURL) return;
     const img = await loadImage(imageData.dataURL);
     drawPhotoInFrame(ctx, img, imageData, 0, 0, w, h);
+  }
+
+  function makeFilmGrainSeed(value) {
+    let hash = 2166136261;
+    const text = String(value || 'stories-halo-grain');
+    for (let index = 0; index < text.length; index++) {
+      hash ^= text.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
+    }
+    return hash >>> 0;
+  }
+
+  function drawFilmGrain(ctx, w, h, seedValue) {
+    let seed = makeFilmGrainSeed(seedValue);
+    const random = () => {
+      seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5;
+      return (seed >>> 0) / 4294967296;
+    };
+    ctx.save();
+    // Poucos pontos semi-transparentes preservam a foto; o resultado é grão,
+    // não uma camada de ruído digital pesada.
+    for (let index = 0; index < 2600; index++) {
+      const light = random() > 0.5;
+      ctx.fillStyle = light ? 'rgba(255,255,255,.075)' : 'rgba(0,0,0,.10)';
+      const size = random() > 0.88 ? 1.6 : 0.8;
+      ctx.fillRect(random() * w, random() * h, size, size);
+    }
+    ctx.restore();
+  }
+
+  const radialBlurRendererCache = new Map();
+
+  function compileRadialBlurShader(gl, type, source) {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      gl.deleteShader(shader);
+      return null;
+    }
+    return shader;
+  }
+
+  function createRadialBlurRenderer(w, h) {
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const gl = canvas.getContext('webgl', {
+      alpha: false,
+      antialias: false,
+      depth: false,
+      premultipliedAlpha: false,
+      preserveDrawingBuffer: true,
+    });
+    if (!gl) return null;
+    const vertexSource = [
+      'attribute vec2 a_position;',
+      'varying vec2 v_uv;',
+      'void main() {',
+      '  v_uv = a_position * 0.5 + 0.5;',
+      '  gl_Position = vec4(a_position, 0.0, 1.0);',
+      '}',
+    ].join('\n');
+    const fragmentSource = [
+      'precision highp float;',
+      'varying vec2 v_uv;',
+      'uniform sampler2D u_photo;',
+      'uniform vec2 u_focus;',
+      'uniform float u_strength;',
+      'uniform float u_radius;',
+      'uniform float u_aspect;',
+      'const int SAMPLE_COUNT = 36;',
+      'void main() {',
+      '  vec4 original = texture2D(u_photo, v_uv);',
+      '  vec2 delta = v_uv - u_focus;',
+      '  vec2 metric = vec2(delta.x * u_aspect, delta.y);',
+      '  float distanceFromFocus = length(metric);',
+      '  float innerRadius = mix(0.055, 0.31, u_radius);',
+      '  float edgeMask = smoothstep(innerRadius, innerRadius + 0.24, distanceFromFocus);',
+      '  float angularSweep = mix(0.025, 0.92, u_strength) * edgeMask;',
+      '  vec4 accumulated = vec4(0.0);',
+      '  float totalWeight = 0.0;',
+      '  for (int index = 0; index < SAMPLE_COUNT; index++) {',
+      '    float progress = float(index) / float(SAMPLE_COUNT - 1);',
+      '    float centeredProgress = progress * 2.0 - 1.0;',
+      '    float angle = centeredProgress * angularSweep * 0.5;',
+      '    float cosine = cos(angle);',
+      '    float sine = sin(angle);',
+      '    vec2 rotatedMetric = vec2(metric.x * cosine - metric.y * sine, metric.x * sine + metric.y * cosine);',
+      '    vec2 rotatedDelta = vec2(rotatedMetric.x / u_aspect, rotatedMetric.y);',
+      '    vec2 sampleUv = clamp(u_focus + rotatedDelta, vec2(0.001), vec2(0.999));',
+      '    float weight = mix(0.72, 1.0, 1.0 - abs(centeredProgress));',
+      '    accumulated += texture2D(u_photo, sampleUv) * weight;',
+      '    totalWeight += weight;',
+      '  }',
+      '  vec4 radialBlur = accumulated / totalWeight;',
+      '  float blendAmount = edgeMask * smoothstep(0.0, 0.22, u_strength);',
+      '  gl_FragColor = mix(original, radialBlur, blendAmount);',
+      '}',
+    ].join('\n');
+    const vertexShader = compileRadialBlurShader(gl, gl.VERTEX_SHADER, vertexSource);
+    const fragmentShader = compileRadialBlurShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
+    if (!vertexShader || !fragmentShader) return null;
+    const program = gl.createProgram();
+    gl.attachShader(program, vertexShader);
+    gl.attachShader(program, fragmentShader);
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return null;
+    gl.useProgram(program);
+    const buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+    const position = gl.getAttribLocation(program, 'a_position');
+    gl.enableVertexAttribArray(position);
+    gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.uniform1i(gl.getUniformLocation(program, 'u_photo'), 0);
+    return {
+      canvas,
+      gl,
+      program,
+      texture,
+      focusLocation: gl.getUniformLocation(program, 'u_focus'),
+      strengthLocation: gl.getUniformLocation(program, 'u_strength'),
+      radiusLocation: gl.getUniformLocation(program, 'u_radius'),
+      aspectLocation: gl.getUniformLocation(program, 'u_aspect'),
+    };
+  }
+
+  function renderRadialBlurWithWebGL(source, w, h, options) {
+    const cacheKey = w + 'x' + h;
+    let renderer = radialBlurRendererCache.get(cacheKey);
+    if (!renderer) {
+      renderer = createRadialBlurRenderer(w, h);
+      if (!renderer) return null;
+      radialBlurRendererCache.set(cacheKey, renderer);
+    }
+    const { gl, program, texture, canvas } = renderer;
+    const focus = options.focus || { x: 0.5, y: 0.43 };
+    gl.viewport(0, 0, w, h);
+    gl.useProgram(program);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+    gl.uniform2f(renderer.focusLocation, focus.x, 1 - focus.y);
+    gl.uniform1f(renderer.strengthLocation, Math.max(0, Math.min(1, Number(options.strength) || 0)));
+    gl.uniform1f(renderer.radiusLocation, Math.max(0.1, Math.min(0.8, Number(options.radius) || 0.45)));
+    gl.uniform1f(renderer.aspectLocation, w / h);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    gl.finish();
+    return canvas;
+  }
+
+  async function drawHaloGrainEffect(ctx, imageData, w, h, tone, seedValue, options = {}) {
+    if (!imageData) return;
+    const source = document.createElement('canvas');
+    source.width = w; source.height = h;
+    const sourceCtx = source.getContext('2d');
+    sourceCtx.imageSmoothingEnabled = true;
+    sourceCtx.imageSmoothingQuality = 'high';
+    if (tone === 'grayscale') sourceCtx.filter = 'grayscale(1)';
+    await drawPhoto(sourceCtx, imageData, w, h);
+
+    const processed = renderRadialBlurWithWebGL(source, w, h, options);
+    if (processed) ctx.drawImage(processed, 0, 0, w, h);
+    else ctx.drawImage(source, 0, 0, w, h);
+
+    const focus = options.focus || { x: 0.5, y: 0.43 };
+    const centerX = focus.x * w;
+    const centerY = focus.y * h;
+    const radius = Math.max(0.1, Math.min(0.8, Number(options.radius) || 0.45));
+    const vignette = ctx.createRadialGradient(centerX, centerY, w * (0.08 + radius * 0.22), centerX, centerY, Math.max(w, h) * 0.74);
+    vignette.addColorStop(0, 'rgba(0,0,0,0)');
+    vignette.addColorStop(0.46, 'rgba(0,0,0,0)');
+    vignette.addColorStop(1, 'rgba(0,0,0,.30)');
+    ctx.save();
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, 0, w, h);
+    ctx.restore();
+    if (options.includeGrain !== false) drawFilmGrain(ctx, w, h, seedValue);
   }
 
   function applyTextTransform(text, uppercase) {
@@ -4344,20 +5005,23 @@
     const inlineImageH = inlineLayout.height;
 
     function drawBlockAt(layout, cursorY) {
+      const blockY = cursorY + getBlockVerticalOffset(layout.block);
       const cardX = zoneX + (zoneW - layout.cardWidth) / 2;
       if (layout.card !== 'none') {
         ctx.save();
         ctx.fillStyle = layout.card === 'light' ? '#FAF9F5' : '#080808';
-        ctx.fillRect(cardX, cursorY, layout.cardWidth, layout.height);
+        ctx.fillRect(cardX, blockY, layout.cardWidth, layout.height);
         ctx.restore();
       }
-      cursorY += layout.paddingTop;
+      let textY = blockY + layout.paddingTop;
       for (const line of layout.lines) {
-        const baselineY = cursorY + layout.style.size * 0.85;
+        const baselineY = textY + layout.style.size * 0.85;
         drawTextLine(ctx, line, cardX + layout.paddingX, baselineY, layout.textWidth, layout.style, layout.align);
-        cursorY += layout.style.lineHeight;
+        textY += layout.style.lineHeight;
       }
-      return cursorY + layout.paddingBottom;
+      // O fluxo base continua intacto; o offset desloca apenas este bloco,
+      // igual ao preview DOM e sem alterar o espaçamento dos demais.
+      return cursorY + layout.height;
     }
 
     function drawBlocksFlow(startY) {
@@ -4425,10 +5089,33 @@
     ctx.fillRect(0, 0, SLIDE_W, SLIDE_H);
 
     // 2. Foto full-bleed, exatamente como no preview.
-    await drawPhoto(ctx, slideData.image, SLIDE_W, SLIDE_H);
+    ctx.save();
+    if (getPhotoTone(slideData) === 'grayscale') ctx.filter = 'grayscale(1)';
+    if (hasStoriesBackgroundImage(slideData)) {
+      await drawPhoto(ctx, slideData.image, SLIDE_W, SLIDE_H);
+    }
+    ctx.restore();
+
+    if (hasStoriesBackgroundImage(slideData) && getPhotoEffect(slideData) === 'halo-grain') {
+      await drawHaloGrainEffect(
+        ctx,
+        slideData.image,
+        SLIDE_W,
+        SLIDE_H,
+        getPhotoTone(slideData),
+        slideData.id,
+        {
+          strength: getPhotoEffectStrength(slideData),
+          radius: getPhotoEffectRadius(slideData),
+          focus: getPhotoEffectFocus(slideData),
+        }
+      );
+    }
 
     // 3. Legibility filter (per-slide fade)
-    drawLegibilityFilter(ctx, SLIDE_W, SLIDE_H, getEffectiveFade(slideData));
+    if (hasStoriesBackgroundImage(slideData)) {
+      drawLegibilityFilter(ctx, SLIDE_W, SLIDE_H, getEffectiveFade(slideData));
+    }
 
     // 4. Body-zone unificado (mesma área pra capa e demais).
     // Capa e não-capa usam o mesmo zone 180/180. A imagem preserva sua

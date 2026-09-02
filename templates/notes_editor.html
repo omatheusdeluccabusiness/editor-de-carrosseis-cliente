@@ -1053,17 +1053,17 @@
       <div class="tb-slider-group" title="Altura entre linhas do bloco">
         <span class="tb-slider-label">Entrelinhas</span>
         <input type="range" id="tb-line-height" min="30" max="200" step="1" aria-label="Altura entre linhas" />
-        <span class="tb-slider-val" id="tb-line-height-val">96px</span>
+        <span class="tb-slider-val" id="tb-line-height-val">59px</span>
       </div>
       <div class="tb-slider-group" title="Distância entre caracteres do bloco">
         <span class="tb-slider-label">Espaço entre letras</span>
         <input type="range" id="tb-letter-spacing" min="-0.10" max="0.30" step="0.005" aria-label="Espaçamento entre letras" />
-        <span class="tb-slider-val" id="tb-letter-spacing-val">0.000em</span>
+        <span class="tb-slider-val" id="tb-letter-spacing-val">-0.035em</span>
       </div>
       <div class="tb-slider-group" title="Tamanho do texto">
         <span class="tb-slider-label">Tamanho do texto</span>
         <input type="range" id="tb-font-size" min="20" max="140" step="1" aria-label="Tamanho da fonte" />
-        <span class="tb-slider-val" id="tb-font-size-val">52px</span>
+        <span class="tb-slider-val" id="tb-font-size-val">62px</span>
       </div>
       <button data-action="spacing-reset" title="Restaurar tamanho e espaçamento do texto">↺</button>
     </div>
@@ -1347,14 +1347,24 @@
 
   // ==== SPACING HELPERS (line-height + letter-spacing por bloco) ====
   const ADVERCASE_DEFAULT_LETTER_SPACING = 0.015;
+  // Configuração-base da fonte sem serifa. Ela é compartilhada entre os
+  // estilos de bloco para que o painel comece sempre com o mesmo ritmo.
+  const SANS_DEFAULT_BLOCK_CONFIG = Object.freeze({
+    fontSize: 62,
+    lineHeight: 59,
+    letterSpacing: -0.035,
+  });
 
   function getTypefaceDefaultLetterSpacing(baseLetterSpacing) {
     return doc && doc.typography === 'advercase'
       ? ADVERCASE_DEFAULT_LETTER_SPACING
-      : baseLetterSpacing;
+      : SANS_DEFAULT_BLOCK_CONFIG.letterSpacing;
   }
 
   function getVariantBaseSpacing(kind, variant) {
+    if (!doc || doc.typography !== 'advercase') {
+      return { ...SANS_DEFAULT_BLOCK_CONFIG };
+    }
     const key = kind + ':' + variant;
     const base = (typeof VARIANT_STYLES !== 'undefined') ? VARIANT_STYLES[key] : null;
     if (base) return { lineHeight: base.lineHeight, letterSpacing: base.letterSpacing || 0, fontSize: base.size };
@@ -3661,16 +3671,17 @@
     let baseStyle = VARIANT_STYLES[styleKey];
     if (!baseStyle) return null;
     // Mantém no Canvas a mesma compensação proporcional usada no preview.
-    let size = baseStyle.size;
+    const baseSpacing = getVariantBaseSpacing(block.kind, block.variant);
+    let size = baseSpacing.fontSize;
     let fontSpec = withNotasTypeface(baseStyle.fontSpec);
-    let lineHeight = baseStyle.lineHeight;
+    let lineHeight = baseSpacing.lineHeight;
     const coverHeadline = isCapa && block.kind === 'body';
     if (coverHeadline) fontSpec = fontSpec.replace(/\b400\b/, '700');
     if (block.fontSize != null) {
       size = block.fontSize;
       fontSpec = fontSpec.replace(/(\b\d+(?:\.\d+)?)px\b/, size + 'px');
       if (block.lineHeight == null) {
-        lineHeight = Math.round(size * (baseStyle.lineHeight / baseStyle.size));
+        lineHeight = Math.round(size * (baseSpacing.lineHeight / baseSpacing.fontSize));
       }
     }
     if (block.lineHeight != null) {
@@ -3686,7 +3697,7 @@
       color: textColor || baseStyle.color,
       letterSpacing: (block.letterSpacing != null)
         ? block.letterSpacing
-        : getTypefaceDefaultLetterSpacing(baseStyle.letterSpacing),
+        : getTypefaceDefaultLetterSpacing(baseSpacing.letterSpacing),
     });
   }
   function resolveBlockAlign(block, isCapa) {

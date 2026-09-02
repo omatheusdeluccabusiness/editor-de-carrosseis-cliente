@@ -206,6 +206,20 @@ class EditorShellTest(unittest.TestCase):
         for marker in required:
             self.assertIn(marker, html)
 
+    def test_stories_sans_uses_a_moderate_inline_bold_weight(self) -> None:
+        html = (PROJECT_ROOT / "templates" / "stories_editor.html").read_text(
+            encoding="utf-8"
+        )
+        required = (
+            "inlineBoldWeight: 600",
+            "inlineBoldWeight: 700",
+            "function getStoriesInlineBoldWeight()",
+            "font-weight: var(--stories-inline-bold-weight, 700);",
+            "getStoriesInlineBoldWeight());",
+        )
+        for marker in required:
+            self.assertIn(marker, html)
+
     def test_stories_uses_the_font_size_slider_as_its_only_size_control(self) -> None:
         html = (PROJECT_ROOT / "templates" / "stories_editor.html").read_text(
             encoding="utf-8"
@@ -228,14 +242,32 @@ class EditorShellTest(unittest.TestCase):
         ):
             self.assertIn(f'<span class="tb-slider-label">{label}</span>', html)
 
-    def test_advercase_uses_its_editorial_letter_spacing_by_default(self) -> None:
+    def test_stories_typefaces_use_their_editorial_default_spacing(self) -> None:
         html = (PROJECT_ROOT / "templates" / "stories_editor.html").read_text(
             encoding="utf-8"
         )
         self.assertIn("const ADVERCASE_DEFAULT_LETTER_SPACING = 0.015;", html)
+        self.assertIn("const SANS_DEFAULT_BLOCK_CONFIG = Object.freeze({", html)
+        self.assertIn("fontSize: 62,", html)
+        self.assertIn("lineHeight: 59,", html)
+        self.assertIn("letterSpacing: -0.035,", html)
         self.assertIn("function getTypefaceDefaultLetterSpacing", html)
         self.assertIn("getTypefaceDefaultLetterSpacing(base.letterSpacing)", html)
-        self.assertIn("getTypefaceDefaultLetterSpacing(baseStyle.letterSpacing)", html)
+        self.assertIn("getTypefaceDefaultLetterSpacing(baseSpacing.letterSpacing)", html)
+
+    def test_notes_sans_typeface_uses_the_shared_default_block_config(self) -> None:
+        html = (PROJECT_ROOT / "templates" / "notes_editor.html").read_text(
+            encoding="utf-8"
+        )
+        for marker in (
+            "const SANS_DEFAULT_BLOCK_CONFIG = Object.freeze({",
+            "fontSize: 62,",
+            "lineHeight: 59,",
+            "letterSpacing: -0.035,",
+            "return { ...SANS_DEFAULT_BLOCK_CONFIG };",
+            "getTypefaceDefaultLetterSpacing(baseSpacing.letterSpacing)",
+        ):
+            self.assertIn(marker, html)
 
     def test_stories_alignment_overrides_the_cover_default_in_preview(self) -> None:
         html = (PROJECT_ROOT / "templates" / "stories_editor.html").read_text(
@@ -602,6 +634,118 @@ class EditorShellTest(unittest.TestCase):
             "frame.appendChild(img);",
             "function clearCompositionPhotoImages(photo)",
             "photo.querySelectorAll('.photo-frame.composition-frame').forEach(frame => frame.remove());",
+        )
+        for marker in required:
+            self.assertIn(marker, html)
+
+    def test_stories_background_photo_tone_is_shared_by_preview_and_export(self) -> None:
+        html = (PROJECT_ROOT / "templates" / "stories_background_editor.html").read_text(
+            encoding="utf-8"
+        )
+        required = (
+            'data-photo-tone="color"',
+            'data-photo-tone="grayscale"',
+            "function getPhotoTone(slide)",
+            "function applyPhotoToneToSlide(slideEl, tone)",
+            "filter: grayscale(var(--photo-grayscale, 0));",
+            "applyPhotoToneToSlide(slideEl, getPhotoTone(slideData));",
+            "ctx.filter = 'grayscale(1)'",
+        )
+        for marker in required:
+            self.assertIn(marker, html)
+
+    def test_stories_background_halo_and_grain_effect_is_shared_by_preview_and_export(self) -> None:
+        html = (PROJECT_ROOT / "templates" / "stories_background_editor.html").read_text(
+            encoding="utf-8"
+        )
+        required = (
+            'data-photo-effect="clean"',
+            'data-photo-effect="halo-grain"',
+            "Borrado radial",
+            "function getPhotoEffect(slide)",
+            "function applyPhotoEffectToSlide(slideEl, effect)",
+            "has-halo-grain",
+            "photo-radial-effect",
+            "function schedulePhotoEffectPreview(stageIndex)",
+            "function drawFilmGrain(ctx, w, h, seedValue)",
+            "async function drawHaloGrainEffect(ctx, imageData, w, h, tone, seedValue",
+            "function renderRadialBlurWithWebGL(source, w, h, options)",
+            "const int SAMPLE_COUNT = 36;",
+            "float edgeMask = smoothstep(innerRadius, innerRadius + 0.24, distanceFromFocus);",
+            "float angularSweep = mix(0.025, 0.92, u_strength) * edgeMask;",
+            "vec2 rotatedMetric = vec2(metric.x * cosine - metric.y * sine, metric.x * sine + metric.y * cosine);",
+            'id="tb-photo-effect-strength"',
+            'id="tb-photo-effect-radius"',
+            'data-action="photo-effect-focus"',
+            "getPhotoEffect(slideData) === 'halo-grain'",
+        )
+        for marker in required:
+            self.assertIn(marker, html)
+        self.assertNotIn("float travel = progress * blurDistance;", html)
+        self.assertNotIn("curvedDelta * (1.0 - travel)", html)
+
+    def test_stories_background_supports_the_shared_sans_typography_preset(self) -> None:
+        html = (PROJECT_ROOT / "templates" / "stories_background_editor.html").read_text(
+            encoding="utf-8"
+        )
+        required = (
+            '<option value="sans">Sem serifa</option>',
+            "const SANS_DEFAULT_BLOCK_CONFIG = Object.freeze({",
+            "fontSize: 62,",
+            "lineHeight: 59,",
+            "letterSpacing: -0.035,",
+            "if (!doc || doc.typography !== 'advercase') {",
+            "return { ...SANS_DEFAULT_BLOCK_CONFIG };",
+            "inlineBoldWeight: 600,",
+            "function getStoriesInlineBoldWeight()",
+            "const typography = STORIES_TYPEFACES[nextTypography] ? nextTypography : 'advercase';",
+            "const baseSpacing = getVariantBaseSpacing(block.kind, block.variant);",
+            "lineHeight = Math.round(size * (baseSpacing.lineHeight / baseSpacing.fontSize));",
+        )
+        for marker in required:
+            self.assertIn(marker, html)
+
+    def test_stories_background_rail_colors_remain_visible_without_a_photo(self) -> None:
+        html = (PROJECT_ROOT / "templates" / "stories_background_editor.html").read_text(
+            encoding="utf-8"
+        )
+        required = (
+            ".slide .photo { display: block !important; z-index: 0; background: transparent; }",
+            ".photo:not(.has-background-image)::before { background: transparent; }",
+            "function hasStoriesBackgroundImage(slideData)",
+            "photo.classList.add('has-background-image');",
+            "photo.classList.remove('has-background-image');",
+            "if (hasStoriesBackgroundImage(slideData)) {\n      drawLegibilityFilter",
+        )
+        for marker in required:
+            self.assertIn(marker, html)
+
+    def test_stories_background_keeps_the_canvas_stable_while_editing_copy(self) -> None:
+        html = (PROJECT_ROOT / "templates" / "stories_background_editor.html").read_text(
+            encoding="utf-8"
+        )
+        required = (
+            "overflow-anchor: none;",
+            "function preserveStageViewportPosition(stageIndex, operation)",
+            "const topBefore = stage ? stage.getBoundingClientRect().top : null;",
+            "window.scrollBy(0, delta);",
+            "preserveStageViewportPosition(ctx.sIdx, () => {",
+        )
+        for marker in required:
+            self.assertIn(marker, html)
+
+    def test_stories_background_supports_individual_vertical_block_offsets(self) -> None:
+        html = (PROJECT_ROOT / "templates" / "stories_background_editor.html").read_text(
+            encoding="utf-8"
+        )
+        required = (
+            "transform: translateY(var(--block-offset-y, 0px));",
+            "function getBlockVerticalOffset(block)",
+            "function persistBlockVerticalOffset(blockEl)",
+            "let blockDragging = false, blockDragStart = null, draggingBlock = null;",
+            "targetBlock = e.target.closest",
+            "applyBlockVerticalOffsetToNode(draggingBlock, offsetY);",
+            "const blockY = cursorY + getBlockVerticalOffset(layout.block);",
         )
         for marker in required:
             self.assertIn(marker, html)

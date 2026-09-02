@@ -137,7 +137,7 @@
   .slide .body.italic { font-style: italic; color: #FFFFFF; font-size: 48px; }
   .slide .body.big { font-size: 60px; line-height: 70px; font-weight: 400; }
   .slide .body.lede { font-size: 56px; line-height: 68px; font-weight: 400; color: #FFFFFF; }
-  .slide [data-block-id] strong, .slide [data-block-id] b { font-weight: 700; }
+  .slide [data-block-id] strong, .slide [data-block-id] b { font-weight: var(--stories-inline-bold-weight, 700); }
   .slide [data-block-id] em, .slide [data-block-id] i { font-style: italic; }
 
   /* Stories: cor de texto (foreground), sem highlight de fundo, sem rotação. */
@@ -990,17 +990,17 @@
       <div class="tb-slider-group" title="Altura entre linhas do bloco">
         <span class="tb-slider-label">Entrelinhas</span>
         <input type="range" id="tb-line-height" min="30" max="200" step="1" aria-label="Altura entre linhas" />
-        <span class="tb-slider-val" id="tb-line-height-val">96px</span>
+        <span class="tb-slider-val" id="tb-line-height-val">59px</span>
       </div>
       <div class="tb-slider-group" title="Distância entre caracteres do bloco">
         <span class="tb-slider-label">Espaço entre letras</span>
         <input type="range" id="tb-letter-spacing" min="-0.10" max="0.30" step="0.005" aria-label="Espaçamento entre letras" />
-        <span class="tb-slider-val" id="tb-letter-spacing-val">0.000em</span>
+        <span class="tb-slider-val" id="tb-letter-spacing-val">-0.035em</span>
       </div>
       <div class="tb-slider-group" title="Tamanho do texto">
         <span class="tb-slider-label">Tamanho do texto</span>
         <input type="range" id="tb-font-size" min="20" max="140" step="1" aria-label="Tamanho da fonte" />
-        <span class="tb-slider-val" id="tb-font-size-val">52px</span>
+        <span class="tb-slider-val" id="tb-font-size-val">62px</span>
       </div>
       <button data-action="spacing-reset" title="Restaurar tamanho e espaçamento do texto">↺</button>
     </div>
@@ -1284,14 +1284,24 @@
 
   // ==== SPACING HELPERS (line-height + letter-spacing por bloco) ====
   const ADVERCASE_DEFAULT_LETTER_SPACING = 0.015;
+  // Configuração-base da fonte sem serifa. Ela é compartilhada entre os
+  // estilos de bloco para que o painel comece sempre com o mesmo ritmo.
+  const SANS_DEFAULT_BLOCK_CONFIG = Object.freeze({
+    fontSize: 62,
+    lineHeight: 59,
+    letterSpacing: -0.035,
+  });
 
   function getTypefaceDefaultLetterSpacing(baseLetterSpacing) {
     return doc && doc.typography === 'advercase'
       ? ADVERCASE_DEFAULT_LETTER_SPACING
-      : baseLetterSpacing;
+      : SANS_DEFAULT_BLOCK_CONFIG.letterSpacing;
   }
 
   function getVariantBaseSpacing(kind, variant) {
+    if (!doc || doc.typography !== 'advercase') {
+      return { ...SANS_DEFAULT_BLOCK_CONFIG };
+    }
     const key = kind + ':' + variant;
     const base = (typeof VARIANT_STYLES !== 'undefined') ? VARIANT_STYLES[key] : null;
     if (base) return { lineHeight: base.lineHeight, letterSpacing: base.letterSpacing || 0, fontSize: base.size };
@@ -1673,15 +1683,20 @@
     sans: {
       cssFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif',
       canvasFamily: '"SF Pro Display", "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif',
+      inlineBoldWeight: 600,
     },
     advercase: {
       cssFamily: 'Advercase, Georgia, "Times New Roman", serif',
       canvasFamily: 'Advercase, Georgia, "Times New Roman", serif',
+      inlineBoldWeight: 700,
     },
   };
   function getStoriesTypeface() {
     const typography = doc && STORIES_TYPEFACES[doc.typography] ? doc.typography : 'sans';
     return STORIES_TYPEFACES[typography];
+  }
+  function getStoriesInlineBoldWeight() {
+    return getStoriesTypeface().inlineBoldWeight || 700;
   }
   function normalizeStoriesRatio(ratio) {
     return STORIES_RATIO_HEIGHTS[ratio] ? ratio : '4:5';
@@ -1720,6 +1735,7 @@
     if (!doc) return;
     doc.typography = typography;
     document.documentElement.style.setProperty('--stories-content-font', getStoriesTypeface().cssFamily);
+    document.documentElement.style.setProperty('--stories-inline-bold-weight', String(getStoriesInlineBoldWeight()));
     const selector = document.getElementById('stories-typography');
     if (selector) selector.value = typography;
     if (persist) safeSet(DOC_KEY, doc);
@@ -3598,14 +3614,15 @@
     let baseStyle = VARIANT_STYLES[styleKey];
     if (!baseStyle) return null;
     // Mantém no Canvas a mesma compensação proporcional usada no preview.
-    let size = baseStyle.size;
+    const baseSpacing = getVariantBaseSpacing(block.kind, block.variant);
+    let size = baseSpacing.fontSize;
     let fontSpec = withStoriesTypeface(baseStyle.fontSpec);
-    let lineHeight = baseStyle.lineHeight;
+    let lineHeight = baseSpacing.lineHeight;
     if (block.fontSize != null) {
       size = block.fontSize;
       fontSpec = fontSpec.replace(/(\b\d+(?:\.\d+)?)px\b/, size + 'px');
       if (block.lineHeight == null) {
-        lineHeight = Math.round(size * (baseStyle.lineHeight / baseStyle.size));
+        lineHeight = Math.round(size * (baseSpacing.lineHeight / baseSpacing.fontSize));
       }
     }
     if (block.lineHeight != null) {
@@ -3621,7 +3638,7 @@
       color: textColor || baseStyle.color,
       letterSpacing: (block.letterSpacing != null)
         ? block.letterSpacing
-        : getTypefaceDefaultLetterSpacing(baseStyle.letterSpacing),
+        : getTypefaceDefaultLetterSpacing(baseSpacing.letterSpacing),
     });
   }
   function resolveBlockAlign(block, isCapa) {
@@ -3733,7 +3750,7 @@
     }
     if (seg.bold) {
       fontSpec = fontSpec.replace(/(^|\s)((?:italic\s+)?)(\d{3})(\s+\d+px\b)/, (_, p1, p2, w, p4) => {
-        const newW = Math.max(parseInt(w, 10), 700);
+        const newW = Math.max(parseInt(w, 10), getStoriesInlineBoldWeight());
         return p1 + p2 + newW + p4;
       });
     }
