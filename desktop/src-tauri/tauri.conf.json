@@ -11,7 +11,6 @@
       {
         "label": "main",
         "create": false,
-        "url": "index.html",
         "title": "Editor de Carrosseis",
         "width": 1280,
         "height": 800,
