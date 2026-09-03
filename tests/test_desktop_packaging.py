@@ -119,6 +119,7 @@ class DesktopPackagingTest(unittest.TestCase):
             config["bundle"]["externalBin"], ["binaries/editor-carrosseis-sidecar"]
         )
         self.assertFalse(config["app"]["windows"][0]["create"])
+        self.assertFalse(config["app"]["windows"][0]["visible"])
         self.assertNotIn("http://", config["app"]["security"]["csp"])
         self.assertNotIn("https://", config["app"]["security"]["csp"])
 

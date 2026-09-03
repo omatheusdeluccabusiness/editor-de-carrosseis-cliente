@@ -131,8 +131,17 @@ fn health_check_before(endpoint: LoopbackEndpoint, deadline: Instant) -> bool {
     }
 
     let mut response = String::new();
-    stream.read_to_string(&mut response).is_ok()
-        && response.starts_with("HTTP/1.1 200")
+    stream.read_to_string(&mut response).is_ok() && is_healthy_response(&response)
+}
+
+fn is_healthy_response(response: &str) -> bool {
+    let status_line = response.lines().next().unwrap_or_default();
+    let successful_status = status_line
+        .split_whitespace()
+        .nth(1)
+        .is_some_and(|status| status == "200");
+
+    successful_status
         && response.contains("\"ok\": true")
         && response.contains("\"service\": \"editor-carrosseis\"")
 }
@@ -236,13 +245,44 @@ fn open_hub_in_default_browser(endpoint: LoopbackEndpoint) -> Result<(), String>
     let url = format!("{}/", endpoint.origin());
     #[cfg(windows)]
     {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        Command::new("rundll32.exe")
-            .args(["url.dll,FileProtocolHandler", &url])
-            .creation_flags(CREATE_NO_WINDOW)
-            .spawn()
-            .map_err(|error| format!("Não foi possível abrir o navegador: {error}"))?;
+        use std::{ffi::OsStr, os::windows::ffi::OsStrExt, ptr};
+
+        #[link(name = "shell32")]
+        unsafe extern "system" {
+            fn ShellExecuteW(
+                window: *mut std::ffi::c_void,
+                operation: *const u16,
+                file: *const u16,
+                parameters: *const u16,
+                directory: *const u16,
+                show_command: i32,
+            ) -> *mut std::ffi::c_void;
+        }
+
+        const SW_SHOWNORMAL: i32 = 1;
+        let operation = OsStr::new("open")
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect::<Vec<_>>();
+        let target = OsStr::new(&url)
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect::<Vec<_>>();
+        let result = unsafe {
+            ShellExecuteW(
+                ptr::null_mut(),
+                operation.as_ptr(),
+                target.as_ptr(),
+                ptr::null(),
+                ptr::null(),
+                SW_SHOWNORMAL,
+            )
+        } as isize;
+        if result <= 32 {
+            return Err(format!(
+                "O Windows recusou a abertura do navegador (código {result})."
+            ));
+        }
         return Ok(());
     }
     #[cfg(target_os = "macos")]
@@ -272,6 +312,7 @@ fn show_startup_error(window: &WebviewWindow, message: &str) {
         format!("{display_message:?}")
     );
     let _ = window.eval(script);
+    let _ = window.show();
 }
 
 fn main() {
@@ -391,7 +432,31 @@ mod tests {
 
     #[test]
     fn expired_deadline_never_starts_a_health_request() {
-        assert!(!health_check_before(LoopbackEndpoint { port: 8777 }, Instant::now()));
+        assert!(!health_check_before(
+            LoopbackEndpoint { port: 8777 },
+            Instant::now()
+        ));
+    }
+
+    #[test]
+    fn accepts_valid_health_response_from_python_http_server() {
+        let python_response = concat!(
+            "HTTP/1.0 200 OK\r\n",
+            "Content-Type: application/json\r\n",
+            "Content-Length: 49\r\n\r\n",
+            "{\"ok\": true, \"service\": \"editor-carrosseis\"}"
+        );
+        assert!(is_healthy_response(python_response));
+    }
+
+    #[test]
+    fn rejects_unhealthy_or_unexpected_health_response() {
+        assert!(!is_healthy_response(
+            "HTTP/1.0 503 Service Unavailable\r\n\r\n{\"ok\": true, \"service\": \"editor-carrosseis\"}"
+        ));
+        assert!(!is_healthy_response(
+            "HTTP/1.1 200 OK\r\n\r\n{\"ok\": false, \"service\": \"editor-carrosseis\"}"
+        ));
     }
 
     #[cfg(unix)]
