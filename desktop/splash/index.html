@@ -7,11 +7,17 @@
     <style>
       :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
       body { align-items: center; background: #f8f7f4; color: #171717; display: flex; height: 100vh; justify-content: center; margin: 0; }
-      main { text-align: center; }
-      p { color: #6b6b6b; font-size: 1.1rem; }
+      main { max-width: 520px; padding: 32px; text-align: center; }
+      h1 { font-size: 1.5rem; margin: 0 0 10px; }
+      p { color: #5b5b5b; font-size: 1.05rem; line-height: 1.5; margin: 0; }
+      :root[data-startup-state="error"] body { background: #fff5f3; }
+      :root[data-startup-state="error"] p { color: #a2231d; }
     </style>
   </head>
   <body>
-    <main><p data-startup-message>Abrindo Editor de Carrosseis…</p></main>
+    <main>
+      <h1>Editor de Carrosseis</h1>
+      <p data-startup-message>Preparando o editor local…</p>
+    </main>
   </body>
 </html>

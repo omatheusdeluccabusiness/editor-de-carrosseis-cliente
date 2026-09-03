@@ -2,7 +2,7 @@ use std::{
     io::{Read, Write},
     net::{SocketAddr, TcpListener, TcpStream},
     path::{Path, PathBuf},
-    process::{Child, Command},
+    process::{Child, Command, Stdio},
     sync::Mutex,
     thread,
     time::{Duration, Instant},
@@ -12,16 +12,29 @@ use tauri::{AppHandle, Manager, RunEvent, WebviewWindow, WebviewWindowBuilder, W
 
 #[cfg(all(test, windows))]
 use std::io::BufRead;
-#[cfg(all(test, any(unix, windows)))]
-use std::process::Stdio;
 
 const SIDECAR_NAME: &str = "editor-carrosseis-sidecar";
-const HEALTH_ADDRESS: &str = "127.0.0.1:8777";
+const LOOPBACK_HOST: &str = "127.0.0.1";
 const HEALTH_PATH: &str = "/api/health";
 const HEALTH_TIMEOUT: Duration = Duration::from_secs(10);
 const CHILD_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(2);
 
 struct SidecarState(Mutex<Option<Child>>);
+
+#[derive(Clone, Copy)]
+struct LoopbackEndpoint {
+    port: u16,
+}
+
+impl LoopbackEndpoint {
+    fn address(self) -> String {
+        format!("{LOOPBACK_HOST}:{}", self.port)
+    }
+
+    fn origin(self) -> String {
+        format!("http://{}", self.address())
+    }
+}
 
 fn sidecar_path() -> Result<PathBuf, String> {
     let filename = if cfg!(target_os = "windows") {
@@ -37,13 +50,15 @@ fn sidecar_path() -> Result<PathBuf, String> {
     Ok(executable_dir.join(filename))
 }
 
-fn ensure_loopback_port_is_available() -> Result<(), String> {
-    let listener = TcpListener::bind(HEALTH_ADDRESS).map_err(|_| {
-        "A porta local 8777 já está em uso. Feche outro Editor de Carrosseis e tente novamente."
-            .to_owned()
-    })?;
+fn choose_loopback_endpoint() -> Result<LoopbackEndpoint, String> {
+    let listener = TcpListener::bind((LOOPBACK_HOST, 0))
+        .map_err(|error| format!("Não foi possível reservar uma porta local: {error}"))?;
+    let port = listener
+        .local_addr()
+        .map_err(|error| format!("Não foi possível ler a porta local: {error}"))?
+        .port();
     drop(listener);
-    Ok(())
+    Ok(LoopbackEndpoint { port })
 }
 
 fn configure_sidecar_command(command: &mut Command) {
@@ -60,12 +75,25 @@ fn configure_sidecar_command(command: &mut Command) {
     }
 }
 
-fn start_sidecar(app_data_dir: &Path) -> Result<Child, String> {
-    ensure_loopback_port_is_available()?;
+fn start_sidecar(app_data_dir: &Path, endpoint: LoopbackEndpoint) -> Result<Child, String> {
     std::fs::create_dir_all(app_data_dir).map_err(|error| error.to_string())?;
+    let logs_dir = app_data_dir.join("logs");
+    std::fs::create_dir_all(&logs_dir).map_err(|error| error.to_string())?;
+    let log_file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(logs_dir.join("sidecar.log"))
+        .map_err(|error| format!("Não foi possível criar o log do servidor local: {error}"))?;
+    let stdout_log = log_file
+        .try_clone()
+        .map_err(|error| format!("Não foi possível preparar o log do servidor local: {error}"))?;
 
     let mut command = Command::new(sidecar_path()?);
-    command.env("CARROSSEL_APP_DATA_DIR", app_data_dir);
+    command
+        .env("CARROSSEL_APP_DATA_DIR", app_data_dir)
+        .env("CARROSSEL_EDITOR_PORT", endpoint.port.to_string())
+        .stdout(Stdio::from(stdout_log))
+        .stderr(Stdio::from(log_file));
     configure_sidecar_command(&mut command);
     command
         .spawn()
@@ -77,8 +105,8 @@ fn bounded_timeout(deadline: Instant) -> Option<Duration> {
     (!remaining.is_zero()).then_some(remaining.min(Duration::from_millis(250)))
 }
 
-fn health_check_before(deadline: Instant) -> bool {
-    let address: SocketAddr = match HEALTH_ADDRESS.parse() {
+fn health_check_before(endpoint: LoopbackEndpoint, deadline: Instant) -> bool {
+    let address: SocketAddr = match endpoint.address().parse() {
         Ok(address) => address,
         Err(_) => return false,
     };
@@ -94,8 +122,10 @@ fn health_check_before(deadline: Instant) -> bool {
     };
     let _ = stream.set_read_timeout(Some(io_timeout));
     let _ = stream.set_write_timeout(Some(io_timeout));
-    let request =
-        format!("GET {HEALTH_PATH} HTTP/1.1\r\nHost: 127.0.0.1:8777\r\nConnection: close\r\n\r\n");
+    let request = format!(
+        "GET {HEALTH_PATH} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n\r\n",
+        endpoint.address()
+    );
     if stream.write_all(request.as_bytes()).is_err() {
         return false;
     }
@@ -107,10 +137,10 @@ fn health_check_before(deadline: Instant) -> bool {
         && response.contains("\"service\": \"editor-carrosseis\"")
 }
 
-fn wait_for_health() -> Result<(), String> {
+fn wait_for_health(endpoint: LoopbackEndpoint) -> Result<(), String> {
     let deadline = Instant::now() + HEALTH_TIMEOUT;
     loop {
-        if health_check_before(deadline) {
+        if health_check_before(endpoint, deadline) {
             return Ok(());
         }
         let remaining = deadline.saturating_duration_since(Instant::now());
@@ -171,17 +201,17 @@ fn terminate_process_tree(child: &mut Child) {
     }
 }
 
-fn wait_for_health_to_stop() {
+fn wait_for_health_to_stop(endpoint: LoopbackEndpoint) {
     let deadline = Instant::now() + CHILD_SHUTDOWN_TIMEOUT;
     while Instant::now() < deadline {
-        if !health_check_before(Instant::now() + Duration::from_millis(100)) {
+        if !health_check_before(endpoint, Instant::now() + Duration::from_millis(100)) {
             return;
         }
         thread::sleep(Duration::from_millis(25));
     }
 }
 
-fn stop_sidecar(app: &AppHandle) {
+fn stop_sidecar(app: &AppHandle, endpoint: LoopbackEndpoint) {
     let state = app.state::<SidecarState>();
     let child = state
         .0
@@ -190,37 +220,30 @@ fn stop_sidecar(app: &AppHandle) {
         .take();
     if let Some(mut child) = child {
         terminate_process_tree(&mut child);
-        wait_for_health_to_stop();
+        wait_for_health_to_stop(endpoint);
     }
 }
 
-fn is_allowed_navigation(url: &tauri::Url) -> bool {
+fn is_allowed_navigation(url: &tauri::Url, endpoint: LoopbackEndpoint) -> bool {
     (url.scheme() == "tauri")
         || (url.scheme() == "https" && url.host_str() == Some("tauri.localhost"))
         || (url.scheme() == "http"
-            && url.host_str() == Some("127.0.0.1")
-            && url.port_or_known_default() == Some(8777))
+            && url.host_str() == Some(LOOPBACK_HOST)
+            && url.port_or_known_default() == Some(endpoint.port))
 }
 
-fn navigate_to_hub(window: WebviewWindow) -> Result<(), String> {
-    let url = tauri::Url::parse("http://127.0.0.1:8777/").map_err(|error| error.to_string())?;
+fn navigate_to_hub(window: WebviewWindow, endpoint: LoopbackEndpoint) -> Result<(), String> {
+    let url = tauri::Url::parse(&format!("{}/", endpoint.origin())).map_err(|error| error.to_string())?;
     window.navigate(url).map_err(|error| error.to_string())
 }
 
 fn show_startup_error(window: &WebviewWindow, message: &str) {
     let display_message = format!("Não foi possível abrir o Editor de Carrosseis: {message}");
     let script = format!(
-        "document.querySelector('[data-startup-message]').textContent = {};",
+        "document.documentElement.dataset.startupState = 'error'; document.querySelector('[data-startup-message]').textContent = {};",
         format!("{display_message:?}")
     );
     let _ = window.eval(script);
-}
-
-fn exit_after_startup_error(app: AppHandle) {
-    thread::spawn(move || {
-        thread::sleep(Duration::from_secs(3));
-        app.exit(1);
-    });
 }
 
 fn main() {
@@ -234,20 +257,20 @@ fn main() {
                 .iter()
                 .find(|window| window.label == "main")
                 .ok_or_else(|| std::io::Error::other("janela principal ausente"))?;
+            let endpoint = choose_loopback_endpoint().map_err(std::io::Error::other)?;
             let window = WebviewWindowBuilder::from_config(app.handle(), window_config)
                 .map_err(std::io::Error::other)?
-                .on_navigation(is_allowed_navigation)
+                .on_navigation(move |url| is_allowed_navigation(url, endpoint))
                 .build()
                 .map_err(std::io::Error::other)?;
 
             let app_data_dir = app.path().app_data_dir().map_err(|error| {
                 std::io::Error::other(format!("Diretório de dados indisponível: {error}"))
             })?;
-            let child = match start_sidecar(&app_data_dir) {
+            let child = match start_sidecar(&app_data_dir, endpoint) {
                 Ok(child) => child,
                 Err(error) => {
                     show_startup_error(&window, &error);
-                    exit_after_startup_error(app.handle().clone());
                     return Ok(());
                 }
             };
@@ -257,13 +280,12 @@ fn main() {
             }
 
             let app_handle = app.handle().clone();
-            thread::spawn(move || match wait_for_health() {
+            thread::spawn(move || match wait_for_health(endpoint) {
                 Ok(()) => {
                     if let Some(window) = app_handle.get_webview_window("main") {
-                        if let Err(error) = navigate_to_hub(window.clone()) {
+                        if let Err(error) = navigate_to_hub(window.clone(), endpoint) {
                             show_startup_error(&window, &error);
-                            stop_sidecar(&app_handle);
-                            exit_after_startup_error(app_handle);
+                            stop_sidecar(&app_handle, endpoint);
                         }
                     }
                 }
@@ -271,15 +293,24 @@ fn main() {
                     if let Some(window) = app_handle.get_webview_window("main") {
                         show_startup_error(&window, &error);
                     }
-                    stop_sidecar(&app_handle);
-                    exit_after_startup_error(app_handle);
+                    stop_sidecar(&app_handle, endpoint);
                 }
             });
             Ok(())
         })
         .on_window_event(|window, event| {
             if matches!(event, WindowEvent::CloseRequested { .. }) {
-                stop_sidecar(window.app_handle());
+                // The endpoint is random for each launch. Closing the child is
+                // sufficient here; the operating system releases its loopback port.
+                let state = window.app_handle().state::<SidecarState>();
+                let child = state
+                    .0
+                    .lock()
+                    .expect("estado do sidecar indisponível")
+                    .take();
+                if let Some(mut child) = child {
+                    terminate_process_tree(&mut child);
+                }
             }
         })
         .build(tauri::generate_context!())
@@ -287,7 +318,15 @@ fn main() {
 
     app.run(|app_handle, event| {
         if matches!(event, RunEvent::ExitRequested { .. }) {
-            stop_sidecar(app_handle);
+            let state = app_handle.state::<SidecarState>();
+            let child = state
+                .0
+                .lock()
+                .expect("estado do sidecar indisponível")
+                .take();
+            if let Some(mut child) = child {
+                terminate_process_tree(&mut child);
+            }
         }
     });
 }
@@ -303,20 +342,26 @@ mod tests {
             "https://tauri.localhost/index.html",
             "http://127.0.0.1:8777/",
         ] {
-            assert!(is_allowed_navigation(&tauri::Url::parse(allowed).unwrap()));
+            assert!(is_allowed_navigation(
+                &tauri::Url::parse(allowed).unwrap(),
+                LoopbackEndpoint { port: 8777 },
+            ));
         }
         for blocked in [
             "https://example.com/",
             "http://localhost:8777/",
             "http://127.0.0.1:9999/",
         ] {
-            assert!(!is_allowed_navigation(&tauri::Url::parse(blocked).unwrap()));
+            assert!(!is_allowed_navigation(
+                &tauri::Url::parse(blocked).unwrap(),
+                LoopbackEndpoint { port: 8777 },
+            ));
         }
     }
 
     #[test]
     fn expired_deadline_never_starts_a_health_request() {
-        assert!(!health_check_before(Instant::now()));
+        assert!(!health_check_before(LoopbackEndpoint { port: 8777 }, Instant::now()));
     }
 
     #[cfg(unix)]
