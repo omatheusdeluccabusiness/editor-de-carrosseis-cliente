@@ -67,6 +67,26 @@ HUB. O arquivo `AGENTS.md` contem o contexto e as regras operacionais para
 trabalhar pelo Codex. O HUB nao mantem historico: cada sessao existe apenas
 durante o uso local.
 
+### Configurar Telegram pelo Bloco de Notas
+
+Para enviar os slides ao Telegram, nao e preciso editar JSON nem usar comandos
+de configuracao. Inicie o editor uma vez com `./start.sh`. Na pasta do projeto
+sera criado o arquivo **`CREDENCIAIS_TELEGRAM.txt`**. Abra esse arquivo no
+Bloco de Notas (Windows) ou TextEdit (macOS), preencha os dois campos e salve:
+
+```text
+TOKEN BOT TELEGRAM:
+cole_o_token_do_bot_aqui
+
+CHAT ID TELEGRAM:
+cole_o_chat_id_aqui
+```
+
+Recarregue o HUB e use **Configurar Telegram → Testar configuração**. O TXT
+preenchido e ignorado pelo Git, nunca e publicado no GitHub e nao e servido ao
+navegador. O arquivo `CREDENCIAIS_TELEGRAM_MODELO.txt` que aparece no
+repositorio e apenas a referencia vazia do formato.
+
 O fluxo tecnico a partir de Markdown continua disponivel:
 
 ```bash

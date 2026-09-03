@@ -36,6 +36,7 @@ try:
         CredentialsError,
         credentials_ready,
         import_credentials_to_directory,
+        read_telegram_text_source,
     )
     from scripts.desktop_paths import desktop_runtime_paths
     from scripts.hub_sessions import (
@@ -49,6 +50,7 @@ except ImportError:
         CredentialsError,
         credentials_ready,
         import_credentials_to_directory,
+        read_telegram_text_source,
     )
     from desktop_paths import desktop_runtime_paths
     from hub_sessions import (
@@ -75,6 +77,8 @@ RUNTIME_PATHS    = desktop_runtime_paths(APP_DATA_DIR) if APP_DATA_DIR else None
 DIR              = str(RUNTIME_PATHS.editor_dir) if RUNTIME_PATHS else os.environ.get('CARROSSEL_EDITOR_DIR', '/tmp/carrossel-editor')
 PORT             = int(os.environ.get('CARROSSEL_EDITOR_PORT', '8777'))
 HOME_TG          = str(RUNTIME_PATHS.credentials_dir / '.matheusao-telegram.json') if RUNTIME_PATHS else os.path.expanduser('~/.matheusao-telegram.json')
+TELEGRAM_TEXT_TEMPLATE = PROJECT_ROOT / 'CREDENCIAIS_TELEGRAM_MODELO.txt'
+LOCAL_TELEGRAM_TEXT = PROJECT_ROOT / 'CREDENCIAIS_TELEGRAM.txt'
 HOME_OPENAI      = str(RUNTIME_PATHS.credentials_dir / '.matheusao-openai.json') if RUNTIME_PATHS else os.path.expanduser('~/.matheusao-openai.json')
 VAULT_ROOT       = os.environ.get('CARROSSEL_CONTENT_ROOT', str(PROJECT_ROOT / 'content'))
 DEFAULT_MODEL    = 'gpt-image-2'
@@ -93,6 +97,26 @@ HTML_CONTENT_SECURITY_POLICY = (
 )
 
 os.makedirs(DIR, exist_ok=True)
+
+
+def _ensure_local_telegram_text() -> None:
+    """Cria o TXT preenchível apenas na cópia local do repositório.
+
+    O modelo entra no Git para o cliente enxergar o formato. A cópia real é
+    ignorada pelo Git e se torna a fonte prioritária quando estiver completa.
+    O app desktop continua usando exclusivamente seu armazenamento privado.
+    """
+
+    if RUNTIME_PATHS or LOCAL_TELEGRAM_TEXT.exists() or not TELEGRAM_TEXT_TEMPLATE.is_file():
+        return
+    try:
+        shutil.copyfile(TELEGRAM_TEXT_TEMPLATE, LOCAL_TELEGRAM_TEXT)
+        print(f"[telegram] preencha {LOCAL_TELEGRAM_TEXT.name} para habilitar o envio")
+    except OSError as error:
+        print(f"[telegram] não foi possível criar o TXT local: {error}")
+
+
+_ensure_local_telegram_text()
 
 # Remove bootstrap legado que poderia expor credenciais como arquivo estático.
 legacy_telegram_config = Path(DIR) / 'telegram-config.json'
@@ -155,6 +179,16 @@ def _render_hub() -> str:
 
 
 def _read_telegram_config() -> tuple[str, str]:
+    # No repositório clonado, o TXT é o caminho mais simples para clientes.
+    # Ele tem prioridade para que uma edição seja aplicada sem exportar nem
+    # manipular JSON. Nunca é servido pelo HTTP e fica fora do Git.
+    if not RUNTIME_PATHS and LOCAL_TELEGRAM_TEXT.is_file():
+        try:
+            return read_telegram_text_source(LOCAL_TELEGRAM_TEXT)
+        except CredentialsError:
+            # Um TXT recém-criado ainda vem vazio. Nesse caso, preservamos a
+            # configuração protegida de instalações antigas, se ela existir.
+            pass
     with open(HOME_TG, encoding='utf-8') as config_file:
         config = json.load(config_file)
     token = str(config.get('botToken') or config.get('bot_token') or '').strip()

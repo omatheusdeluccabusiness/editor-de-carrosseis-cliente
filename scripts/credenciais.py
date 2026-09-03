@@ -327,12 +327,8 @@ def credentials_ready(project_env_path: Path, telegram_path: Path) -> bool:
         return False
 
 
-def import_telegram_text_source(source_path: Path, telegram_path: Path) -> None:
-    """Importa uma migração local de Telegram sem registrar os valores.
-
-    É destinado somente à transferência pontual entre computadores. O arquivo
-    de origem deve ser removido após uma conexão bem-sucedida.
-    """
+def read_telegram_text_source(source_path: Path) -> tuple[str, str]:
+    """Lê o TXT simples de configuração do Telegram sem expor seus valores."""
 
     try:
         text = source_path.read_text(encoding="utf-8-sig")
@@ -353,8 +349,20 @@ def import_telegram_text_source(source_path: Path, telegram_path: Path) -> None:
     if not token_match or not chat_id:
         raise CredentialsError("O arquivo local do Telegram está incompleto.")
 
+    return token_match.group(0), chat_id
+
+
+def import_telegram_text_source(source_path: Path, telegram_path: Path) -> None:
+    """Importa uma migração local de Telegram sem registrar os valores.
+
+    É destinado somente à transferência pontual entre computadores. O arquivo
+    de origem deve ser removido após uma conexão bem-sucedida.
+    """
+
+    token, chat_id = read_telegram_text_source(source_path)
+
     telegram_content = json.dumps(
-        {"botToken": token_match.group(0), "chatId": chat_id},
+        {"botToken": token, "chatId": chat_id},
         ensure_ascii=False,
         indent=2,
         sort_keys=True,

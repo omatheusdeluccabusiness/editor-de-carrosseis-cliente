@@ -10,6 +10,7 @@ venv/
 .env
 .env.*
 !.env.example
+CREDENCIAIS_TELEGRAM.txt
 *.pem
 *.key
 secrets/*

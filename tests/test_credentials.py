@@ -14,6 +14,7 @@ from scripts.credenciais import (
     generate_recovery_key,
     import_credentials_to_directory,
     import_telegram_text_source,
+    read_telegram_text_source,
     restore_credentials,
     seal_credentials,
 )
@@ -217,6 +218,19 @@ class CredentialsFilesTest(unittest.TestCase):
         self.assertEqual(restored["botToken"], "123456:abcdefghijklmnopqrstuvwx")
         self.assertEqual(restored["chatId"], "-1001234567890")
 
+    def test_telegram_text_reader_accepts_the_client_template_format(self) -> None:
+        text_source = self.root / "CREDENCIAIS_TELEGRAM.txt"
+        text_source.write_text(
+            "TOKEN BOT TELEGRAM:\n123456:abcdefghijklmnopqrstuvwx\n\n"
+            "CHAT ID TELEGRAM:\n-1001234567890\n",
+            encoding="utf-8",
+        )
+
+        token, chat_id = read_telegram_text_source(text_source)
+
+        self.assertEqual(token, "123456:abcdefghijklmnopqrstuvwx")
+        self.assertEqual(chat_id, "-1001234567890")
+
 
 class CredentialsBootstrapTest(unittest.TestCase):
     def test_bootstrap_scripts_and_docs_expose_first_use_flow(self) -> None:
@@ -231,6 +245,7 @@ class CredentialsBootstrapTest(unittest.TestCase):
         self.assertIn("scripts/credenciais.py restore --if-needed", start)
         self.assertIn("secrets/*", gitignore)
         self.assertIn("!secrets/credentials.enc.json", gitignore)
+        self.assertIn("CREDENCIAIS_TELEGRAM.txt", gitignore)
         self.assertIn("./configurar-credenciais.sh", readme)
         self.assertIn("chave de recuperacao", readme.lower())
 
