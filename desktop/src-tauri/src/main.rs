@@ -232,9 +232,37 @@ fn is_allowed_navigation(url: &tauri::Url, endpoint: LoopbackEndpoint) -> bool {
             && url.port_or_known_default() == Some(endpoint.port))
 }
 
-fn navigate_to_hub(window: WebviewWindow, endpoint: LoopbackEndpoint) -> Result<(), String> {
-    let url = tauri::Url::parse(&format!("{}/", endpoint.origin())).map_err(|error| error.to_string())?;
-    window.navigate(url).map_err(|error| error.to_string())
+fn open_hub_in_default_browser(endpoint: LoopbackEndpoint) -> Result<(), String> {
+    let url = format!("{}/", endpoint.origin());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        Command::new("cmd")
+            .args(["/C", "start", "", &url])
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn()
+            .map_err(|error| format!("Não foi possível abrir o navegador: {error}"))?;
+        return Ok(());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .arg(&url)
+            .spawn()
+            .map_err(|error| format!("Não foi possível abrir o navegador: {error}"))?;
+        return Ok(());
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        Command::new("xdg-open")
+            .arg(&url)
+            .spawn()
+            .map_err(|error| format!("Não foi possível abrir o navegador: {error}"))?;
+        return Ok(());
+    }
+    #[allow(unreachable_code)]
+    Err("Não há navegador compatível neste sistema.".to_owned())
 }
 
 fn show_startup_error(window: &WebviewWindow, message: &str) {
@@ -283,9 +311,11 @@ fn main() {
             thread::spawn(move || match wait_for_health(endpoint) {
                 Ok(()) => {
                     if let Some(window) = app_handle.get_webview_window("main") {
-                        if let Err(error) = navigate_to_hub(window.clone(), endpoint) {
+                        if let Err(error) = open_hub_in_default_browser(endpoint) {
                             show_startup_error(&window, &error);
                             stop_sidecar(&app_handle, endpoint);
+                        } else {
+                            let _ = window.hide();
                         }
                     }
                 }
