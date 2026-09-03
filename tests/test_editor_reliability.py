@@ -58,7 +58,7 @@ class StoriesLayoutReliabilityTest(unittest.TestCase):
         self.assertIn("delete ctx.block.lineHeight;", STORIES)
         self.assertIn("lhInput.value = next.lineHeight;", STORIES)
         self.assertIn(
-            "size * (baseStyle.lineHeight / baseStyle.size)",
+            "size * (baseSpacing.lineHeight / baseSpacing.fontSize)",
             STORIES,
         )
         self.assertIn("function queueTextLayoutCommit(stageIndex)", STORIES)
