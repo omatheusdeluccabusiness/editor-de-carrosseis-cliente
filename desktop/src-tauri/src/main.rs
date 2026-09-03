@@ -238,8 +238,8 @@ fn open_hub_in_default_browser(endpoint: LoopbackEndpoint) -> Result<(), String>
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        Command::new("cmd")
-            .args(["/C", "start", "", &url])
+        Command::new("rundll32.exe")
+            .args(["url.dll,FileProtocolHandler", &url])
             .creation_flags(CREATE_NO_WINDOW)
             .spawn()
             .map_err(|error| format!("Não foi possível abrir o navegador: {error}"))?;

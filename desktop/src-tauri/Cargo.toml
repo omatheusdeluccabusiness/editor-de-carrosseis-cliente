@@ -1,6 +1,6 @@
 [package]
 name = "editor-carrosseis-desktop"
-version = "0.1.4"
+version = "0.1.5"
 description = "Editor de Carrosseis"
 authors = ["Matheus De Lucca"]
 edition = "2021"
