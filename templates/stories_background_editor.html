@@ -1131,11 +1131,13 @@
   <div class="modal-card" tabindex="-1">
     <h2 id="tg-modal-title">Configurar Telegram</h2>
     <p id="tg-config-status" class="help">Verificando configuração local…</p>
-    <div class="help">
-      No repositório clonado, preencha <code>CREDENCIAIS_TELEGRAM.txt</code> no Bloco de Notas.
-      O arquivo fica somente neste computador e nunca é entregue ao navegador.
-    </div>
+    <div class="help">Cole as credenciais abaixo uma única vez. Elas ficam somente neste computador.</div>
+    <label class="help" for="tg-bot-token">Token do bot</label>
+    <input id="tg-bot-token" type="password" autocomplete="off" placeholder="123456:ABC..." style="width:100%; margin:6px 0 12px; padding:10px; border:1px solid var(--ui-border); border-radius:8px;">
+    <label class="help" for="tg-chat-id">Chat ID</label>
+    <input id="tg-chat-id" type="text" inputmode="numeric" autocomplete="off" placeholder="Ex.: -1001234567890" style="width:100%; margin:6px 0 4px; padding:10px; border:1px solid var(--ui-border); border-radius:8px;">
     <div class="actions">
+      <button class="btn primary" id="tg-save">Salvar Telegram</button>
       <button class="btn" id="tg-test">Testar configuração</button>
       <button class="btn primary" id="tg-cancel">Fechar</button>
     </div>
@@ -4597,7 +4599,9 @@
       'uniform float u_strength;',
       'uniform float u_radius;',
       'uniform float u_aspect;',
-      'const int SAMPLE_COUNT = 36;',
+      // Mais amostras, com jitter estratificado por pixel, removem os anéis
+      // discretos que aparecem em fotos detalhadas nas bordas do vortex.
+      'const int SAMPLE_COUNT = 64;',
       'void main() {',
       '  vec4 original = texture2D(u_photo, v_uv);',
       '  vec2 delta = v_uv - u_focus;',
@@ -4608,8 +4612,9 @@
       '  float angularSweep = mix(0.025, 0.92, u_strength) * edgeMask;',
       '  vec4 accumulated = vec4(0.0);',
       '  float totalWeight = 0.0;',
+      '  float dither = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);',
       '  for (int index = 0; index < SAMPLE_COUNT; index++) {',
-      '    float progress = float(index) / float(SAMPLE_COUNT - 1);',
+      '    float progress = (float(index) + dither) / float(SAMPLE_COUNT);',
       '    float centeredProgress = progress * 2.0 - 1.0;',
       '    float angle = centeredProgress * angularSweep * 0.5;',
       '    float cosine = cos(angle);',
@@ -4687,15 +4692,21 @@
 
   async function drawHaloGrainEffect(ctx, imageData, w, h, tone, seedValue, options = {}) {
     if (!imageData) return;
+    // O canvas de exportação usa coordenadas lógicas 1080×1350 dentro de
+    // uma superfície 2×. Renderizar o vortex nessa mesma densidade impede que
+    // seus detalhes sejam ampliados pelo drawImage final.
+    const renderScale = Math.max(1, Number(options.renderScale) || 1);
+    const renderW = Math.max(1, Math.round(w * renderScale));
+    const renderH = Math.max(1, Math.round(h * renderScale));
     const source = document.createElement('canvas');
-    source.width = w; source.height = h;
+    source.width = renderW; source.height = renderH;
     const sourceCtx = source.getContext('2d');
     sourceCtx.imageSmoothingEnabled = true;
     sourceCtx.imageSmoothingQuality = 'high';
     if (tone === 'grayscale') sourceCtx.filter = 'grayscale(1)';
-    await drawPhoto(sourceCtx, imageData, w, h);
+    await drawPhoto(sourceCtx, imageData, renderW, renderH);
 
-    const processed = renderRadialBlurWithWebGL(source, w, h, options);
+    const processed = renderRadialBlurWithWebGL(source, renderW, renderH, options);
     if (processed) ctx.drawImage(processed, 0, 0, w, h);
     else ctx.drawImage(source, 0, 0, w, h);
 
@@ -5108,6 +5119,7 @@
           strength: getPhotoEffectStrength(slideData),
           radius: getPhotoEffectRadius(slideData),
           focus: getPhotoEffectFocus(slideData),
+          renderScale: dpr,
         }
       );
     }
@@ -5436,6 +5448,25 @@
     const icon = document.getElementById('ui-theme-icon');
     if (icon) icon.textContent = dark ? '☀' : '☾';
   }
+  async function tgSaveConfiguration() {
+    const status = document.getElementById('tg-config-status');
+    const botToken = document.getElementById('tg-bot-token').value.trim();
+    const chatId = document.getElementById('tg-chat-id').value.trim();
+    status.textContent = 'Salvando neste computador…';
+    try {
+      const res = await localApiFetch('/api/telegram/config', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bot_token: botToken, chat_id: chatId }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) throw new Error(json.error || 'Não foi possível salvar');
+      document.getElementById('tg-bot-token').value = '';
+      document.getElementById('tg-chat-id').value = '';
+      status.textContent = '✓ Telegram salvo neste computador. Agora teste a configuração.';
+    } catch (error) {
+      status.textContent = '✗ ' + (error.message || 'Não foi possível salvar a configuração.');
+    }
+  }
 
   function toggleUiTheme() {
     currentUiTheme = currentUiTheme === 'dark' ? 'light' : 'dark';
@@ -5483,7 +5514,8 @@
     document.getElementById('btn-ui-theme').addEventListener('click', toggleUiTheme);
     document.getElementById('btn-download-all').addEventListener('click', downloadAllPNGs);
     document.getElementById('btn-download-current')?.addEventListener('click', downloadCurrentSlidePNG);
-    document.getElementById('btn-send-tg').addEventListener('click', sendToTelegram);
+  document.getElementById('btn-send-tg').addEventListener('click', sendToTelegram);
+  document.getElementById('tg-save').addEventListener('click', tgSaveConfiguration);
     document.getElementById('btn-config-tg').addEventListener('click', openTgModal);
     document.getElementById('tg-cancel').addEventListener('click', closeTgModal);
     document.getElementById('tg-test').addEventListener('click', tgTestConnection);

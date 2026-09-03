@@ -209,6 +209,32 @@ def _desktop_credentials_configured() -> bool:
     )
 
 
+def _save_telegram_config(bot_token: object, chat_id: object) -> None:
+    """Persist Telegram credentials locally without ever returning them to HTTP."""
+
+    token = str(bot_token or "").strip()
+    target_chat = str(chat_id or "").strip()
+    if not re.fullmatch(r"\d{5,14}:[A-Za-z0-9_-]{20,}", token):
+        raise ValueError("Informe um token de bot do Telegram válido.")
+    if not re.fullmatch(r"-?\d{1,20}", target_chat):
+        raise ValueError("Informe um Chat ID numérico válido.")
+
+    destination = Path(HOME_TG).expanduser().resolve()
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        "w", encoding="utf-8", dir=destination.parent, delete=False
+    ) as temporary:
+        json.dump({"botToken": token, "chatId": target_chat}, temporary)
+        temporary.write("\n")
+        temporary_path = Path(temporary.name)
+    try:
+        if os.name != "nt":
+            os.chmod(temporary_path, 0o600)
+        os.replace(temporary_path, destination)
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
+
 def _telegram_api_request(method: str, fields: dict[str, str], images: list[bytes] | None = None) -> dict:
     token, _ = _read_telegram_config()
     endpoint = f'https://api.telegram.org/bot{token}/{method}'
@@ -437,6 +463,8 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
                 return self._handle_publicar_instagram()
             if self.path == '/api/telegram/test':
                 return self._handle_telegram_test()
+            if self.path == '/api/telegram/config':
+                return self._handle_telegram_config()
             if self.path == '/api/telegram/send':
                 return self._handle_telegram_send()
             if self.path == '/api/export/pngs':
@@ -496,6 +524,19 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
     def _handle_telegram_test(self):
         result = _telegram_api_request('getMe', {})
         self._send_json(200, {'ok': bool(result.get('ok')), 'configured': True})
+
+    def _handle_telegram_config(self):
+        try:
+            body = self._read_json_body()
+        except json.JSONDecodeError:
+            return self._send_json(400, {'error': 'payload_invalido'})
+        if not isinstance(body, dict):
+            return self._send_json(400, {'error': 'payload_invalido'})
+        try:
+            _save_telegram_config(body.get('bot_token'), body.get('chat_id'))
+        except ValueError as error:
+            return self._send_json(400, {'error': str(error)})
+        self._send_json(200, {'ok': True, 'configured': True})
 
     def _handle_desktop_credentials_import(self):
         if not RUNTIME_PATHS:

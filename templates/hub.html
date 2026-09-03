@@ -526,6 +526,18 @@
     <details id="integration-setup" class="integration-card" hidden>
       <summary>Configurar integrações</summary>
       <div class="integration-content">
+        <p><strong>Telegram</strong> — cole uma vez as credenciais do seu bot. Elas ficam apenas neste computador.</p>
+        <form id="telegram-form" class="integration-form">
+          <label>Token do bot
+            <input id="telegram-token" type="password" autocomplete="off" placeholder="123456:ABC..." required>
+          </label>
+          <label>Chat ID
+            <input id="telegram-chat-id" type="text" inputmode="numeric" autocomplete="off" placeholder="Ex.: -1001234567890" required>
+          </label>
+          <button id="save-telegram" class="create-button" type="submit">Salvar Telegram neste computador</button>
+          <p id="telegram-result" class="integration-result" role="status" aria-live="polite"></p>
+        </form>
+        <hr>
         <p>Para ativar Telegram e Instagram neste computador, selecione o cofre criptografado recebido separadamente e informe a chave de recuperação. Nada é incluído no aplicativo.</p>
         <form id="integration-form" class="integration-form">
           <label>Cofre criptografado (.json)
@@ -549,6 +561,10 @@
     const status = document.getElementById('hub-status');
     const integrationSetup = document.getElementById('integration-setup');
     const integrationForm = document.getElementById('integration-form');
+    const telegramForm = document.getElementById('telegram-form');
+    const telegramToken = document.getElementById('telegram-token');
+    const telegramChatId = document.getElementById('telegram-chat-id');
+    const telegramResult = document.getElementById('telegram-result');
     const vaultInput = document.getElementById('credentials-vault');
     const recoveryKeyInput = document.getElementById('recovery-key');
     const importButton = document.getElementById('import-credentials');
@@ -663,6 +679,11 @@
       integrationResult.classList.toggle('is-error', isError);
     }
 
+    function setTelegramResult(message, isError = false) {
+      telegramResult.textContent = message;
+      telegramResult.classList.toggle('is-error', isError);
+    }
+
     async function loadIntegrationStatus() {
       try {
         const response = await fetch('/api/desktop-credentials/status');
@@ -705,6 +726,29 @@
       } finally {
         recoveryKeyInput.value = '';
         importButton.disabled = false;
+      }
+    });
+
+    telegramForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const button = document.getElementById('save-telegram');
+      button.disabled = true;
+      setTelegramResult('Salvando neste computador…');
+      try {
+        const response = await fetch('/api/telegram/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Carrossel-CSRF': window.CARROSSEL_CSRF },
+          body: JSON.stringify({ bot_token: telegramToken.value, chat_id: telegramChatId.value })
+        });
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) throw new Error(payload.error || 'Não foi possível salvar');
+        telegramForm.reset();
+        setTelegramResult('Telegram configurado neste computador.');
+      } catch (error) {
+        setTelegramResult(error.message || 'Não foi possível salvar a configuração.', true);
+      } finally {
+        telegramToken.value = '';
+        button.disabled = false;
       }
     });
 
