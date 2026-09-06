@@ -515,6 +515,7 @@
   .inspector-stack { display: grid; gap: 8px; }
   .inspector-stack .shell-button { width: 100%; }
   .profile-editor { display: grid; gap: 12px; }
+  .profile-switch { grid-template-columns: 1fr 1fr; }
   .profile-avatar-row { display: flex; align-items: center; gap: 12px; }
   .profile-avatar-preview-frame {
     width: 48px; height: 48px; border-radius: 50%; overflow: hidden; flex: 0 0 auto;
@@ -641,6 +642,10 @@
       <section class="inspector-section">
         <span class="inspector-title">Perfil</span>
         <div class="profile-editor">
+          <div class="segmented profile-switch" aria-label="Perfil ativo">
+            <button id="btn-profile-1" type="button" data-profile-slot="profile-1">Perfil 1</button>
+            <button id="btn-profile-2" type="button" data-profile-slot="profile-2">Perfil 2</button>
+          </div>
           <div class="profile-avatar-row">
             <div class="profile-avatar-preview-frame"><img id="profile-avatar-preview" class="profile-avatar-preview" alt="Foto de perfil atual"></div>
             <label class="shell-button profile-photo-button" for="profile-avatar-input">Trocar foto</label>
@@ -658,7 +663,7 @@
               <input id="profile-handle" class="profile-input" type="text" autocomplete="off" spellcheck="false">
             </div>
           </div>
-          <p class="profile-help">Este perfil aparece em todos os slides.</p>
+          <p class="profile-help">Cada perfil guarda sua própria foto, nome e arroba. A troca vale para todos os slides.</p>
         </div>
       </section>
       <section class="inspector-section">
@@ -773,6 +778,7 @@
     const IMG_RATIO = 16 / 9;
     const STORAGE_KEY = '{{DOC_KEY}}';
     const PROFILE_STORAGE_KEY = 'tweet-editor-profile-v1';
+    const PROFILE_COLLECTION_STORAGE_KEY = 'tweet-editor-profiles-v1';
     const TWEET_FONT_SIZE_STORAGE_KEY = 'matheusao-tweet-global-font-size-v1';
     const TWEET_FONT_SIZE_MIN = 28;
     const TWEET_FONT_SIZE_MAX = 72;
@@ -850,21 +856,72 @@
       };
     }
 
-    function loadProfileState() {
+    function defaultProfileSlots() {
+      return {
+        'profile-1': normalizeProfileState(DEFAULT_PROFILE),
+        'profile-2': normalizeProfileState({
+          name: 'Perfil 2',
+          handle: '',
+          avatar: DEFAULT_PROFILE.avatar,
+          avatarCrop: DEFAULT_PROFILE.avatarCrop
+        })
+      };
+    }
+
+    function normalizeProfileCollection(parsed) {
+      const defaults = defaultProfileSlots();
+      const profiles = parsed && typeof parsed.profiles === 'object' ? parsed.profiles : {};
+      const activeProfileId = parsed && parsed.activeProfileId === 'profile-2' ? 'profile-2' : 'profile-1';
+      return {
+        activeProfileId,
+        profiles: {
+          'profile-1': normalizeProfileState(profiles['profile-1'] || defaults['profile-1']),
+          'profile-2': normalizeProfileState(profiles['profile-2'] || defaults['profile-2'])
+        }
+      };
+    }
+
+    function loadProfileCollection() {
       try {
-        const raw = safeStorageGet(PROFILE_STORAGE_KEY);
-        if (!raw) return normalizeProfileState(DEFAULT_PROFILE);
-        return normalizeProfileState(JSON.parse(raw));
+        const collectionRaw = safeStorageGet(PROFILE_COLLECTION_STORAGE_KEY);
+        if (collectionRaw) return normalizeProfileCollection(JSON.parse(collectionRaw));
+        const legacyRaw = safeStorageGet(PROFILE_STORAGE_KEY);
+        const collection = normalizeProfileCollection({
+          activeProfileId: 'profile-1',
+          profiles: { 'profile-1': legacyRaw ? JSON.parse(legacyRaw) : DEFAULT_PROFILE }
+        });
+        safeStorageSet(PROFILE_COLLECTION_STORAGE_KEY, JSON.stringify(collection));
+        return collection;
       } catch (e) {
-        return normalizeProfileState(DEFAULT_PROFILE);
+        return normalizeProfileCollection(null);
       }
     }
 
-    let profileState = loadProfileState();
+    let profileCollectionState = loadProfileCollection();
+    let profileState = profileCollectionState.profiles[profileCollectionState.activeProfileId];
 
     function saveProfileState() {
+      profileCollectionState.profiles[profileCollectionState.activeProfileId] = normalizeProfileState(profileState);
+      profileState = profileCollectionState.profiles[profileCollectionState.activeProfileId];
+      safeStorageSet(PROFILE_COLLECTION_STORAGE_KEY, JSON.stringify(profileCollectionState));
+      // Mantém o perfil ativo no formato antigo para sessões locais existentes.
       safeStorageSet(PROFILE_STORAGE_KEY, JSON.stringify(profileState));
       recordEditorMutation('profile');
+    }
+
+    function selectProfileSlot(profileId) {
+      if (!profileCollectionState.profiles[profileId] || profileId === profileCollectionState.activeProfileId) return;
+      profileCollectionState.profiles[profileCollectionState.activeProfileId] = normalizeProfileState(profileState);
+      profileCollectionState.activeProfileId = profileId;
+      profileState = profileCollectionState.profiles[profileId];
+      safeStorageSet(PROFILE_COLLECTION_STORAGE_KEY, JSON.stringify(profileCollectionState));
+      safeStorageSet(PROFILE_STORAGE_KEY, JSON.stringify(profileState));
+      avatarImg = new Image();
+      avatarImg.onload = () => slidesState.forEach((_, index) => renderSlide(index));
+      avatarImg.onerror = () => slidesState.forEach((_, index) => renderSlide(index));
+      avatarImg.src = profileState.avatar;
+      syncProfileDOM();
+      recordEditorMutation('profile-switch');
     }
 
     function applyAvatarCropElement(element, crop = profileState.avatarCrop) {
@@ -883,6 +940,11 @@
       if (handleInput && document.activeElement !== handleInput) handleInput.value = profileState.handle;
       if (avatarPreview && avatarPreview.src !== profileState.avatar) avatarPreview.src = profileState.avatar;
       applyAvatarCropElement(avatarPreview);
+      document.querySelectorAll('[data-profile-slot]').forEach((button) => {
+        const active = button.dataset.profileSlot === profileCollectionState.activeProfileId;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', String(active));
+      });
       document.querySelectorAll('.tweet-render .name').forEach((el) => { el.textContent = profileState.name; });
       document.querySelectorAll('.tweet-render .handle').forEach((el) => { el.textContent = '@' + profileState.handle; });
       document.querySelectorAll('.tweet-render .avatar').forEach((el) => {
@@ -1046,6 +1108,9 @@
       const handleInput = document.getElementById('profile-handle');
       const avatarInput = document.getElementById('profile-avatar-input');
       const cropButton = document.getElementById('btn-profile-crop');
+      document.querySelectorAll('[data-profile-slot]').forEach((button) => {
+        button.addEventListener('click', () => selectProfileSlot(button.dataset.profileSlot));
+      });
       if (nameInput) {
         nameInput.value = profileState.name;
         nameInput.addEventListener('input', () => {
@@ -1212,6 +1277,7 @@
       return {
         slides: snapshotSlides,
         profile: snapshotProfile,
+        profileCollection: JSON.parse(JSON.stringify(profileCollectionState)),
         theme: currentTheme,
         ratio: currentRatio,
         fontSize: currentTweetFontSize,
@@ -1223,7 +1289,10 @@
       if (!snapshot || !Array.isArray(snapshot.slides) || !snapshot.profile) return;
       const structureChanged = slidesState.length !== snapshot.slides.length;
       slidesState = JSON.parse(JSON.stringify(snapshot.slides));
-      profileState = normalizeProfileState(snapshot.profile);
+      profileCollectionState = snapshot.profileCollection
+        ? normalizeProfileCollection(snapshot.profileCollection)
+        : normalizeProfileCollection({ profiles: { 'profile-1': snapshot.profile } });
+      profileState = profileCollectionState.profiles[profileCollectionState.activeProfileId];
       currentTheme = snapshot.theme === 'dark' ? 'dark' : 'light';
       currentRatio = RATIO_HEIGHTS[snapshot.ratio] ? snapshot.ratio : '4:5';
       H = RATIO_HEIGHTS[currentRatio];
@@ -1231,6 +1300,7 @@
 
       safeStorageSet(STORAGE_KEY, JSON.stringify(slidesState));
       safeStorageSet(PROFILE_STORAGE_KEY, JSON.stringify(profileState));
+      safeStorageSet(PROFILE_COLLECTION_STORAGE_KEY, JSON.stringify(profileCollectionState));
       safeStorageSet('matheusao-carrossel-theme', currentTheme);
       safeStorageSet('matheusao-tweet-ratio', currentRatio);
       safeStorageSet(TWEET_FONT_SIZE_STORAGE_KEY, String(currentTweetFontSize));
