@@ -381,7 +381,7 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
             return
         payload = font_path.read_bytes()
         self.send_response(200)
-        self.send_header('Content-Type', 'font/otf')
+        self.send_header('Content-Type', 'font/ttf' if font_path.suffix == '.ttf' else 'font/otf')
         self.send_header('Content-Length', str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
@@ -400,6 +400,8 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
             return self._send_local_font(GARAMOND_MODERN_FONT)
         if path == '/assets/fonts/Advercase-Regular.otf':
             return self._send_local_font(ADVERCASE_REGULAR_FONT)
+        if path == '/assets/fonts/Anton-Regular.ttf':
+            return self._send_local_font(PROJECT_ROOT / 'assets' / 'fonts' / 'Anton-Regular.ttf')
         if path == '/assets/fonts/Advercase-Bold.otf':
             return self._send_local_font(ADVERCASE_BOLD_FONT)
         if path == '/api/telegram/status':
@@ -422,7 +424,7 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
         if name.endswith('.html'):
             target = (Path(DIR) / name).resolve()
             if target.parent == Path(DIR).resolve() and target.is_file():
-                session_match = re.fullmatch(r'hub-(tweet|stories|stories-fundo|notes)-[0-9a-f]{12}\.html', name)
+                session_match = re.fullmatch(r'hub-(tweet|stories|stories-fundo|notes|anb)-[0-9a-f]{12}\.html', name)
                 if session_match and hub_session_needs_refresh(target, session_match.group(1)):
                     # Sessões do Hub preservam estado no DOC_KEY. Regenerar o
                     # HTML com o mesmo id atualiza a interface ao recarregar
@@ -511,7 +513,7 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
         if self._reject_unauthorized_mutation():
             return
         path = urllib.parse.urlparse(self.path).path
-        match = re.fullmatch(r'/api/sessoes/(hub-(?:tweet|stories|stories-fundo|notes)-[0-9a-f]{12})', path)
+        match = re.fullmatch(r'/api/sessoes/(hub-(?:tweet|stories|stories-fundo|notes|anb)-[0-9a-f]{12})', path)
         if not match:
             self._send_json(404, {'error': 'sessao_invalida'})
             return

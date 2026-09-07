@@ -20,10 +20,13 @@ OUTPUT = ROOT / "dist" / "vercel"
 
 
 def build() -> None:
+    if OUTPUT.resolve() != ROOT.resolve() / "dist" / "vercel":
+        raise RuntimeError("Diretório de build fora do projeto")
     if OUTPUT.exists():
         shutil.rmtree(OUTPUT)
     editors_dir = OUTPUT / "editors"
     editors_dir.mkdir(parents=True)
+    shutil.copyfile(ROOT / "assets" / "fonts" / "Anton-OFL.txt", OUTPUT / "Anton-OFL.txt")
 
     catalog = public_template_catalog()
     for template in catalog:
@@ -31,13 +34,14 @@ def build() -> None:
         target = editors_dir / f'{template["id"]}.html'
         session.path.replace(target)
         html = target.read_text(encoding="utf-8")
-        for font_name in ("Advercase-Regular.otf", "Advercase-Bold.otf"):
+        for font_name in ("Advercase-Regular.otf", "Advercase-Bold.otf", "Anton-Regular.ttf"):
             font_data = base64.b64encode(
                 (ROOT / "assets" / "fonts" / font_name).read_bytes()
             ).decode("ascii")
+            font_format = "ttf" if font_name.endswith(".ttf") else "otf"
             html = html.replace(
                 f"/assets/fonts/{font_name}",
-                f"data:font/otf;base64,{font_data}",
+                f"data:font/{font_format};base64,{font_data}",
             )
         html = re.sub(
             r'window\.MATHEUSAO_PECA_PATH\s*=\s*"[^"]*";',

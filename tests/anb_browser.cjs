@@ -1,0 +1,57 @@
+// Run with Node and NODE_PATH pointing to the installed Playwright package.
+const { chromium } = require('playwright');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+(async () => {
+  const browser = await chromium.launch({channel:'chrome', headless:true});
+  const page = await browser.newPage({viewport:{width:1440,height:1000},acceptDownloads:true});
+  const errors=[]; page.on('pageerror', e=>errors.push(e.message));
+  await page.goto('http://localhost:8777');
+  await page.locator('article').filter({hasText:'ANB Style'}).getByRole('button').click();
+  await page.waitForSelector('#preview');
+  await page.evaluate(()=>document.fonts.ready);
+  await page.locator('#title').fill('IDEIAS QUE MERECEM ATENÇÃO.');
+  for (const layout of ['cover','editorial','band','side','manifesto','text']) {
+    await page.locator('#layout').selectOption(layout);
+    assert.equal(await page.locator('#status').getAttribute('class'), 'status');
+  }
+  await page.locator('#body').fill('Texto longo. '.repeat(1000));
+  assert.match(await page.locator('#status').innerText(), /ultrapassou/);
+  await page.locator('#downloadOne').click();
+  assert.match(await page.locator('#toast').innerText(), /Revise/);
+  await page.locator('#body').fill('Uma ideia clara.\n\n**Um destaque forte.**\n\n==Um novo olhar.==');
+  await page.locator('#layout').selectOption('editorial');
+  const downloadPromise=page.waitForEvent('download');
+  await page.locator('#downloadOne').click();
+  const download=await downloadPromise;
+  fs.mkdirSync('.tmp/anb-qa',{recursive:true});
+  await download.saveAs('.tmp/anb-qa/slide.png');
+  const png=fs.readFileSync('.tmp/anb-qa/slide.png');
+  assert.equal(png.readUInt32BE(16),1080); assert.equal(png.readUInt32BE(20),1350);
+  await page.locator('#photo').setInputFiles('.tmp/anb-qa/slide.png');
+  await page.waitForFunction(()=>document.querySelector('#toast').textContent.includes('Foto adicionada'));
+  await page.locator('#focusY').fill('80');
+  await page.locator('#zoom').fill('130');
+  const before=await page.locator('#preview').evaluate(c=>c.toDataURL());
+  const savePromise=page.waitForEvent('download');
+  await page.locator('#saveProject').click();
+  await (await savePromise).saveAs('.tmp/anb-qa/project.json');
+  const project=JSON.parse(fs.readFileSync('.tmp/anb-qa/project.json','utf8'));
+  assert(project.slides[0].image.startsWith('data:image/png'));
+  await page.locator('#body').fill('Alteração temporária');
+  await page.locator('#projectFile').setInputFiles('.tmp/anb-qa/project.json');
+  await page.waitForFunction(()=>document.querySelector('#toast').textContent.includes('Projeto aberto'));
+  assert.equal(await page.locator('#preview').evaluate(c=>c.toDataURL()),before);
+  const zipPromise=page.waitForEvent('download');
+  await page.locator('#downloadAll').click();
+  await (await zipPromise).saveAs('.tmp/anb-qa/slides.zip');
+  await page.screenshot({path:'.tmp/anb-qa/editor.png'});
+  await page.setViewportSize({width:390,height:844});
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth));
+  assert.deepEqual(errors,[]);
+  await page.locator('#format').selectOption('1440');
+  assert.equal(await page.locator('#preview').getAttribute('height'),'1440');
+  console.log('ANB browser: six layouts, overflow protection, photo/crop, project roundtrip, PNG, ZIP, both ratios, responsive layout and no JS errors PASS');
+  await browser.close();
+})().catch(e=>{console.error(e);process.exit(1)});

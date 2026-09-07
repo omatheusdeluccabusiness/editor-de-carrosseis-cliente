@@ -14,11 +14,11 @@ class ActiveTemplatesTest(unittest.TestCase):
     def test_official_templates_are_executable(self) -> None:
         self.assertEqual(
             set(roteiro_to_instagram.EDITOR_TEMPLATES),
-            {"tweet", "stories", "stories-fundo", "notes"},
+            {"tweet", "stories", "stories-fundo", "notes", "anb"},
         )
         self.assertEqual(
             roteiro_to_instagram.TEMPLATE_SLIDES_BY_NAME,
-            {"tweet": 10, "stories": 10, "stories-fundo": 10, "notes": 10},
+            {"tweet": 10, "stories": 10, "stories-fundo": 10, "notes": 10, "anb": 10},
         )
         self.assertFalse((PROJECT_ROOT / "templates" / "ostentacao_editor.html").exists())
 
@@ -30,9 +30,9 @@ class ActiveTemplatesTest(unittest.TestCase):
 class TemplateCatalogTest(unittest.TestCase):
     def test_public_catalog_contains_official_templates(self) -> None:
         items = public_template_catalog()
-        self.assertEqual([item["id"] for item in items], ["tweet", "stories", "stories-fundo", "notes"])
-        self.assertEqual([item["initial_slides"] for item in items], [10, 10, 10, 10])
-        self.assertEqual([item["aspect_ratio"] for item in items], ["4:5", "4:5", "4:5", "4:5"])
+        self.assertEqual([item["id"] for item in items], ["anb", "tweet", "stories", "stories-fundo", "notes"])
+        self.assertEqual([item["initial_slides"] for item in items], [10] * 5)
+        self.assertEqual([item["aspect_ratio"] for item in items], ["4:5"] * 5)
 
     def test_stories_catalog_keeps_4_5_default_and_offers_matching_3_4_export(self) -> None:
         hub = (PROJECT_ROOT / "templates" / "hub.html").read_text(encoding="utf-8")

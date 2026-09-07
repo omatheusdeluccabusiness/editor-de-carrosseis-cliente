@@ -31,6 +31,10 @@ class TemplateDefinition:
 
 
 TEMPLATE_CATALOG = {
+    "anb": TemplateDefinition(
+        "anb", "ANB Style", "Editorial: títulos de impacto, fotos e leitura fluida.", "4:5", 10,
+        PROJECT_ROOT / "templates" / "anb_editor.html", "anb", True,
+    ),
     "tweet": TemplateDefinition(
         "tweet", "Modelo Tweet", "Post em formato de conversa.", "4:5", 10,
         PROJECT_ROOT / "templates" / "tweet_editor.html", "tweet", True,
