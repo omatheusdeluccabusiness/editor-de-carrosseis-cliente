@@ -47,6 +47,21 @@ class AnbTemplateTest(unittest.TestCase):
             self.assertNotIn('{{DOC_KEY}}', html)
             self.assertEqual(refresh_hub_session(session.id, Path(folder)).id, session.id)
 
+    def test_template_accepts_imported_slides(self):
+        root = Path(__file__).resolve().parent.parent
+        anb = (root / 'templates/anb_editor.html').read_text(encoding='utf-8')
+        self.assertIn('const importedSlides={{ANB_SLIDES_JSON}};', anb)
+        self.assertIn('loadInitialPhotos()', anb)
+
+    def test_template_has_direct_editing_and_local_autosave(self):
+        root = Path(__file__).resolve().parent.parent
+        anb = (root / 'templates/anb_editor.html').read_text(encoding='utf-8')
+        self.assertIn('id="directLayer"', anb)
+        self.assertIn('contenteditable="true"', anb)
+        self.assertIn("indexedDB.open('carrossel-anb-style'", anb)
+        self.assertIn('id="resetCarousel"', anb)
+        self.assertIn('restoreLocal()', anb)
+
 
 if __name__ == '__main__':
     unittest.main()

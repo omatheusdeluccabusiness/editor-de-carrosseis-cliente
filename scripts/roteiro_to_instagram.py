@@ -894,8 +894,55 @@ def _generate_slides_json(parsed: dict) -> str:
             label = f"{num} — CTA"
         else:
             label = f"{num} — Slide"
-        slides_data.append({"label": label, "text": text})
+        slides_data.append({"label": label, "text": text, "imageDataURL": slide.get("imageDataURL")})
     return json.dumps(slides_data, ensure_ascii=False)
+
+
+def _split_anb_fields(text: str, kind: str) -> tuple[str, str, str]:
+    """Converte a copy nos campos visuais do template ANB Style."""
+    labels = list(re.finditer(r"(?im)^(T[IÍ]TULO|TEXTO|CONCLUS[AÃ]O)\s*:\s*", text))
+    if labels:
+        fields = {"titulo": "", "texto": "", "conclusao": ""}
+        for index, match in enumerate(labels):
+            end = labels[index + 1].start() if index + 1 < len(labels) else len(text)
+            key = unicodedata.normalize("NFKD", match.group(1)).encode("ascii", "ignore").decode("ascii").lower()
+            fields[key] = text[match.end():end].strip()
+        return fields["titulo"], fields["texto"], fields["conclusao"]
+
+    paragraphs = [part.strip() for part in re.split(r"\n\s*\n", text.strip()) if part.strip()]
+    if kind == "capa" and len(paragraphs) > 1:
+        return paragraphs[0], "\n\n".join(paragraphs[1:]), ""
+    return "", text.strip(), ""
+
+
+def _generate_anb_slides_json(parsed: dict) -> str:
+    layouts = ["cover", "editorial", "band", "text", "manifesto", "side", "band", "editorial", "side", "manifesto"]
+    result = []
+    for index, slide in enumerate(parsed["slides"][:10]):
+        kind = slide.get("kind", "corpo")
+        raw_text = "\n\n".join(slide.get("paragraphs", []))
+        title, body, conclusion = _split_anb_fields(raw_text, kind)
+        layout = layouts[index]
+        result.append({
+            "layout": layout,
+            "title": title,
+            "body": body,
+            "conclusion": conclusion,
+            "accent": "#C7A451" if layout == "manifesto" else "#235641",
+            "fontSize": 42,
+            "imageSrc": slide.get("imageDataURL"),
+            "zoom": 100,
+            "focusX": 50,
+            "focusY": 50,
+            "grayscale": False,
+            "darkness": 35,
+            "vortex": False,
+            "vortexStrength": 82,
+            "vortexRadius": 45,
+            "vortexX": 50,
+            "vortexY": 43,
+        })
+    return json.dumps(result, ensure_ascii=False)
 
 
 def launch_editor(
@@ -923,6 +970,7 @@ def launch_editor(
     # Tweet usa array JS ({{SLIDES_JSON}}).
     slides_html = _generate_slides_html(parsed)
     slides_json = _generate_slides_json(parsed)
+    anb_slides_json = _generate_anb_slides_json(parsed)
 
     # Hash do conteúdo dos slides entra no DOC_KEY pra invalidar doc antigo
     # quando o roteiro ou o fatiamento mudam.
@@ -946,6 +994,7 @@ def launch_editor(
     out_html = out_html.replace("{{CAPTION}}", caption_html)
     out_html = out_html.replace("{{SLIDES_HTML}}", slides_html)
     out_html = out_html.replace("{{SLIDES_JSON}}", slides_json)
+    out_html = out_html.replace("{{ANB_SLIDES_JSON}}", anb_slides_json)
     out_html = out_html.replace("{{DOC_KEY}}", doc_key)
     out_html = out_html.replace("{{PECA_PATH}}", peca_path)
     out_html = out_html.replace("{{HUB_SESSION}}", "true" if hub_session else "false")
@@ -1008,6 +1057,7 @@ def generate_editor_from_markdown(
     template_html = template_path.read_text(encoding="utf-8")
     slides_html = _generate_slides_html(parsed)
     slides_json = _generate_slides_json(parsed)
+    anb_slides_json = _generate_anb_slides_json(parsed)
     hash_source = slides_json if "{{SLIDES_JSON}}" in template_html else slides_html
     content_hash = _hash_roteiro(hash_source)
     doc_key = _make_doc_key(roteiro_md, content_hash)
@@ -1020,10 +1070,71 @@ def generate_editor_from_markdown(
     out_html = out_html.replace("{{CAPTION}}", caption_html)
     out_html = out_html.replace("{{SLIDES_HTML}}", slides_html)
     out_html = out_html.replace("{{SLIDES_JSON}}", slides_json)
+    out_html = out_html.replace("{{ANB_SLIDES_JSON}}", anb_slides_json)
     out_html = out_html.replace("{{DOC_KEY}}", doc_key)
     out_html = out_html.replace("{{PECA_PATH}}", str(roteiro_md.parent))
     out_html = out_html.replace("{{HUB_SESSION}}", "true" if hub_session else "false")
     out_html = out_html.replace("{{HUB_SESSION_ID}}", slug if hub_session else "")
+    out_path = editor_dir / f"{slug}.html"
+    out_path.write_text(out_html, encoding="utf-8")
+    return out_path
+
+
+def generate_editor_from_slides(
+    title: str,
+    slides: list[str],
+    caption: str,
+    source_path: Path,
+    template_id: str,
+    editor_dir: Path,
+    image_data_urls: dict[int, str] | None = None,
+) -> Path:
+    """Generate an editor preserving an explicit one-item-per-slide mapping."""
+    if not 2 <= len(slides) <= TEMPLATE_SLIDES_BY_NAME[template_id]:
+        raise ValueError(f"O template {template_id} aceita de 2 a {TEMPLATE_SLIDES_BY_NAME[template_id]} slides")
+    if any(not isinstance(text, str) or not text.strip() for text in slides):
+        raise ValueError("Todos os slides precisam conter texto")
+
+    image_data_urls = image_data_urls or {}
+    parsed = {
+        "title": title.strip() or source_path.stem,
+        "caption": caption.strip(),
+        "slides": [
+            {
+                "num": index + 1,
+                "kind": "capa" if index == 0 else "cta" if index == len(slides) - 1 else "corpo",
+                "paragraphs": [part.strip() for part in re.split(r"\n\s*\n", text.strip()) if part.strip()],
+                "imageDataURL": image_data_urls.get(index + 1),
+            }
+            for index, text in enumerate(slides)
+        ],
+    }
+
+    try:
+        template_path = EDITOR_TEMPLATES[template_id]
+    except KeyError as error:
+        raise ValueError(f"Template desconhecido: {template_id}") from error
+    editor_dir.mkdir(parents=True, exist_ok=True)
+    template_html = template_path.read_text(encoding="utf-8")
+    slides_html = _generate_slides_html(parsed)
+    slides_json = _generate_slides_json(parsed)
+    anb_slides_json = _generate_anb_slides_json(parsed)
+    content_hash = _hash_roteiro(slides_json if "{{SLIDES_JSON}}" in template_html else slides_html)
+    doc_key = _make_doc_key(source_path, content_hash)
+    caption_html = parsed["caption"].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    title_html = parsed["title"].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    slug = slugify(parsed["title"])
+    out_html = template_html
+    out_html = out_html.replace("{{TITLE}}", title_html)
+    out_html = out_html.replace("{{N_SLIDES}}", str(len(parsed["slides"])))
+    out_html = out_html.replace("{{CAPTION}}", caption_html)
+    out_html = out_html.replace("{{SLIDES_HTML}}", slides_html)
+    out_html = out_html.replace("{{SLIDES_JSON}}", slides_json)
+    out_html = out_html.replace("{{ANB_SLIDES_JSON}}", anb_slides_json)
+    out_html = out_html.replace("{{DOC_KEY}}", doc_key)
+    out_html = out_html.replace("{{PECA_PATH}}", str(source_path.parent))
+    out_html = out_html.replace("{{HUB_SESSION}}", "false")
+    out_html = out_html.replace("{{HUB_SESSION_ID}}", "")
     out_path = editor_dir / f"{slug}.html"
     out_path.write_text(out_html, encoding="utf-8")
     return out_path

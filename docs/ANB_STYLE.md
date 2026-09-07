@@ -13,7 +13,13 @@ Template editorial 1080 × 1350, com dez slides independentes. A referência vis
 
 O editor mede o texto e ajusta a fonte dentro de limites de legibilidade. Se o conteúdo exceder a área disponível, deve ser reduzido ou transferido para outro slide antes de exportar. A exportação utiliza o mesmo renderizador Canvas da prévia.
 
-As imagens são processadas no navegador. Não há envio para Supabase nem armazenamento remoto. Salve o projeto localmente para guardar uma cópia da criação.
+## Edição e continuidade
+
+Os textos são editados diretamente sobre o slide: clique no título, corpo, conclusão ou assinatura e escreva. O painel lateral fica reservado aos ajustes de layout, formatação, foto e Vortex.
+
+O carrossel é salvo automaticamente no próprio navegador, incluindo textos, fotos, layout e ajustes. Recarregar a página restaura a criação; somente o botão **Reiniciar carrossel**, após confirmação, apaga esse estado. “Salvar projeto” continua disponível para baixar uma cópia JSON portátil.
+
+As imagens são processadas no navegador. Não há envio para Supabase nem armazenamento remoto.
 
 ## Vortex
 
