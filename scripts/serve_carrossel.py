@@ -72,6 +72,7 @@ HORSHAM_FONT     = PROJECT_ROOT / 'HorshamSerial.otf'
 GARAMOND_MODERN_FONT = PROJECT_ROOT / 'assets' / 'fonts' / 'GaramondModern-Regular.otf'
 ADVERCASE_REGULAR_FONT = PROJECT_ROOT / 'assets' / 'fonts' / 'Advercase-Regular.otf'
 ADVERCASE_BOLD_FONT = PROJECT_ROOT / 'assets' / 'fonts' / 'Advercase-Bold.otf'
+ANB_BRAND_LOGO = PROJECT_ROOT / 'assets' / 'brand' / 'anb-logo.png'
 APP_DATA_DIR     = os.environ.get('CARROSSEL_APP_DATA_DIR')
 RUNTIME_PATHS    = desktop_runtime_paths(APP_DATA_DIR) if APP_DATA_DIR else None
 DIR              = str(RUNTIME_PATHS.editor_dir) if RUNTIME_PATHS else os.environ.get('CARROSSEL_EDITOR_DIR', '/tmp/carrossel-editor')
@@ -386,6 +387,18 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
+    def _send_local_image(self, image_path: Path):
+        """Serve an approved bundled image without exposing the project tree."""
+        if not image_path.is_file():
+            self.send_error(404, "imagem não encontrada")
+            return
+        payload = image_path.read_bytes()
+        self.send_response(200)
+        self.send_header('Content-Type', 'image/png')
+        self.send_header('Content-Length', str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
     def do_GET(self):
         if self._reject_nonlocal():
             return
@@ -404,6 +417,8 @@ class CarrosselHandler(http.server.SimpleHTTPRequestHandler):
             return self._send_local_font(PROJECT_ROOT / 'assets' / 'fonts' / 'Anton-Regular.ttf')
         if path == '/assets/fonts/Advercase-Bold.otf':
             return self._send_local_font(ADVERCASE_BOLD_FONT)
+        if path == '/assets/brand/anb-logo.png':
+            return self._send_local_image(ANB_BRAND_LOGO)
         if path == '/api/telegram/status':
             try:
                 _read_telegram_config()

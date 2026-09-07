@@ -43,6 +43,13 @@ def build() -> None:
                 f"/assets/fonts/{font_name}",
                 f"data:font/{font_format};base64,{font_data}",
             )
+        brand_logo = base64.b64encode(
+            (ROOT / "assets" / "brand" / "anb-logo.png").read_bytes()
+        ).decode("ascii")
+        html = html.replace(
+            "/assets/brand/anb-logo.png",
+            f"data:image/png;base64,{brand_logo}",
+        )
         html = re.sub(
             r'window\.MATHEUSAO_PECA_PATH\s*=\s*"[^"]*";',
             'window.MATHEUSAO_PECA_PATH = "";',

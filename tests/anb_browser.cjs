@@ -10,6 +10,7 @@ const fs = require('node:fs');
   await page.locator('article').filter({hasText:'ANB Style'}).getByRole('button').click();
   await page.waitForSelector('#preview');
   await page.evaluate(()=>document.fonts.ready);
+  await page.waitForFunction(()=>brandLogo.complete && brandLogo.naturalWidth > 0);
 
   assert.equal(await page.locator('#openProject').count(),0);
   assert.equal(await page.locator('#saveProject').count(),0);
@@ -17,6 +18,10 @@ const fs = require('node:fs');
   assert.equal(await page.locator('#sendTelegram').count(),1);
   assert.equal(await page.locator('#bold').count(),0);
   assert.equal(await page.locator('#accent').count(),0);
+  assert.equal(await page.locator('#directBrand').count(),0);
+  assert.equal(await page.evaluate(()=>brandLogo.naturalWidth > 0),true);
+  assert.equal(await page.evaluate(()=>slides.filter(slide=>slide.showLogo).length),2);
+  assert.deepEqual(await page.evaluate(()=>slides.map(slide=>slide.showLogo)),[true,false,false,false,false,false,false,false,false,true]);
 
   await page.locator('#directTitle').fill('IDEIAS QUE MERECEM ATENÇÃO.');
   await page.locator('#layout').selectOption('cover');

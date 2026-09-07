@@ -15,7 +15,7 @@ O editor mede o texto e ajusta a fonte dentro de limites de legibilidade. Se o c
 
 ## Edição e continuidade
 
-Os textos são editados diretamente sobre o slide: clique no título, corpo, conclusão ou assinatura e escreva. O painel lateral fica reservado aos ajustes de layout, tipografia, enquadramento e Vortex. Negrito é aplicado pelo atalho `Ctrl+B` no Windows ou `Command+B` no macOS.
+Os textos são editados diretamente sobre o slide: clique no título, corpo ou conclusão e escreva. A assinatura é o logo ANB, fixo apenas no primeiro e no último slide. O painel lateral fica reservado aos ajustes de layout, tipografia, enquadramento e Vortex. Negrito é aplicado pelo atalho `Ctrl+B` no Windows ou `Command+B` no macOS.
 
 O carrossel é salvo automaticamente no próprio navegador, incluindo textos, fotos, layout e ajustes. Recarregar a página restaura a criação; somente o botão **Reiniciar carrossel**, após confirmação, apaga esse estado.
 
