@@ -61,6 +61,14 @@ class AnbTemplateTest(unittest.TestCase):
         self.assertIn("indexedDB.open('carrossel-anb-style'", anb)
         self.assertIn('id="resetCarousel"', anb)
         self.assertIn('restoreLocal()', anb)
+        self.assertIn('id="sendTelegram"', anb)
+        self.assertIn('id="lineHeight"', anb)
+        self.assertIn('id="letterSpacing"', anb)
+        self.assertIn('id="fontSize"', anb)
+        self.assertNotIn('id="openProject"', anb)
+        self.assertNotIn('id="saveProject"', anb)
+        self.assertNotIn('id="bold"', anb)
+        self.assertNotIn('id="accent"', anb)
 
 
 if __name__ == '__main__':

@@ -15,11 +15,13 @@ O editor mede o texto e ajusta a fonte dentro de limites de legibilidade. Se o c
 
 ## Edição e continuidade
 
-Os textos são editados diretamente sobre o slide: clique no título, corpo, conclusão ou assinatura e escreva. O painel lateral fica reservado aos ajustes de layout, formatação, foto e Vortex.
+Os textos são editados diretamente sobre o slide: clique no título, corpo, conclusão ou assinatura e escreva. O painel lateral fica reservado aos ajustes de layout, tipografia, enquadramento e Vortex. Negrito é aplicado pelo atalho `Ctrl+B` no Windows ou `Command+B` no macOS.
 
-O carrossel é salvo automaticamente no próprio navegador, incluindo textos, fotos, layout e ajustes. Recarregar a página restaura a criação; somente o botão **Reiniciar carrossel**, após confirmação, apaga esse estado. “Salvar projeto” continua disponível para baixar uma cópia JSON portátil.
+O carrossel é salvo automaticamente no próprio navegador, incluindo textos, fotos, layout e ajustes. Recarregar a página restaura a criação; somente o botão **Reiniciar carrossel**, após confirmação, apaga esse estado.
 
 As imagens são processadas no navegador. Não há envio para Supabase nem armazenamento remoto.
+
+Os dez slides podem ser baixados em ZIP ou enviados diretamente ao Telegram configurado no HUB.
 
 ## Vortex
 
