@@ -65,6 +65,7 @@ class AnbTemplateTest(unittest.TestCase):
         self.assertIn('id="lineHeight"', anb)
         self.assertIn('id="letterSpacing"', anb)
         self.assertIn('id="fontSize"', anb)
+        self.assertIn('contentHeight=Math.min(box.h', anb)
         self.assertNotIn('id="openProject"', anb)
         self.assertNotIn('id="saveProject"', anb)
         self.assertNotIn('id="bold"', anb)
