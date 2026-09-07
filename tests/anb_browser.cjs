@@ -19,6 +19,12 @@ const fs = require('node:fs');
   assert.equal(await page.locator('#accent').count(),0);
 
   await page.locator('#directTitle').fill('IDEIAS QUE MERECEM ATENÇÃO.');
+  await page.locator('#layout').selectOption('cover');
+  const defaultCoverGap=await page.evaluate(()=>{const title=document.querySelector('#directTitle'),body=document.querySelector('#directBody');return parseFloat(body.style.top)-(parseFloat(title.style.top)+parseFloat(title.style.height))});
+  await page.locator('#blockGap').fill('35');
+  const compactCoverGap=await page.evaluate(()=>{const title=document.querySelector('#directTitle'),body=document.querySelector('#directBody');return parseFloat(body.style.top)-(parseFloat(title.style.top)+parseFloat(title.style.height))});
+  assert(compactCoverGap<defaultCoverGap);
+  assert.equal(await page.locator('#blockGapValue').innerText(),'35 px');
   for(const layout of ['cover','editorial','band','side','manifesto','text']){
     await page.locator('#layout').selectOption(layout);
     assert.equal(await page.locator('#status').getAttribute('class'),'status');
