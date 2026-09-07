@@ -10,6 +10,15 @@ from tests.test_hub_server import running_test_server, mutation_headers
 
 
 class AnbTemplateTest(unittest.TestCase):
+    def test_vortex_uses_same_shader_as_stories(self):
+        root = Path(__file__).resolve().parent.parent
+        anb = (root / 'templates/anb_editor.html').read_text(encoding='utf-8')
+        stories = (root / 'templates/stories_background_editor.html').read_text(encoding='utf-8')
+        start = '  function compileRadialBlurShader('
+        end = '  async function drawHaloGrainEffect('
+        shader = stories[stories.index(start):stories.index(end)].strip()
+        self.assertIn(shader, anb)
+
     def test_hub_can_create_serve_and_delete_anb(self):
         with running_test_server() as base:
             req = urllib.request.Request(base + '/api/sessoes',

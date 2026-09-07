@@ -15,6 +15,10 @@ O editor mede o texto e ajusta a fonte dentro de limites de legibilidade. Se o c
 
 As imagens são processadas no navegador. Não há envio para Supabase nem armazenamento remoto. Salve o projeto localmente para guardar uma cópia da criação.
 
+## Vortex
+
+No painel Vortex, ative “Borrado radial + grão” para a fotografia do slide. O algoritmo é o mesmo do Stories com fundo, com força, área central preservada e posição do centro ajustáveis. O texto não recebe desfoque. As configurações acompanham o projeto JSON e a exportação PNG/ZIP. Projetos antigos abrem com o efeito desligado. É necessário suporte a WebGL; se indisponível, a exportação avisa para desativar o efeito.
+
 ## Tipografia
 
 Títulos usam Anton, distribuída pelo Google Fonts sob SIL Open Font License; licença incluída em `assets/fonts/Anton-OFL.txt`. Serifada usa a Advercase já presente no editor.

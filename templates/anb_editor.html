@@ -19,14 +19,19 @@
 <div class="section"><h2>Composição</h2><label for="layout">Layout deste slide</label><select id="layout"><option value="cover">Capa fotográfica</option><option value="editorial">Editorial · foto embaixo</option><option value="band">Faixa central</option><option value="side">Coluna lateral</option><option value="manifesto">Manifesto</option><option value="text">Somente texto</option></select><label for="format">Formato do carrossel</label><select id="format"><option value="1350">4:5 · 1080 × 1350</option><option value="1440">3:4 · 1080 × 1440</option></select><label for="brand">Sua marca · todos os slides</label><input id="brand" type="text" maxlength="60" placeholder="Seu nome ou sua marca"><p class="hint">A marca é opcional. As composições mantêm margens e espaços definidos.</p></div>
 <div class="section"><h2>Conteúdo</h2><label for="title">Título</label><textarea class="title" id="title" placeholder="Uma frase que abre a conversa"></textarea><label for="body">Texto</label><textarea id="body" rows="7" placeholder="Cole seu texto aqui. Separe os parágrafos com uma linha em branco."></textarea><div id="conclusionGroup"><label for="conclusion">Conclusão</label><textarea id="conclusion" rows="3" placeholder="A ideia que fica."></textarea></div><div class="formatbar" aria-label="Formatar seleção"><button type="button" id="bold" title="Negrito no texto selecionado"><b>B</b></button><button type="button" id="accent" title="Destacar o texto selecionado">Destaque</button></div><p class="hint">Selecione um trecho e use os botões. Também funciona escrever **negrito** e ==destaque==. A fonte se ajusta até um limite legível.</p><label for="accentColor">Cor de destaque</label><select id="accentColor"><option value="#235641">Verde editorial</option><option value="#AD382B">Vermelho</option><option value="#C7A451">Dourado</option></select><label class="range-label" for="fontSize">Tamanho do texto <output id="fontValue">42 px</output></label><input id="fontSize" type="range" min="32" max="58" value="42"></div>
 <div class="section" id="photoSection"><h2>Fotografia</h2><label class="upload">Escolher foto<input id="photo" type="file" accept="image/*"></label><p class="hint">Você também pode colar uma imagem com Ctrl + V. Cada foto fica dentro da área reservada do layout.</p><button id="removePhoto" class="subtle">Remover foto</button><label class="range-label" for="zoom">Zoom <output id="zoomValue">100%</output></label><input id="zoom" type="range" min="100" max="300" value="100"><label for="focusX">Enquadramento horizontal</label><input id="focusX" type="range" min="0" max="100" value="50"><label for="focusY">Enquadramento vertical</label><input id="focusY" type="range" min="0" max="100" value="50"><label class="check"><input id="grayscale" type="checkbox">Foto em preto e branco</label><div id="darknessGroup"><label class="range-label" for="darkness">Escurecer foto <output id="darkValue">35%</output></label><input id="darkness" type="range" min="0" max="85" value="35"></div></div>
-</aside></main><div class="toast" id="toast" role="status" hidden></div>
+<div class="section" id="vortexSection"><h2>Vortex</h2><label class="check"><input id="vortex" type="checkbox">Borrado radial + grão</label><p class="hint">O mesmo efeito do Stories com fundo. Aplicado só à fotografia deste slide.</p><div id="vortexControls">
+<label for="vortexStrength">Força do vortex</label><input id="vortexStrength" type="range" min="0" max="100" value="82">
+<label for="vortexRadius">Área central preservada</label><input id="vortexRadius" type="range" min="10" max="80" value="45">
+<label for="vortexX">Centro horizontal do efeito</label><input id="vortexX" type="range" min="0" max="100" value="50">
+<label for="vortexY">Centro vertical do efeito</label><input id="vortexY" type="range" min="0" max="100" value="43">
+</div></div></aside></main><div class="toast" id="toast" role="status" hidden></div>
 <script>
 'use strict';
 const DOC_KEY = '{{DOC_KEY}}';
 const $ = id => document.getElementById(id);
 const names={cover:'Capa fotográfica',editorial:'Editorial',band:'Faixa central',side:'Coluna lateral',manifesto:'Manifesto',text:'Somente texto'};
 const order=['cover','editorial','band','text','manifesto','side','band','editorial','side','manifesto'];
-const slides=order.map((layout,i)=>({layout,title:i===0?'SUA PRÓXIMA IDEIA MERECE SER VISTA.':i===9?'A conversa continua.':'',body:i===0?'Uma nova perspectiva começa com uma boa pergunta.':i===9?'Qual ideia você quer colocar no mundo?':'Cole seu texto aqui.\n\nUse **negrito** para criar ritmo e ==destaques== para guiar a leitura.',conclusion:'',accent:layout==='manifesto'?'#C7A451':'#235641',fontSize:42,image:null,zoom:100,focusX:50,focusY:50,grayscale:false,darkness:35}));
+const slides=order.map((layout,i)=>({layout,title:i===0?'SUA PRÓXIMA IDEIA MERECE SER VISTA.':i===9?'A conversa continua.':'',body:i===0?'Uma nova perspectiva começa com uma boa pergunta.':i===9?'Qual ideia você quer colocar no mundo?':'Cole seu texto aqui.\n\nUse **negrito** para criar ritmo e ==destaques== para guiar a leitura.',conclusion:'',accent:layout==='manifesto'?'#C7A451':'#235641',fontSize:42,image:null,zoom:100,focusX:50,focusY:50,grayscale:false,darkness:35,vortex:false,vortexStrength:82,vortexRadius:45,vortexX:50,vortexY:43}));
 let current=0,height=1350,brand='',dirty=false,focusedField=$('body'),busy=false,toastTimer,photoRequests=new WeakMap(),pendingPhotos=0;
 const fontsReady=Promise.all([document.fonts.load('48px Advercase'),document.fonts.load('76px ANBHeadline')]);
 function setBusy(value){busy=value;document.querySelector('main').inert=value;document.querySelectorAll('header button').forEach(b=>b.disabled=value)}
@@ -37,8 +42,203 @@ function parse(text){const result=[];let bold=false,accent=false;for(const part 
 function textLines(context,text,width,size,kind){const lines=[];let line=[],used=0;const push=()=>{lines.push({runs:line,width:used});line=[];used=0};for(const run of parse(text)){for(const token of run.text.split(/(\n|[^\S\n]+)/).filter(Boolean)){if(token==='\n'){push();continue}context.font=font(size,kind,run.bold||kind==='title');let w=context.measureText(token).width;if(/^\s+$/.test(token)){if(used>0){line.push({...run,text:token,width:w});used+=w}continue}if(used+w>width&&line.length)push();if(w>width){for(const char of token){const cw=context.measureText(char).width;if(used+cw>width&&line.length)push();line.push({...run,text:char,width:cw});used+=cw}}else{line.push({...run,text:token,width:w});used+=w}}}if(line.length)push();return lines}
 function fitText(context,text,box,opts={}){const kind=opts.kind||'body',start=opts.size||42,min=opts.min||32,leading=opts.leading||(kind==='title'?1.04:1.18);let lines=[],size=start;for(;size>=min;size--){lines=textLines(context,text,box.w,size,kind);if(lines.length*size*leading<=box.h)break}size=Math.max(min,size);lines=textLines(context,text,box.w,size,kind);return{lines,size,lineHeight:size*leading,overflow:lines.length*size*leading>box.h+1,kind}}
 function drawText(context,text,box,opts,issues,label){if(!text.trim())return;const result=fitText(context,text,box,opts);if(result.overflow)issues.push(label);context.save();context.beginPath();context.rect(box.x,box.y,box.w,box.h);context.clip();context.textBaseline='top';let y=box.y+(opts.valign==='center'?Math.max(0,(box.h-result.lines.length*result.lineHeight)/2):0);for(const line of result.lines){let x=box.x+(opts.align==='center'?(box.w-line.width)/2:0);for(const run of line.runs){context.font=font(result.size,result.kind,run.bold||result.kind==='title');context.fillStyle=run.accent?opts.accent:opts.color;context.fillText(run.text,x,y);x+=run.width}y+=result.lineHeight}context.restore()}
-function photo(context,s,box){context.save();context.beginPath();context.rect(box.x,box.y,box.w,box.h);context.clip();if(s.image){const scale=Math.max(box.w/s.image.naturalWidth,box.h/s.image.naturalHeight)*s.zoom/100;const w=s.image.naturalWidth*scale,h=s.image.naturalHeight*scale;context.filter=s.grayscale?'grayscale(1)':'none';context.drawImage(s.image,box.x-(w-box.w)*s.focusX/100,box.y-(h-box.h)*s.focusY/100,w,h)}else{context.fillStyle='#354839';context.fillRect(box.x,box.y,box.w,box.h);const grad=context.createLinearGradient(box.x,box.y,box.x+box.w,box.y+box.h);grad.addColorStop(0,'#60715b');grad.addColorStop(1,'#162a22');context.fillStyle=grad;context.fillRect(box.x,box.y,box.w,box.h);context.strokeStyle='#ffffff18';context.lineWidth=2;for(let i=0;i<8;i++){context.beginPath();context.arc(box.x+box.w*.7,box.y+box.h*.4,80+i*90,0,Math.PI*2);context.stroke()}}context.restore()}
-function render(s,target){const c=target.getContext('2d');target.width=1080;target.height=height;const H=height,issues=[],dark=['cover','manifesto'].includes(s.layout),ink=dark?'#FCF8F0':'#171513',accent=dark&&s.accent==='#235641'?'#b7d7bb':s.accent;const base={size:s.fontSize,min:32,color:ink,accent};c.fillStyle=dark?'#211C1B':'#FCF8F0';c.fillRect(0,0,1080,H);const text=(value,box,opts,label)=>drawText(c,value,box,{...base,...opts},issues,label);const title=(box,size=76,align='left')=>text(s.title.toUpperCase(),box,{kind:'title',size,min:54,align},'título');const pic=box=>photo(c,s,box);let bodyTop=88;
+function rawPhoto(context,s,box){context.save();context.beginPath();context.rect(box.x,box.y,box.w,box.h);context.clip();if(s.image){const scale=Math.max(box.w/s.image.naturalWidth,box.h/s.image.naturalHeight)*s.zoom/100;const w=s.image.naturalWidth*scale,h=s.image.naturalHeight*scale;context.filter=s.grayscale?'grayscale(1)':'none';context.drawImage(s.image,box.x-(w-box.w)*s.focusX/100,box.y-(h-box.h)*s.focusY/100,w,h)}else{context.fillStyle='#354839';context.fillRect(box.x,box.y,box.w,box.h);const grad=context.createLinearGradient(box.x,box.y,box.x+box.w,box.y+box.h);grad.addColorStop(0,'#60715b');grad.addColorStop(1,'#162a22');context.fillStyle=grad;context.fillRect(box.x,box.y,box.w,box.h);context.strokeStyle='#ffffff18';context.lineWidth=2;for(let i=0;i<8;i++){context.beginPath();context.arc(box.x+box.w*.7,box.y+box.h*.4,80+i*90,0,Math.PI*2);context.stroke()}}context.restore()}
+
+  function makeFilmGrainSeed(value) {
+    let hash = 2166136261;
+    const text = String(value || 'stories-halo-grain');
+    for (let index = 0; index < text.length; index++) {
+      hash ^= text.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
+    }
+    return hash >>> 0;
+  }
+
+  function drawFilmGrain(ctx, w, h, seedValue) {
+    let seed = makeFilmGrainSeed(seedValue);
+    const random = () => {
+      seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5;
+      return (seed >>> 0) / 4294967296;
+    };
+    ctx.save();
+    // Poucos pontos semi-transparentes preservam a foto; o resultado é grão,
+    // não uma camada de ruído digital pesada.
+    for (let index = 0; index < 2600; index++) {
+      const light = random() > 0.5;
+      ctx.fillStyle = light ? 'rgba(255,255,255,.075)' : 'rgba(0,0,0,.10)';
+      const size = random() > 0.88 ? 1.6 : 0.8;
+      ctx.fillRect(random() * w, random() * h, size, size);
+    }
+    ctx.restore();
+  }
+
+  const radialBlurRendererCache = new Map();
+
+  function compileRadialBlurShader(gl, type, source) {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      gl.deleteShader(shader);
+      return null;
+    }
+    return shader;
+  }
+
+  function createRadialBlurRenderer(w, h) {
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const gl = canvas.getContext('webgl', {
+      alpha: false,
+      antialias: false,
+      depth: false,
+      premultipliedAlpha: false,
+      preserveDrawingBuffer: true,
+    });
+    if (!gl) return null;
+    const vertexSource = [
+      'attribute vec2 a_position;',
+      'varying vec2 v_uv;',
+      'void main() {',
+      '  v_uv = a_position * 0.5 + 0.5;',
+      '  gl_Position = vec4(a_position, 0.0, 1.0);',
+      '}',
+    ].join('\n');
+    const fragmentSource = [
+      'precision highp float;',
+      'varying vec2 v_uv;',
+      'uniform sampler2D u_photo;',
+      'uniform vec2 u_focus;',
+      'uniform float u_strength;',
+      'uniform float u_radius;',
+      'uniform float u_aspect;',
+      // Mais amostras, com jitter estratificado por pixel, removem os anéis
+      // discretos que aparecem em fotos detalhadas nas bordas do vortex.
+      'const int SAMPLE_COUNT = 64;',
+      'void main() {',
+      '  vec4 original = texture2D(u_photo, v_uv);',
+      '  vec2 delta = v_uv - u_focus;',
+      '  vec2 metric = vec2(delta.x * u_aspect, delta.y);',
+      '  float distanceFromFocus = length(metric);',
+      '  float innerRadius = mix(0.055, 0.31, u_radius);',
+      '  float edgeMask = smoothstep(innerRadius, innerRadius + 0.24, distanceFromFocus);',
+      '  float angularSweep = mix(0.025, 0.92, u_strength) * edgeMask;',
+      '  vec4 accumulated = vec4(0.0);',
+      '  float totalWeight = 0.0;',
+      '  float dither = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);',
+      '  for (int index = 0; index < SAMPLE_COUNT; index++) {',
+      '    float progress = (float(index) + dither) / float(SAMPLE_COUNT);',
+      '    float centeredProgress = progress * 2.0 - 1.0;',
+      '    float angle = centeredProgress * angularSweep * 0.5;',
+      '    float cosine = cos(angle);',
+      '    float sine = sin(angle);',
+      '    vec2 rotatedMetric = vec2(metric.x * cosine - metric.y * sine, metric.x * sine + metric.y * cosine);',
+      '    vec2 rotatedDelta = vec2(rotatedMetric.x / u_aspect, rotatedMetric.y);',
+      '    vec2 sampleUv = clamp(u_focus + rotatedDelta, vec2(0.001), vec2(0.999));',
+      '    float weight = mix(0.72, 1.0, 1.0 - abs(centeredProgress));',
+      '    accumulated += texture2D(u_photo, sampleUv) * weight;',
+      '    totalWeight += weight;',
+      '  }',
+      '  vec4 radialBlur = accumulated / totalWeight;',
+      '  float blendAmount = edgeMask * smoothstep(0.0, 0.22, u_strength);',
+      '  gl_FragColor = mix(original, radialBlur, blendAmount);',
+      '}',
+    ].join('\n');
+    const vertexShader = compileRadialBlurShader(gl, gl.VERTEX_SHADER, vertexSource);
+    const fragmentShader = compileRadialBlurShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
+    if (!vertexShader || !fragmentShader) return null;
+    const program = gl.createProgram();
+    gl.attachShader(program, vertexShader);
+    gl.attachShader(program, fragmentShader);
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return null;
+    gl.useProgram(program);
+    const buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+    const position = gl.getAttribLocation(program, 'a_position');
+    gl.enableVertexAttribArray(position);
+    gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.uniform1i(gl.getUniformLocation(program, 'u_photo'), 0);
+    return {
+      canvas,
+      gl,
+      program,
+      texture,
+      focusLocation: gl.getUniformLocation(program, 'u_focus'),
+      strengthLocation: gl.getUniformLocation(program, 'u_strength'),
+      radiusLocation: gl.getUniformLocation(program, 'u_radius'),
+      aspectLocation: gl.getUniformLocation(program, 'u_aspect'),
+    };
+  }
+
+  function renderRadialBlurWithWebGL(source, w, h, options) {
+    const cacheKey = w + 'x' + h;
+    let renderer = radialBlurRendererCache.get(cacheKey);
+    if (!renderer) {
+      renderer = createRadialBlurRenderer(w, h);
+      if (!renderer) return null;
+      radialBlurRendererCache.set(cacheKey, renderer);
+    }
+    const { gl, program, texture, canvas } = renderer;
+    const focus = options.focus || { x: 0.5, y: 0.43 };
+    gl.viewport(0, 0, w, h);
+    gl.useProgram(program);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+    gl.uniform2f(renderer.focusLocation, focus.x, 1 - focus.y);
+    gl.uniform1f(renderer.strengthLocation, Math.max(0, Math.min(1, Number(options.strength) || 0)));
+    gl.uniform1f(renderer.radiusLocation, Math.max(0.1, Math.min(0.8, Number(options.radius) || 0.45)));
+    gl.uniform1f(renderer.aspectLocation, w / h);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    gl.finish();
+    return canvas;
+  }
+
+
+const vortexImages = new WeakMap();
+let vortexUnavailable = false;
+function photo(context, s, box) {
+  if (!s.image || !s.vortex) return rawPhoto(context, s, box);
+  const w=Math.round(box.w), h=Math.round(box.h);
+  const key=JSON.stringify([w,h,s.zoom,s.focusX,s.focusY,s.grayscale,s.vortexStrength,s.vortexRadius,s.vortexX,s.vortexY]);
+  let cached=vortexImages.get(s);
+  if (!cached || cached.image!==s.image || cached.key!==key) {
+    const source=document.createElement('canvas'); source.width=w; source.height=h;
+    rawPhoto(source.getContext('2d'),s,{x:0,y:0,w,h});
+    // Keep a single GPU surface: changing composition must not accumulate contexts.
+    for(const [size, renderer] of radialBlurRendererCache) {
+      if(size!==w+'x'+h || renderer.gl.isContextLost()) {
+        renderer.gl.getExtension('WEBGL_lose_context')?.loseContext();
+        radialBlurRendererCache.delete(size);
+      }
+    }
+    const options={strength:s.vortexStrength/100,radius:s.vortexRadius/100,focus:{x:s.vortexX/100,y:s.vortexY/100}};
+    const processed=renderRadialBlurWithWebGL(source,w,h,options);
+    vortexUnavailable=!processed;
+    if(!processed) return rawPhoto(context,s,box);
+    const result=document.createElement('canvas');result.width=w;result.height=h;
+    const c=result.getContext('2d');c.drawImage(processed,0,0);
+    const x=options.focus.x*w,y=options.focus.y*h;
+    const vignette=c.createRadialGradient(x,y,w*(0.08+options.radius*0.22),x,y,Math.max(w,h)*0.74);
+    vignette.addColorStop(0,'rgba(0,0,0,0)');vignette.addColorStop(.46,'rgba(0,0,0,0)');vignette.addColorStop(1,'rgba(0,0,0,.30)');
+    c.fillStyle=vignette;c.fillRect(0,0,w,h);
+    drawFilmGrain(c,w,h,'anb-vortex');
+    cached={image:s.image,key,canvas:result};vortexImages.set(s,cached);
+  }
+  context.drawImage(cached.canvas,box.x,box.y,box.w,box.h);
+}
+
+function render(s,target){vortexUnavailable=false;const c=target.getContext('2d');target.width=1080;target.height=height;const H=height,issues=[],dark=['cover','manifesto'].includes(s.layout),ink=dark?'#FCF8F0':'#171513',accent=dark&&s.accent==='#235641'?'#b7d7bb':s.accent;const base={size:s.fontSize,min:32,color:ink,accent};c.fillStyle=dark?'#211C1B':'#FCF8F0';c.fillRect(0,0,1080,H);const text=(value,box,opts,label)=>drawText(c,value,box,{...base,...opts},issues,label);const title=(box,size=76,align='left')=>text(s.title.toUpperCase(),box,{kind:'title',size,min:54,align},'título');const pic=box=>photo(c,s,box);let bodyTop=88;
 if(s.layout==='cover'){
 pic({x:0,y:0,w:1080,h:H});c.fillStyle=`rgba(0,0,0,${s.darkness/100})`;c.fillRect(0,0,1080,H);const g=c.createLinearGradient(0,H*.28,0,H);g.addColorStop(0,'#0000');g.addColorStop(.6,'#0009');g.addColorStop(1,'#000e');c.fillStyle=g;c.fillRect(0,0,1080,H);const y=H*.55;title({x:76,y,w:928,h:H*.23},84,'center');text(s.body,{x:110,y:H*.8,w:860,h:H*.14},{kind:'serif',size:48,min:36,align:'center',leading:1.1},'subtítulo');
 }else if(s.layout==='manifesto'){
@@ -50,9 +250,9 @@ const py=H*.46,ph=H*.26;pic({x:0,y:py,w:1080,h:ph});bodyTop=brand?110:75;if(s.ti
 }else{
 const isEditorial=s.layout==='editorial',end=isEditorial?H*.72:H-70;if(isEditorial)pic({x:0,y:end,w:1080,h:H-end});bodyTop=brand?115:80;if(s.title.trim()){title({x:88,y:bodyTop,w:904,h:220},76);bodyTop+=250}const ch=s.conclusion.trim()?Math.min(210,(end-bodyTop)*.3):0;text(s.body,{x:88,y:bodyTop,w:904,h:end-bodyTop-48-ch},{},'texto');if(ch)text(s.conclusion,{x:88,y:end-ch-24,w:904,h:ch-24},{color:accent},'conclusão');
 }
-if(brand){const x=s.layout==='side'?64:88,w=s.layout==='side'?602:904;text(brand,{x,y:dark?55:32,w,h:dark?65:42},{kind:dark?'serif':'body',size:dark?48:23,min:dark?30:16,align:dark?'center':'left',leading:1.1},'marca')}return issues}
-function redraw(){const s=slides[current],issues=render(s,canvas);$('currentLabel').textContent=`${String(current+1).padStart(2,'0')} / 10 — ${names[s.layout]}`;$('dimensions').textContent=`1080 × ${height}`;$('status').textContent=issues.length?`O ${issues.join(' e ')} ultrapassou o espaço disponível. Encurte o conteúdo ou escolha “Somente texto” para exportar.`:'Enquadramento fixo · texto ajustado automaticamente · prévia igual ao PNG';$('status').classList.toggle('error',!!issues.length);$('fontValue').textContent=s.fontSize+' px';$('zoomValue').textContent=s.zoom+'%';$('darkValue').textContent=s.darkness+'%';$('conclusionGroup').hidden=s.layout==='cover';$('photoSection').hidden=s.layout==='text';$('darknessGroup').hidden=!['cover','manifesto'].includes(s.layout);document.querySelectorAll('.slide-button').forEach((b,i)=>{b.setAttribute('aria-current',String(i===current));b.querySelector('strong').textContent=names[slides[i].layout]})}
-function selectSlide(i){current=i;const s=slides[i];for(const key of ['layout','title','body','conclusion','fontSize','zoom','focusX','focusY','darkness'])$(key).value=s[key];$('accentColor').value=s.accent;$('grayscale').checked=s.grayscale;$('photo').value='';redraw()}
+if(brand){const x=s.layout==='side'?64:88,w=s.layout==='side'?602:904;text(brand,{x,y:dark?55:32,w,h:dark?65:42},{kind:dark?'serif':'body',size:dark?48:23,min:dark?30:16,align:dark?'center':'left',leading:1.1},'marca')}if(vortexUnavailable)issues.push('Vortex indisponível neste navegador; desative o efeito');return issues}
+function redraw(){$('vortexSection').hidden=slides[current].layout==='text';$('vortexControls').hidden=!slides[current].vortex;const s=slides[current],issues=render(s,canvas);$('currentLabel').textContent=`${String(current+1).padStart(2,'0')} / 10 — ${names[s.layout]}`;$('dimensions').textContent=`1080 × ${height}`;$('status').textContent=issues.length?`O ${issues.join(' e ')} ultrapassou o espaço disponível. Encurte o conteúdo ou escolha “Somente texto” para exportar.`:'Enquadramento fixo · texto ajustado automaticamente · prévia igual ao PNG';$('status').classList.toggle('error',!!issues.length);$('fontValue').textContent=s.fontSize+' px';$('zoomValue').textContent=s.zoom+'%';$('darkValue').textContent=s.darkness+'%';$('conclusionGroup').hidden=s.layout==='cover';$('photoSection').hidden=s.layout==='text';$('darknessGroup').hidden=!['cover','manifesto'].includes(s.layout);document.querySelectorAll('.slide-button').forEach((b,i)=>{b.setAttribute('aria-current',String(i===current));b.querySelector('strong').textContent=names[slides[i].layout]})}
+function selectSlide(i){current=i;$('vortex').checked=!!slides[i].vortex;for(const key of ['vortexStrength','vortexRadius','vortexX','vortexY'])$(key).value=slides[i][key];const s=slides[i];for(const key of ['layout','title','body','conclusion','fontSize','zoom','focusX','focusY','darkness'])$(key).value=s[key];$('accentColor').value=s.accent;$('grayscale').checked=s.grayscale;$('photo').value='';redraw()}
 slides.forEach((s,i)=>{const button=document.createElement('button');button.className='slide-button';button.innerHTML=`<span>SLIDE ${String(i+1).padStart(2,'0')}</span><strong></strong>`;button.addEventListener('click',()=>selectSlide(i));$('slideList').append(button)});
 for(const key of ['layout','title','body','conclusion','fontSize','zoom','focusX','focusY','darkness'])$(key).addEventListener('input',e=>{slides[current][key]=['fontSize','zoom','focusX','focusY','darkness'].includes(key)?Number(e.target.value):e.target.value;dirty=true;redraw()});
 $('accentColor').addEventListener('change',e=>{slides[current].accent=e.target.value;dirty=true;redraw()});$('grayscale').addEventListener('change',e=>{slides[current].grayscale=e.target.checked;dirty=true;redraw()});$('brand').addEventListener('input',e=>{brand=e.target.value;dirty=true;redraw()});$('format').addEventListener('change',e=>{height=Number(e.target.value);dirty=true;redraw()});
@@ -60,12 +260,14 @@ for(const id of ['title','body','conclusion'])$(id).addEventListener('focus',()=
 async function loadPhoto(file){if(busy||!file||!file.type.startsWith('image/'))return;const s=slides[current],request={};photoRequests.set(s,request);if(file.size>30*1024*1024){notify('Escolha uma imagem de até 30 MB.');return}pendingPhotos++;const url=URL.createObjectURL(file);try{const img=new Image();await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=url});if(photoRequests.get(s)!==request)return;s.image=img;s.zoom=100;s.focusX=s.focusY=50;dirty=true;if(slides[current]===s)selectSlide(current);notify('Foto adicionada. Ajuste o enquadramento se desejar.')}catch{notify('Não foi possível abrir esta imagem. Tente JPG, PNG ou WebP.')}finally{pendingPhotos--;URL.revokeObjectURL(url)}}
 $('photo').addEventListener('change',e=>loadPhoto(e.target.files[0]));document.addEventListener('paste',e=>{const item=[...(e.clipboardData?.items||[])].find(x=>x.type.startsWith('image/'));if(item){e.preventDefault();loadPhoto(item.getAsFile())}});$('removePhoto').addEventListener('click',()=>{photoRequests.set(slides[current],{});slides[current].image=null;dirty=true;$('photo').value='';redraw()});window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue=''}});
 function blobOf(target){return new Promise((resolve,reject)=>target.toBlob(blob=>blob?resolve(blob):reject(Error('Falha ao gerar PNG.')),'image/png'))}function download(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000)}
+$('vortex').addEventListener('change',e=>{slides[current].vortex=e.target.checked;dirty=true;redraw()});
+for(const key of ['vortexStrength','vortexRadius','vortexX','vortexY'])$(key).addEventListener('input',e=>{slides[current][key]=Number(e.target.value);dirty=true;redraw()});
 const crcTable=Array.from({length:256},(_,n)=>{for(let k=0;k<8;k++)n=n&1?0xedb88320^(n>>>1):n>>>1;return n>>>0});function crc32(data){let crc=0xffffffff;for(const b of data)crc=crcTable[(crc^b)&255]^(crc>>>8);return(crc^0xffffffff)>>>0}
 function zip(files){const chunks=[],central=[];let offset=0;for(const file of files){const name=new TextEncoder().encode(file.name),data=file.data,crc=crc32(data),header=new Uint8Array(30+name.length),h=new DataView(header.buffer);h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint32(14,crc,true);h.setUint32(18,data.length,true);h.setUint32(22,data.length,true);h.setUint16(26,name.length,true);header.set(name,30);chunks.push(header,data);const entry=new Uint8Array(46+name.length),v=new DataView(entry.buffer);v.setUint32(0,0x02014b50,true);v.setUint16(4,20,true);v.setUint16(6,20,true);v.setUint32(16,crc,true);v.setUint32(20,data.length,true);v.setUint32(24,data.length,true);v.setUint16(28,name.length,true);v.setUint32(42,offset,true);entry.set(name,46);central.push(entry);offset+=header.length+data.length}const centralSize=central.reduce((n,c)=>n+c.length,0),end=new Uint8Array(22),e=new DataView(end.buffer);e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,centralSize,true);e.setUint32(16,offset,true);return new Blob([...chunks,...central,end],{type:'application/zip'})}
 async function exportSlides(all){if(busy)return;if(pendingPhotos){notify('Aguarde a foto terminar de carregar antes de exportar.');return}setBusy(true);try{await fontsReady;await document.fonts.ready;const indices=all?slides.map((_,i)=>i):[current],target=document.createElement('canvas');for(const i of indices){if(render(slides[i],target).length){selectSlide(i);throw Error(`Revise o texto do slide ${i+1} antes de baixar.`)}}const files=[];for(const i of indices){render(slides[i],target);const blob=await blobOf(target);if(!all){download(blob,`ANB-Style-${String(i+1).padStart(2,'0')}.png`)}else files.push({name:`ANB-Style-${String(i+1).padStart(2,'0')}.png`,data:new Uint8Array(await blob.arrayBuffer())})}if(all)download(zip(files),'ANB-Style.zip');notify(all?'Seus 10 slides estão no arquivo ZIP.':'Slide pronto para baixar.')}catch(error){notify(error.message||'Não foi possível exportar. Tente novamente.')}finally{setBusy(false)}}
 function encodedPhoto(img){if(!img)return null;const c=document.createElement('canvas'),ratio=Math.min(1,4096/Math.max(img.naturalWidth,img.naturalHeight));c.width=Math.round(img.naturalWidth*ratio);c.height=Math.round(img.naturalHeight*ratio);c.getContext('2d').drawImage(img,0,0,c.width,c.height);return c.toDataURL('image/png')}
 $('saveProject').addEventListener('click',()=>{if(busy)return;if(pendingPhotos){notify('Aguarde a foto terminar de carregar antes de salvar.');return}try{const data={type:'anb-style',version:1,height,brand,slides:slides.map(s=>({...s,image:encodedPhoto(s.image)}))};download(new Blob([JSON.stringify(data)],{type:'application/json'}),'ANB-Style-projeto.json');dirty=false;notify('Projeto salvo com textos e fotos. Use “Abrir projeto” para continuar.')}catch{notify('Não foi possível salvar o projeto. Tente diminuir as imagens.')}});
 $('openProject').addEventListener('click',()=>{if(dirty&&!confirm('Há alterações nesta aba. Abrir outro projeto substituirá o conteúdo atual. Deseja continuar?'))return;$('projectFile').click()});
-$('projectFile').addEventListener('change',async e=>{const file=e.target.files[0];if(!file||busy)return;if(pendingPhotos){notify('Aguarde a foto terminar de carregar antes de abrir um projeto.');e.target.value='';return}setBusy(true);try{if(file.size>160*1024*1024)throw Error('Arquivo muito grande. O limite é 160 MB.');const data=JSON.parse(await file.text());if(data.type!=='anb-style'||data.version!==1||!Array.isArray(data.slides)||data.slides.length!==10||![1350,1440].includes(data.height))throw Error('Este arquivo não é um projeto ANB Style válido.');const loaded=[];for(const item of data.slides){if(!item||!names[item.layout])throw Error('O projeto contém um layout inválido.');const s={layout:item.layout,image:null};for(const key of ['title','body','conclusion']){if(typeof item[key]!=='string'||item[key].length>50000)throw Error('O projeto contém um texto inválido.');s[key]=item[key]}s.accent=['#235641','#AD382B','#C7A451'].includes(item.accent)?item.accent:'#235641';for(const [key,min,max] of [['fontSize',32,58],['zoom',100,300],['focusX',0,100],['focusY',0,100],['darkness',0,85]])s[key]=Math.min(max,Math.max(min,Number(item[key])||min));s.grayscale=!!item.grayscale;if(item.image){if(typeof item.image!=='string'||!/^data:image\/(png|jpeg|webp);base64,/.test(item.image))throw Error('O projeto contém uma imagem inválida.');const img=new Image();await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(Error('Não foi possível abrir uma foto do projeto.'));img.src=item.image});s.image=img}loaded.push(s)}slides.splice(0,10,...loaded);height=data.height;brand=String(data.brand||'').slice(0,60);$('brand').value=brand;$('format').value=height;dirty=false;selectSlide(0);notify('Projeto aberto. Pode continuar a edição.')}catch(error){notify(error.message||'Não foi possível abrir o projeto.')}finally{e.target.value='';setBusy(false)}});
+$('projectFile').addEventListener('change',async e=>{const file=e.target.files[0];if(!file||busy)return;if(pendingPhotos){notify('Aguarde a foto terminar de carregar antes de abrir um projeto.');e.target.value='';return}setBusy(true);try{if(file.size>160*1024*1024)throw Error('Arquivo muito grande. O limite é 160 MB.');const data=JSON.parse(await file.text());if(data.type!=='anb-style'||data.version!==1||!Array.isArray(data.slides)||data.slides.length!==10||![1350,1440].includes(data.height))throw Error('Este arquivo não é um projeto ANB Style válido.');const loaded=[];for(const item of data.slides){if(!item||!names[item.layout])throw Error('O projeto contém um layout inválido.');const s={layout:item.layout,image:null};for(const key of ['title','body','conclusion']){if(typeof item[key]!=='string'||item[key].length>50000)throw Error('O projeto contém um texto inválido.');s[key]=item[key]}s.accent=['#235641','#AD382B','#C7A451'].includes(item.accent)?item.accent:'#235641';for(const [key,min,max] of [['fontSize',32,58],['zoom',100,300],['focusX',0,100],['focusY',0,100],['darkness',0,85]])s[key]=Math.min(max,Math.max(min,Number(item[key])||min));s.grayscale=!!item.grayscale;s.vortex=!!item.vortex;for(const [key,min,max,fallback] of [['vortexStrength',0,100,82],['vortexRadius',10,80,45],['vortexX',0,100,50],['vortexY',0,100,43]])s[key]=Number.isFinite(item[key])?Math.max(min,Math.min(max,item[key])):fallback;if(item.image){if(typeof item.image!=='string'||!/^data:image\/(png|jpeg|webp);base64,/.test(item.image))throw Error('O projeto contém uma imagem inválida.');const img=new Image();await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(Error('Não foi possível abrir uma foto do projeto.'));img.src=item.image});s.image=img}loaded.push(s)}slides.splice(0,10,...loaded);height=data.height;brand=String(data.brand||'').slice(0,60);$('brand').value=brand;$('format').value=height;dirty=false;selectSlide(0);notify('Projeto aberto. Pode continuar a edição.')}catch(error){notify(error.message||'Não foi possível abrir o projeto.')}finally{e.target.value='';setBusy(false)}});
 $('downloadOne').addEventListener('click',()=>exportSlides(false));$('downloadAll').addEventListener('click',()=>exportSlides(true));selectSlide(0);fontsReady.then(redraw).catch(()=>notify('Não foi possível carregar as fontes. Atualize a página antes de exportar.'));
 </script></body></html>
